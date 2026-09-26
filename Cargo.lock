@@ -1000,7 +1000,7 @@ dependencies = [
 
 [[package]]
 name = "davinci_harness"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "criterion",
  "davinci_test_support",
@@ -1018,7 +1018,7 @@ dependencies = [
 
 [[package]]
 name = "davinci_test_support"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "regex-lite",
  "serde_json",
@@ -4066,7 +4066,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vize"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "clap",
  "corsa",
@@ -4110,18 +4110,18 @@ dependencies = [
  "vize_fresco",
  "vize_glyph",
  "vize_impeto",
+ "vize_l1",
+ "vize_l1_to_l2",
+ "vize_l2",
  "vize_maestro",
  "vize_musea",
  "vize_patina",
  "vize_relief",
- "vize_l1",
- "vize_l1_to_l2",
- "vize_l2",
 ]
 
 [[package]]
 name = "vize_armature"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "compact_str",
  "criterion",
@@ -4141,7 +4141,7 @@ dependencies = [
 
 [[package]]
 name = "vize_atelier_core"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "compact_str",
  "criterion",
@@ -4166,15 +4166,15 @@ dependencies = [
  "vize_carton",
  "vize_croquis",
  "vize_davinci",
- "vize_relief",
  "vize_l1",
  "vize_l1_to_l2",
  "vize_l2",
+ "vize_relief",
 ]
 
 [[package]]
 name = "vize_atelier_dom"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "criterion",
  "davinci_harness",
@@ -4193,7 +4193,7 @@ dependencies = [
 
 [[package]]
 name = "vize_atelier_jsx"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "criterion",
  "insta",
@@ -4203,8 +4203,8 @@ dependencies = [
  "oxc_diagnostics",
  "oxc_parser",
  "oxc_semantic",
- "oxc_span",
  "oxc_sourcemap",
+ "oxc_span",
  "oxc_syntax",
  "serde",
  "serde_json",
@@ -4215,14 +4215,14 @@ dependencies = [
  "vize_carton",
  "vize_croquis",
  "vize_davinci",
- "vize_relief",
  "vize_l1_to_l2",
  "vize_l2",
+ "vize_relief",
 ]
 
 [[package]]
 name = "vize_atelier_sfc"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "criterion",
  "davinci_harness",
@@ -4261,7 +4261,7 @@ dependencies = [
 
 [[package]]
 name = "vize_atelier_ssr"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "criterion",
  "davinci_harness",
@@ -4276,16 +4276,16 @@ dependencies = [
  "vize_croquis",
  "vize_davinci",
  "vize_impeto",
- "vize_relief",
  "vize_l1",
  "vize_l1_to_l2",
  "vize_l2",
  "vize_l2_to_l3",
+ "vize_relief",
 ]
 
 [[package]]
 name = "vize_atelier_vapor"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "criterion",
  "davinci_harness",
@@ -4315,7 +4315,7 @@ dependencies = [
 
 [[package]]
 name = "vize_benchmarks"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "criterion",
  "vize",
@@ -4325,7 +4325,7 @@ dependencies = [
 
 [[package]]
 name = "vize_canon"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "corsa",
  "corsa_lsp",
@@ -4361,16 +4361,16 @@ dependencies = [
  "vize_carton",
  "vize_croquis",
  "vize_davinci",
- "vize_relief",
  "vize_l1",
  "vize_l1_to_l2",
  "vize_l2",
+ "vize_relief",
  "walkdir",
 ]
 
 [[package]]
 name = "vize_carton"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "bitflags 2.13.1",
  "compact_str",
@@ -4395,7 +4395,7 @@ dependencies = [
 
 [[package]]
 name = "vize_croquis"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "criterion",
  "dashmap 6.2.1",
@@ -4429,7 +4429,7 @@ dependencies = [
 
 [[package]]
 name = "vize_croquis_cf"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "criterion",
  "davinci_harness",
@@ -4456,7 +4456,7 @@ dependencies = [
 
 [[package]]
 name = "vize_curator"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "davinci_test_support",
  "insta",
@@ -4482,7 +4482,7 @@ dependencies = [
 
 [[package]]
 name = "vize_davinci"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "criterion",
  "davinci_harness",
@@ -4502,7 +4502,7 @@ dependencies = [
 
 [[package]]
 name = "vize_davinci_derive"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4511,7 +4511,7 @@ dependencies = [
 
 [[package]]
 name = "vize_dialect_moonbit"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "serde_json",
  "sha2 0.11.0",
@@ -4527,7 +4527,7 @@ dependencies = [
 
 [[package]]
 name = "vize_doctor"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "criterion",
  "globset",
@@ -4543,7 +4543,7 @@ dependencies = [
 
 [[package]]
 name = "vize_extension_contract"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "serde",
  "vize_carton",
@@ -4555,7 +4555,7 @@ dependencies = [
 
 [[package]]
 name = "vize_extension_host"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "davinci_test_support",
  "serde",
@@ -4565,16 +4565,16 @@ dependencies = [
  "vize_davinci",
  "vize_extension_contract",
  "vize_extension_sdk",
- "vize_marquette",
  "vize_l1",
  "vize_l1_to_l2",
  "vize_l2",
+ "vize_marquette",
  "wasmtime",
 ]
 
 [[package]]
 name = "vize_extension_sdk"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "dlmalloc",
  "wit-bindgen 0.62.0",
@@ -4582,7 +4582,7 @@ dependencies = [
 
 [[package]]
 name = "vize_fresco"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "compact_str",
  "criterion",
@@ -4607,7 +4607,7 @@ dependencies = [
 
 [[package]]
 name = "vize_glyph"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "criterion",
  "insta",
@@ -4627,7 +4627,7 @@ dependencies = [
 
 [[package]]
 name = "vize_impeto"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "serde_json",
  "toml",
@@ -4636,8 +4636,77 @@ dependencies = [
 ]
 
 [[package]]
+name = "vize_l1"
+version = "0.429.0"
+dependencies = [
+ "davinci_test_support",
+ "vize_armature",
+ "vize_carton",
+ "vize_relief",
+]
+
+[[package]]
+name = "vize_l1_to_l2"
+version = "0.429.0"
+dependencies = [
+ "criterion",
+ "davinci_harness",
+ "davinci_test_support",
+ "htmlize",
+ "insta",
+ "oxc_ast",
+ "oxc_ast_visit",
+ "oxc_codegen",
+ "oxc_parser",
+ "oxc_semantic",
+ "oxc_span",
+ "oxc_syntax",
+ "oxc_transformer",
+ "sha2 0.11.0",
+ "smallvec",
+ "toml",
+ "vize_atelier_core",
+ "vize_atelier_dom",
+ "vize_atelier_sfc",
+ "vize_carton",
+ "vize_croquis",
+ "vize_davinci",
+ "vize_impeto",
+ "vize_l1",
+ "vize_l2",
+ "vize_relief",
+]
+
+[[package]]
+name = "vize_l2"
+version = "0.429.0"
+dependencies = [
+ "oxc_ast",
+ "oxc_parser",
+ "oxc_span",
+ "vize_carton",
+ "vize_davinci",
+]
+
+[[package]]
+name = "vize_l2_to_l3"
+version = "0.429.0"
+dependencies = [
+ "davinci_test_support",
+ "insta",
+ "serde_json",
+ "vize_atelier_sfc",
+ "vize_carton",
+ "vize_davinci",
+ "vize_impeto",
+ "vize_l1",
+ "vize_l1_to_l2",
+ "vize_l2",
+]
+
+[[package]]
 name = "vize_maestro"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "async-trait",
  "dashmap 6.2.1",
@@ -4680,7 +4749,7 @@ dependencies = [
 
 [[package]]
 name = "vize_marquette"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "insta",
  "serde",
@@ -4692,7 +4761,7 @@ dependencies = [
 
 [[package]]
 name = "vize_musea"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "criterion",
  "davinci_harness",
@@ -4707,7 +4776,7 @@ dependencies = [
 
 [[package]]
 name = "vize_patina"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "corsa",
  "criterion",
@@ -4736,15 +4805,15 @@ dependencies = [
  "vize_croquis",
  "vize_davinci",
  "vize_glyph",
- "vize_relief",
  "vize_l1",
  "vize_l1_to_l2",
  "vize_l2",
+ "vize_relief",
 ]
 
 [[package]]
 name = "vize_relief"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "oxc_ast",
  "oxc_ast_visit",
@@ -4758,91 +4827,22 @@ dependencies = [
 
 [[package]]
 name = "vize_resident"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "salsa",
  "toml",
  "vize_carton",
  "vize_croquis",
  "vize_davinci",
- "vize_relief",
  "vize_l1",
  "vize_l1_to_l2",
  "vize_l2",
-]
-
-[[package]]
-name = "vize_l1"
-version = "0.428.1"
-dependencies = [
- "davinci_test_support",
- "vize_armature",
- "vize_carton",
  "vize_relief",
-]
-
-[[package]]
-name = "vize_l1_to_l2"
-version = "0.428.1"
-dependencies = [
- "criterion",
- "davinci_harness",
- "davinci_test_support",
- "htmlize",
- "insta",
- "oxc_ast",
- "oxc_ast_visit",
- "oxc_codegen",
- "oxc_parser",
- "oxc_semantic",
- "oxc_span",
- "oxc_syntax",
- "oxc_transformer",
- "sha2 0.11.0",
- "smallvec",
- "toml",
- "vize_atelier_core",
- "vize_atelier_dom",
- "vize_atelier_sfc",
- "vize_carton",
- "vize_croquis",
- "vize_davinci",
- "vize_impeto",
- "vize_relief",
- "vize_l1",
- "vize_l2",
-]
-
-[[package]]
-name = "vize_l2"
-version = "0.428.1"
-dependencies = [
- "oxc_ast",
- "oxc_parser",
- "oxc_span",
- "vize_carton",
- "vize_davinci",
-]
-
-[[package]]
-name = "vize_l2_to_l3"
-version = "0.428.1"
-dependencies = [
- "davinci_test_support",
- "insta",
- "serde_json",
- "vize_atelier_sfc",
- "vize_carton",
- "vize_davinci",
- "vize_impeto",
- "vize_l1",
- "vize_l1_to_l2",
- "vize_l2",
 ]
 
 [[package]]
 name = "vize_test_runner"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "pklrust",
  "serde",
@@ -4855,7 +4855,7 @@ dependencies = [
 
 [[package]]
 name = "vize_vitrine"
-version = "0.428.1"
+version = "0.429.0"
 dependencies = [
  "getrandom 0.3.4",
  "glob",
@@ -4890,12 +4890,12 @@ dependencies = [
  "vize_davinci",
  "vize_glyph",
  "vize_impeto",
- "vize_musea",
- "vize_patina",
- "vize_relief",
  "vize_l1",
  "vize_l1_to_l2",
  "vize_l2",
+ "vize_musea",
+ "vize_patina",
+ "vize_relief",
  "wasm-bindgen",
  "web-sys",
 ]
