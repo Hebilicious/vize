@@ -45,6 +45,8 @@ pub struct SsrCodegenContext<'a> {
     pub(crate) component_name: Option<String>,
     /// Whether the reserved `<Self>` tag resolves to the current component.
     pub(crate) experimental_self_component: bool,
+    /// Whether slot outlets contribute this component's own slotted scope ID.
+    pub(crate) slotted: bool,
     /// The structured emission document: generated code plus, when a Source
     /// Map v3 document is requested, the links from its bytes to the template.
     pub(crate) out: EmitDocument,
@@ -58,6 +60,8 @@ pub struct SsrCodegenContext<'a> {
     pub(crate) current_template_parts: SmallVec<[TemplatePart; 8]>,
     /// Whether currently within a slot scope
     pub(crate) with_slot_scope_id: bool,
+    /// Vue captures the owner scope when creating an outlet's fallback VNodes.
+    pub(crate) vnode_slot_fallback: bool,
     /// Template-local identifiers from v-for and scoped slots.
     pub(crate) scoped_params: std::vec::Vec<FxHashSet<String>>,
     /// Stack of `v-model` expressions on currently-open `<select>` ancestors.
@@ -103,6 +107,7 @@ impl<'a> SsrCodegenContext<'a> {
             options,
             component_name,
             experimental_self_component: experimental_options.self_component,
+            slotted: experimental_options.slotted.unwrap_or(true),
             source,
             out: EmitDocument::with_capacity(1024, experimental_options.source_map),
             indent_level: 0,
@@ -110,6 +115,7 @@ impl<'a> SsrCodegenContext<'a> {
             core_helpers: FxHashSet::default(),
             current_template_parts: SmallVec::new(),
             with_slot_scope_id: false,
+            vnode_slot_fallback: false,
             scoped_params: std::vec::Vec::new(),
             select_v_model_stack: std::vec::Vec::new(),
             source_map_filename,

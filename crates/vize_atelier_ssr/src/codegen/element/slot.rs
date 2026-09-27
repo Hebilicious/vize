@@ -5,8 +5,8 @@ use super::props::{
     static_slot_outlet_prop_key, transform_slot_outlet_bound_prop_key,
 };
 use super::{
-    ElementNode, ExpressionNode, PropNode, RuntimeHelper, SsrCodegenContext, String,
-    ToCompactString, VNodePropEntry,
+    ComponentSlotChildren, ElementNode, ExpressionNode, PropNode, RuntimeHelper, SsrCodegenContext,
+    String, TemplateChildNode, ToCompactString, VNodePropEntry,
 };
 
 impl<'a> SsrCodegenContext<'a> {
@@ -52,10 +52,12 @@ impl<'a> SsrCodegenContext<'a> {
         self.push(")\n");
     }
 
-    /// A scoped outlet contributes its own slotted ID; only a slot callback
-    /// receives `_scopeId` from the renderer and can forward it.
+    /// A :slotted() outlet contributes its own slotted ID; only a slot callback
+    /// receives `_scopeId` from the renderer and can forward it regardless.
     pub(crate) fn push_slot_scope_id(&mut self) {
-        if let Some(scope_id) = self.options.scope_id.as_deref() {
+        if self.slotted
+            && let Some(scope_id) = self.options.scope_id.as_deref()
+        {
             let mut slotted_id = String::from(scope_id);
             slotted_id.push_str("-s");
             self.push(", ");
@@ -66,6 +68,37 @@ impl<'a> SsrCodegenContext<'a> {
         } else if self.with_slot_scope_id {
             self.push(", _scopeId");
         }
+    }
+
+    /// Keep the VNode fallback's noSlotted argument aligned with the SSR branch.
+    pub(crate) fn finish_vnode_slot_outlet(&self, out: &mut String, has_fallback: bool) {
+        if !self.slotted {
+            if !has_fallback {
+                out.push_str(", undefined");
+            }
+            out.push_str(", true");
+        }
+        out.push(')');
+    }
+
+    /// The real VNode already carries its creating component's scope ID.
+    pub(crate) fn vnode_element_scope_id(&self) -> Option<&'a str> {
+        if self.vnode_slot_fallback {
+            None
+        } else {
+            self.options.scope_id.as_deref()
+        }
+    }
+
+    pub(super) fn vnode_slot_fallback_expression(
+        &mut self,
+        children: &[TemplateChildNode<'a>],
+    ) -> String {
+        let previous = std::mem::replace(&mut self.vnode_slot_fallback, true);
+        let output =
+            self.vnode_component_slot_children_expression(&ComponentSlotChildren::Slice(children));
+        self.vnode_slot_fallback = previous;
+        output
     }
 
     pub(super) fn build_slot_outlet_props(&mut self, el: &ElementNode) -> String {
