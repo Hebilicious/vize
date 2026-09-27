@@ -254,6 +254,13 @@ pipelines or serialization cost.
   wall-clock envelope runs nightly.
 - **Per-stage budgets ratchet from current measurements.** Today all 102
   `wall_p50_ns` entries in `plan/budgets.toml` are unset.
+- The [instruction-count gate record](./2026-09-27-instruction-counts.md)
+  defines measured-only ceilings and immutable-base ratchets for #6868.
+  Independent clean Actions builds (run 36307058591, attempts 1 and 2)
+  match all 100 probes in three executions each under the fixed guest method.
+  Required `test-report` aggregates queue measurement and strict ceilings.
+  Separate queue tests and test-inventory collection preserve its check name
+  and satisfy the source-length ratchet. Exact queue verification is pending.
 - Whether `SideTable` changes from `FxHashMap` to dense `Vec` storage is
   decided after measuring table density and lookup cost
   ([#6869](https://github.com/ubugeeei-prod/vize/issues/6869)).

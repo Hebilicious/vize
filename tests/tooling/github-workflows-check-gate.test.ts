@@ -20,7 +20,7 @@ const SOURCE_PR_JOBS = [
   "pr-tooling-scripts",
   "pr-playground-test",
 ];
-const PR_JOBS = [...CORE_PR_JOBS, "pr-source-checks"];
+const PR_JOBS = [...CORE_PR_JOBS, "pr-source-checks", "instruction-counts"];
 const FULL_SUITE_JOBS = [
   "nix-flake",
   "vue-parity",
