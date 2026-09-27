@@ -175,7 +175,12 @@ See the [type check decisions](./2026-09-27-level-restructure-designs.md#type-ch
 
 ## Legacy deletion criteria
 
-See the [legacy deletion criteria decisions](./2026-09-27-level-restructure-history.md#legacy-deletion-criteria) in the companion record.
+See the [legacy deletion criteria decisions](./2026-09-27-level-restructure-history.md#legacy-deletion-criteria)
+in the companion record and the [LSP fix-history response-fixture installment](./2026-09-27-lsp-fix-history.md)
+for the pinned review ledger, complete document-link response contract and
+unfinished history obligations in #6883.
+The same installment preserves dated source-runtime receipts separately from
+historical binary evidence; later heads still require their own Actions proof.
 
 ## Multi-framework
 
