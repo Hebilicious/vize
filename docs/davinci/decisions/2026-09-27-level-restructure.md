@@ -280,6 +280,8 @@ with the formatter's always-upload corpus evidence without changing build setup.
 [Heavy tooling inputs](./2026-09-27-heavy-tooling-inputs.md) records Cargo corpus,
 Moon/benchmark dependencies and the immutable queue source-length base for #6863.
 
+[Rust cache backends](./2026-09-27-rust-cache-backends.md) records the reviewed bounded provider namespaces and trusted Actions seed candidate for #6830; actual seed/restore/runtime proof remains pending.
+
 ## Order of work
 
 See the [order of work decisions](./2026-09-27-level-restructure-order.md#order-of-work) in the companion record.
