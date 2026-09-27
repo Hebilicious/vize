@@ -296,12 +296,12 @@ whole-workspace resident state.
 Tracked in [#6830](https://github.com/ubugeeei-prod/vize/issues/6830) and
 [#6861](https://github.com/ubugeeei-prod/vize/issues/6861)–[#6867](https://github.com/ubugeeei-prod/vize/issues/6867). [First-publish control repair](./2026-09-27-sdk-bootstrap-control.md) is tracked in [#6895](https://github.com/ubugeeei-prod/vize/issues/6895).
 
-| Tier           | Runs              | Target                   | Content                                                                                                                     |
-| -------------- | ----------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| T0 PR          | every push        | p50 ≤ 3 min, p90 ≤ 6 min | fmt, title-policy, clippy and tests for affected crates (nextest archive + shards), input-selected tooling tests            |
-| T1 merge queue | once before merge | —                        | full workspace and tooling tests, differential corpus and acceptance gates, instruction-count performance gates, playground |
-| T2 nightly     | schedule          | —                        | E2E, real-project matrix, fuzz, miri, benchmarks, editor conformance, resource budgets                                      |
-| T3 release     | release           | —                        | everything, semver checks, release preflight                                                                                |
+| Tier           | Runs              | Target                   | Content                                                                                                                                                                            |
+| -------------- | ----------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T0 PR          | every push        | p50 ≤ 3 min, p90 ≤ 6 min | fmt, title-policy, clippy and tests for affected crates (nextest archive + shards), input-selected tooling tests                                                                   |
+| T1 merge queue | once before merge | —                        | full workspace and tooling tests, differential corpus and acceptance gates, instruction-count performance gates, playground ([#6865 execution](./2026-09-27-merge-queue-gates.md)) |
+| T2 nightly     | schedule          | —                        | E2E, real-project matrix, fuzz, miri, benchmarks, editor conformance, resource budgets                                                                                             |
+| T3 release     | release           | —                        | everything, semver checks, release preflight                                                                                                                                       |
 
 - zizmor runs only for external contributors, releases and PRs that touch
   `.github/**`. [Audit selection](./2026-09-27-ci-security-selection.md) records #6866.
@@ -315,6 +315,8 @@ fail-closed dependency plan and shell-free package execution for #6862.
 [Tooling input selection](./2026-09-27-tooling-input-selection.md) records the
 shared task inputs, explicit T1 runtime inventory and conservative T0 fallback
 for [#6863](https://github.com/ubugeeei-prod/vize/issues/6863) and [#6864](https://github.com/ubugeeei-prod/vize/issues/6864).
+
+[Stacked PR checks](./2026-09-27-stacked-pr-checks.md) run on every PR base.
 
 ## Order of work
 
@@ -338,3 +340,7 @@ The [first formatter path](./2026-09-27-differential-formatter.md) records the
 two exact regression fixtures, source-build receipt, raw comparison, deliberate
 corpus membership and remaining product/T1/T2 work. Native formatter is
 unsupported; this first legacy path receives zero native acceptance credit.
+
+[CI stack replay after publication](./2026-09-27-ci-stack-resume.md) records
+the main replay, preserved corpus rows, #6910 deduplication after the first
+queue merges, and remaining exact-head CI evidence.
