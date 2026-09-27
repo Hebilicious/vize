@@ -153,6 +153,9 @@ Tracked in [#6827](https://github.com/ubugeeei-prod/vize/issues/6827) and [#6845
   The shared public formatter API observer builds in T1 from the actual checkout, rejects untracked Rust product sources, retains receipt/stream artifacts through one shared composite upload action, counts four default byte/fixed-point cases and two legacy internal observations separately, and keeps native credit zero; other history and CLI checks remain pending.
 
 - **Linter:** syntax rules on L1, semantic rules on L2 and facts. Diagnostics go through L0, and autofixes are L1 span edits.
+
+  [#6881 linter history inventory](./2026-09-27-linter-history-inventory.md) pins full Git history and candidate snapshot blobs; enumeration never counts as fixture coverage or native acceptance.
+
 - **Type checker:** the virtual-TS projection is an L4 target mapped back through `EmitDocument` links.
 - **LSP:** holds level artifacts incrementally and never parses by itself.
 
