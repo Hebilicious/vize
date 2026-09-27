@@ -14,6 +14,8 @@ fixed-point or substring assertions alone do not establish full output parity.
   returned UTF-8 bytes, including CR/LF and the final newline. No trimming,
   newline normalization, sorting, or production formatter changes are added.
   Git text conversion is disabled for prepared assets and binary references.
+  Binary references retain authored trailing whitespace and raw EOF spaces;
+  Git's whitespace diagnostics are disabled only for those reference bytes.
 - Distinguish public `format_script` and `format_sfc` observations from CLI and
   private helper observations. An internal helper accepting a token sequence
   does not imply that the public CSS parser accepts it.
@@ -77,6 +79,22 @@ Five narrow tests passed capture, updates-disabled replay and frozen executable
 replay. Strict Clippy also passed. The receipt binds the actual test source,
 executable, toolchain and local logs. These are prepared public observations;
 shared registration, Actions and native acceptance remain pending.
+
+## Slot, root-tag and raw-close slice
+
+`fix_history_template_gaps.rs` adds thirteen full public byte references for
+static/bound legacy slots, templated template/style/custom roots, incomplete
+raw closes and unavoidable inner directive quotes. Preserve actual dynamic
+evaluation barriers; helper classification is tested separately for bound
+slot/slot-scope names. Three focused priority tests passed.
+
+The public template API removes trailing CR/LF even from raw fragments. The
+incomplete-close fixtures retain that existing contract and preserve every
+other tail byte; they do not invent a closing delimiter or infer helper output.
+Four public tests passed capture, updates-disabled replay, frozen executable
+replay and strict Clippy. No production formatter algorithm changed. Keep the
+glyph import inventory row in this same slice so each stacked head validates.
+Shared registration and Actions remain pending.
 
 ## Remaining work
 
