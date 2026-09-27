@@ -131,6 +131,39 @@ Six tests passed capture, updates-disabled/frozen replay and strict Clippy.
 The already complete two-arm template literal witness is not duplicated.
 Shared registration and Actions remain pending.
 
+## Shared public API execution
+
+The `formatter-public-api-v1` observer executes the first six manifest cases
+through real public APIs and the shared byte comparator. Four default cases
+require three matching outputs and real fixed points. Two internal single-pass
+cases remain separately counted legacy observations; they do not prescribe a
+native mechanism or count as CLI check-verdict coverage.
+
+The shared tooling execution test builds the narrow observer from the actual
+checkout, records Cargo's selected artifact/profile/features, freezes its
+executable, probes complete actual options and compares raw stdout/stderr.
+SFC changed verdicts are retained separately from formatted bytes. CI uses its
+existing `ci` profile and target cache; local capture uses an isolated `dev`
+target. Real Cargo execution stays in the explicit T1 tooling inventory; T0
+retains the pure contract tests and unknown-file selection remains fail-closed.
+T1/nightly/manual Actions retain the frozen executable, raw Cargo logs, receipt
+and complete API observations as artifacts, including failure observations.
+Both workflow callers share one composite artifact action with unchanged guards
+and upload settings, keeping the existing full workflow within its line budget.
+The source guard also rejects untracked non-test Rust files and Cargo manifests;
+NUL-separated Git paths keep that guard valid for non-ASCII filenames.
+Missing rows, wrong APIs/options, artifact/source mismatch, output drift,
+broken pass chains and invented native credit fail closed.
+
+The initial actual execution and three validator tests passed in 4.47 seconds;
+the source-guard and T1 selection follow-up passed all six execution/contract
+tests and 26 focused tooling checks. Strict Clippy passed. The original proof
+remains at `/tmp/vize-formatter-api-observer-proof-20260927`; the restacked
+source-built replay is `/tmp/vize-formatter-api-observer-proof-publish-20260927`.
+No Actions success is claimed.
+Registration for all other historical cases and actual CLI check observations
+remains TODO. Native handled/equivalent/paired comparisons remain zero.
+
 ## Remaining work
 
 Fresh Actions also required the two touched glyph consumer/v-on inventories
@@ -159,6 +192,6 @@ and test-source hashes. Shared registration and Actions remain pending.
 - Verify full Actions checks and the merge-queue corpus before closing #6882
   or replacing the legacy formatter path.
 
-Prepared comparisons receive no shared corpus or native acceptance
+Other prepared comparisons receive no shared corpus or native acceptance
 credit yet. Native formatter support is unavailable; handled, equivalent and
 paired native comparisons remain zero. #6882 remains open.

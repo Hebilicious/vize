@@ -181,6 +181,8 @@ jobs:
       - name: Test tooling scripts
         if: ${{ github.event_name == 'merge_group' && needs.pr-source-plan.outputs.tooling == 'true' }}
         run: vp run --workspace-root test:scripts
+      - uses: ./.github/actions/upload-formatter-api-corpus-evidence
+        if: ${{ always() && github.event_name == 'merge_group' && needs.pr-source-plan.outputs.tooling == 'true' }}
 
   pr-playground-test:
     name: PR playground browser tests
