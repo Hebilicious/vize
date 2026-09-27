@@ -326,6 +326,14 @@ shared task inputs, explicit T1 runtime inventory and conservative T0 fallback
 for [#6863](https://github.com/ubugeeei-prod/vize/issues/6863) and [#6864](https://github.com/ubugeeei-prod/vize/issues/6864).
 
 [Stacked PR checks](./2026-09-27-stacked-pr-checks.md) run on every PR base.
+[Rust PR archive and shard execution](./2026-09-27-rust-nextest-shards.md)
+records #6862's runner, doctest, resource and archive identity decisions.
+
+[Rust source wiring](./2026-09-27-ci-rust-core.md) preserves full queue
+execution, proves the tested comparison base and records the intermediate scope.
+
+[CI baseline decisions](./2026-09-27-ci-baseline-decisions.md) preserve
+the Rust timings, first formatter path and stack replay evidence.
 
 ## Order of work
 
@@ -333,23 +341,3 @@ See the [order of work decisions](./2026-09-27-level-restructure-order.md#order-
 in the companion record.
 
 [Nuxt critical CSS module identity](./2026-09-27-nuxt-critical-css.md) records [#6897](https://github.com/ubugeeei-prod/vize/issues/6897); compiler migration and SSR slot scope remain separate.
-
-## #6861 — Rust test phase measurements
-
-For [#6861](https://github.com/ubugeeei-prod/vize/issues/6861), measure
-workspace-test compilation and execution separately without changing gates.
-See the [measurement protocol](./2026-09-27-ci-measurements.md). Validate
-normal automatic CI artifacts before closing the issue; #6865 and #6868
-remain separate requirements before declaring full T1 coverage.
-
-## Shared differential fixtures
-
-Tracked in [#6891](https://github.com/ubugeeei-prod/vize/issues/6891).
-The [first formatter path](./2026-09-27-differential-formatter.md) records the
-two exact regression fixtures, source-build receipt, raw comparison, deliberate
-corpus membership and remaining product/T1/T2 work. Native formatter is
-unsupported; this first legacy path receives zero native acceptance credit.
-
-[CI stack replay after publication](./2026-09-27-ci-stack-resume.md) records
-the main replay, preserved corpus rows, #6910 deduplication after the first
-queue merges, and remaining exact-head CI evidence.
