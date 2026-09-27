@@ -1,8 +1,12 @@
 # Rust cache backends
 
-Reviewed candidate for [#6830](https://github.com/ubugeeei-prod/vize/issues/6830).
-Actual trusted Actions seeding, later source/queue cache hits and fresh runtime
-reports remain pending. The paired issue comment is drafted below.
+[PR #6970](https://github.com/ubugeeei-prod/vize/pull/6970) merged for
+[#6830](https://github.com/ubugeeei-prod/vize/issues/6830) at main `73e8f079`.
+The full queue passed 12,808 Rust tests and 5,272 tooling cases (5,260 passes,
+12 known skips, no failures or cancellations). Trusted registry/Git, direct
+JS, playground and tooling targets have actual save receipts. Full main dispatch
+36327090288 succeeded; later restoration and nested target saving remain
+pending. The paired issue comment is below.
 
 ## Decision
 
@@ -67,6 +71,16 @@ TODO: verify a trusted default-branch seed followed by a PR restore
 and all fresh runtime/source reports. No CI p50/p90 or wall-time gain is claimed.
 Actions cache's restoration scope and eviction apply independently of the
 provider disk limit; initial cache misses still build and test normally.
+The runner-served cache logs report real saved/read keys while the GitHub
+cache-list API reports zero entries; the latter is not proof of backend absence.
+Full Check 36327090288's source-coverage target uploaded 41,705,863,669 bytes,
+then cache finalization rejected it at the backend's 25 GB entry limit.
+Coverage validation passed and the stable provider post completed, but that
+Actions target was not saved. Its target post took 886.677 seconds. The same
+full Check's clippy/test target uploaded 27,734,456,109 bytes and was rejected
+by the same limit; its target post took 670.762 seconds after tests passed.
+Bounding these impossible uploads is a separate TODO; this repair neither
+deletes caches nor changes artifact paths or test commands.
 
 The current full Check has trusted target writers for `test-scripts`,
 `test-js-packages`, `playground-test` and `clippy-test`. PR-only `nextest-ci`
@@ -81,6 +95,45 @@ The primary target key uses repository lock/toolchain inputs. The standalone
 lockfile, so those standalone inputs are not fully represented by this key.
 The unchanged Cargo commands still resolve and validate the current inputs;
 a restored target does not substitute for a fresh build.
+
+## Nested cache post paths
+
+Trusted push Check 36327048242 saved registry/Git before provider unmounts,
+but its nested `check-js` target post warned `Input required and not supplied:
+path`. The pinned cache action retains its primary key in state and reads
+`path` again in post. In a nested composite, this action's `steps.cache-policy`
+outputs are unavailable then. Full dispatch 36327090288's direct JS target
+posts saved successfully before unmount; that does not cover the nested case.
+The observed runner is 2.337.0; its [composite handler](https://github.com/actions/runner/blob/v2.337.0/src/Runner.Worker/Handlers/CompositeActionHandler.cs#L98-L153)
+sets the composite inputs during post too. The [pinned cache save code](https://github.com/actions/cache/blob/27d5ce7f107fe9357f9df03efb73ab90386fccae/src/saveImpl.ts)
+reads path again, even when its primary key was retained in action state.
+
+The reviewed repair passes the same immutable target inputs to trusted saves
+and untrusted restores. The pinned cache SDK 5.0.5 hashes the literal path
+strings into its cache version without normalization; relative writers and
+absolute readers would miss despite identical keys. Its exact package and
+integrity are recorded in the [pinned action lockfile](https://github.com/actions/cache/blob/27d5ce7f107fe9357f9df03efb73ab90386fccae/package-lock.json).
+Current callers use relative inputs; their old absolute-path target versions
+therefore miss once after this repair;
+nextest and other unseeded roles still build normally. Registry/Git use the
+same literal paths and retain their existing versions. No entries are deleted.
+The policy still validates those paths inside the workspace before any child
+executes; keys, trust boundaries, per-path mount probes and save/unmount order
+stay unchanged. Backend subprocess tests remove step outputs in post, save
+the freshly built target artifact and separate secondary clone, and reproduce
+the missing-path error when the old expression is restored. They also retain
+the untrusted restore-only case. A persisted fake cache hashes those actual
+path strings: both target seeds restore in a new PR and failed-mount fallback,
+while the mixed absolute reader misses. Malformed target inputs stop before
+any cache child and preserve the stored entries. Actual nested post saving
+and restoration after publication remain required; these local controls do
+not establish a live cache hit.
+
+Issue #6830 paired follow-up draft: the first real trusted run exposed the
+nested target gap, so use validated stable inputs during cache post. Existing
+registry/Git and direct target receipts remain valid; nested target and later
+untrusted restoration are unfinished. No provider names or test commands
+change, and no three/six-minute timing claim is made.
 
 ## Issue #6830 comment draft
 
