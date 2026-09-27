@@ -71,6 +71,45 @@ later runs. This dated source proof remains evidence for its exact head; every
 later transport or merged head still requires its own Actions checks. It does
 not establish complete wire/state coverage, native L4 parity or #6883 closure.
 
+## CRLF on-type formatting installment
+
+Fix `4d04bc3e53acfddf835f2db70e613abe85ce8df4` made CRLF line endings
+independent of the formatter's LF output when pairing on-type lines. Its exact
+original Rust `SOURCE` literal and LF-to-CRLF transform produce the 211-byte
+`on-type-crlf/App.vue.txt` input, containing 18 CRLF pairs. The source bytes and
+complete response contracts have committed SHA256 values.
+The exact input path disables Git newline conversion and recognizes CR at the
+end of each line; other repository files keep their existing attributes.
+
+A production stdio fixture now checks the original script indent deletion and
+the existing LF regression's CSS, already-indented and out-of-range controls on
+that same CRLF document. The four complete `TextEdit[]`/null responses retain
+authored line/character positions, edit order, empty text and absent extra fields.
+The fixture must retain exactly four responses before opening the session; an
+empty expectation cannot silently skip every runtime request.
+The helper also requires the entry URI's exact version-1 diagnostics publication.
+All three on-type tests passed against the same pinned historical f59 artifact,
+with zero failures/skips/cancellations. Full-wire/shared-runner registration
+remains pending. This covers only the selected CRLF public response witness;
+it does not establish whole-fix or whole-history coverage.
+
+### Dated CRLF source proof
+
+The [full Check run 36308272169](https://github.com/ubugeeei-prod/vize/actions/runs/36308272169)
+succeeded at source `77440e00f2b04b0eb9179ebc96e058029ac22e88`.
+Its [actual tooling runtime](https://github.com/ubugeeei-prod/vize/actions/runs/36308272169/job/108589075928)
+records that exact checkout, the successful CI-profile CLI build, receipt
+creation and required source-bound LSP invocation. Both named complete
+document-link and CRLF response tests passed. The tooling suite reported 5,164
+passes, zero failures/cancellations and the same 12 unrelated skips; all 18
+actual full workflow jobs passed.
+
+That run did not retain the receipt JSON separately, so no binary hash is
+inferred or borrowed from the old f59 artifact. Later transport and merged
+heads require their own Actions proof. Complete wire/state and shared-runner
+registration remain unfinished, and the selected witness gives no native L4
+parity or whole-fix-history credit.
+
 ## Reuse and remaining work
 
 The first LF/CRLF observer pack (`1da2c5282a66693354c11929b5efab151140ee5e`)
