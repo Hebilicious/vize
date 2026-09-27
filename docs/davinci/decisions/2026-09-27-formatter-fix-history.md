@@ -110,7 +110,35 @@ strict Clippy. These broaden the public output evidence while keeping existing
 helper tests. Shared registration, Actions and full-history acceptance remain
 pending.
 
+## SFC layout slice
+
+`fix_history_sfc_layout.rs` copies six original whole-SFC input strings exactly:
+literal multiline attributes, multiline comments/pre openings, wrapped
+interpolations, trailing text and text between interpolations. Defaults and
+three-pass fixed-point checks are unchanged; binary snapshots add the missing
+complete first output. Input hashes were checked against the original source.
+Six tests passed capture, updates-disabled/frozen replay and strict Clippy.
+Shared registration and Actions remain pending.
+
+## Directive layout slice
+
+`fix_history_directive_layout.rs` copies six original inputs and option sets
+for multiline/verbatim directive values, v-for collections, blank lines and
+leading comments, quote/number policy across SFC blocks and pinned suppression
+lines. The complete first output and three real calls retain every original
+semantic constraint. Six decoded input hashes matched their original tests.
+Six tests passed capture, updates-disabled/frozen replay and strict Clippy.
+The already complete two-arm template literal witness is not duplicated.
+Shared registration and Actions remain pending.
+
 ## Remaining work
+
+Fresh Actions also required the two touched glyph consumer/v-on inventories
+to reflect the added test paths. Refresh only their three actual new rows;
+the central decision record retains the same decisions within its line budget.
+Twenty focused tooling checks, sixteen affected public Rust tests and strict
+Clippy passed after the assertion/inventory repair. Golden and receipt bytes
+remain unchanged; the receipts still describe their original capture source.
 
 - Finish the commit-by-commit audit of all 56 original fix-title commits and
   supplementary behavioral changes; preserve superseded contracts explicitly.
