@@ -49,6 +49,19 @@ fn vue_files(dir: &Path, out: &mut Vec<PathBuf>) {
 }
 
 fn run_plane() -> EquivalenceReport {
+    run_plane_where(|_| true)
+}
+
+fn critical_css_fixture(name: &str) -> bool {
+    matches!(
+        name,
+        "nuxt-critical-css-build/app/app.vue"
+            | "nuxt-critical-css-build/app/layouts/default.vue"
+            | "nuxt-critical-css-build/app/pages/index.vue"
+    )
+}
+
+fn run_plane_where(keep: impl Fn(&str) -> bool) -> EquivalenceReport {
     let root = repo().join("tests/_fixtures/_projects");
     let mut files = Vec::new();
     vue_files(&root, &mut files);
@@ -56,39 +69,39 @@ fn run_plane() -> EquivalenceReport {
     let scripts = scripts();
     let mut report = EquivalenceReport::default();
     for path in files {
-        let text = std::fs::read_to_string(&path).expect("fixture text");
         let name = path
             .strip_prefix(&root)
             .expect("under root")
             .to_string_lossy();
+        if !keep(&name) {
+            continue;
+        }
+        let text = std::fs::read_to_string(&path).expect("fixture text");
         report.check_file(&name, &text, &scripts);
     }
     report
 }
 
 #[cfg(not(feature = "seeded-stale-cache"))]
-#[test]
-fn incremental_equals_clean_on_every_committed_project_fixture() {
+fn assert_report(report: &EquivalenceReport, counts: [u32; 6], snapshot: [[u32; 3]; 3]) {
     use vize_resident::snapshot::{JointCounts, SnapshotStats};
 
-    let report = run_plane();
-    println!("{}", report.summary());
     assert_eq!(report.mismatches, []);
     assert_eq!(report.verdict(), Ok(()));
     assert_eq!(
-        (
+        [
             report.files,
             report.script_runs,
             report.steps_applied,
             report.ops_skipped,
             report.comparisons,
             report.blocks_compared,
-        ),
-        (68, 408, 2050, 262, 2526, 5464)
+        ],
+        counts
     );
     // The snapshot path (P5-5) ran beside the database on every state and
     // matched too; its adoption accounting over the plane is pinned exactly.
-    let joint = |adopted, computed, cancelled| JointCounts {
+    let joint = |[adopted, computed, cancelled]: [u32; 3]| JointCounts {
         adopted,
         computed,
         cancelled,
@@ -96,10 +109,34 @@ fn incremental_equals_clean_on_every_committed_project_fixture() {
     assert_eq!(
         report.snapshot,
         SnapshotStats {
-            header: joint(1982, 204, 136),
-            blocks: joint(2508, 2226, 1788),
-            regions: joint(158, 1546, 1175),
+            header: joint(snapshot[0]),
+            blocks: joint(snapshot[1]),
+            regions: joint(snapshot[2]),
         }
+    );
+}
+
+#[cfg(not(feature = "seeded-stale-cache"))]
+#[test]
+fn incremental_equals_clean_on_every_committed_project_fixture() {
+    let report = run_plane();
+    println!("{}", report.summary());
+    assert_report(
+        &report,
+        [71, 426, 2137, 277, 2634, 5646],
+        [[2066, 213, 142], [2577, 2314, 1861], [164, 1612, 1226]],
+    );
+    // Keep the previous plane's complete accounting; the added fixtures must
+    // contribute their own measured states without replacing any old work.
+    assert_report(
+        &run_plane_where(|name| !critical_css_fixture(name)),
+        [68, 408, 2050, 262, 2526, 5464],
+        [[1982, 204, 136], [2508, 2226, 1788], [158, 1546, 1175]],
+    );
+    assert_report(
+        &run_plane_where(critical_css_fixture),
+        [3, 18, 87, 15, 108, 182],
+        [[84, 9, 6], [69, 88, 73], [6, 66, 51]],
     );
 }
 
@@ -110,9 +147,16 @@ fn the_seeded_stale_cache_is_caught() {
     println!("{}", report.summary());
     // Only length-preserving edits slip past the weakened equality; each one
     // leaves the stale block's L0 key (and every artifact behind it) served —
-    // by the database (353 states) and by the snapshot tree, whose block
-    // joint compares the same `BlockSource` (285 more).
-    assert_eq!(report.mismatches.len(), 638);
+    // by the database and by the snapshot tree, whose block joint compares
+    // the same `BlockSource`. Pin the old and newly added fixture planes too.
+    assert_eq!(report.mismatches.len(), 667);
+    assert_eq!(
+        run_plane_where(|name| !critical_css_fixture(name))
+            .mismatches
+            .len(),
+        638
+    );
+    assert_eq!(run_plane_where(critical_css_fixture).mismatches.len(), 29);
     assert_eq!(
         report.mismatches[0],
         vize_resident::equivalence::Mismatch {

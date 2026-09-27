@@ -90,10 +90,6 @@ async function loadVueModule(plugin: Plugin, id: string): Promise<string> {
   return code as string;
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 async function loadResolvedVueModule(plugin: Plugin, id: string): Promise<string> {
   const resolved = await resolveVueId(plugin, id);
   assert.ok(resolved, `${id} must resolve as a Vue module`);
@@ -102,11 +98,22 @@ async function loadResolvedVueModule(plugin: Plugin, id: string): Promise<string
 
 async function loadResolvedStyleModule(plugin: Plugin, id: string): Promise<string> {
   const code = await loadResolvedVueModule(plugin, id);
-  const styleId = `${id}.__vize_style_0.css?vue=&type=style&index=0&lang=css&${new URLSearchParams({ "vize-file": id }).toString()}`;
-  assert.ok(
-    code.includes(`import ${JSON.stringify(styleId)};`),
-    `${id} must hand its CSS to Vite through a style import`,
+  const imports = [...code.matchAll(/import "([^"\n]+)";/g)];
+  assert.equal(imports.length, 1, `${id} must import its style module exactly once`);
+  const styleId = imports[0][1];
+  const [stylePath, query] = styleId.split("?", 2);
+  assert.equal(stylePath, `${id}.__vize_style_0.css`);
+  assert.deepEqual(
+    [...new URLSearchParams(query)],
+    [
+      ["vue", ""],
+      ["type", "style"],
+      ["index", "0"],
+      ["lang", "css"],
+      ["vize-file", id],
+    ],
   );
+  assert.match(styleId, /\.css\?[^.]+$/);
   return loadVueModule(plugin, styleId);
 }
 
@@ -173,14 +180,24 @@ async function probeTemplateCompilerOptions(): Promise<void> {
   assert.match(await loadResolvedVueModule(commentsPlugin, id), /kept/);
 }
 
-function assertCustomElementStyleOutput(code: string, fileName: string): void {
+function assertCustomElementStyleOutput(code: string, filename: string): void {
   assert.doesNotMatch(code, /__vize_css__/);
-  assert.match(
-    code,
-    new RegExp(
-      `import _style_0 from ".*${escapeRegExp(fileName)}\\.vue\\.__vize_style_0\\.css\\?vue=&type=style&index=0&lang=css&inline=&vize-file=[^"]+${escapeRegExp(fileName)}\\.vue";`,
-    ),
+  const imports = [...code.matchAll(/import _style_0 from "([^"\n]+)";/g)];
+  assert.equal(imports.length, 1, "a custom element must import its style module exactly once");
+  const [stylePath, query] = imports[0][1].split("?", 2);
+  assert.equal(stylePath, `${filename}.__vize_style_0.css`);
+  assert.deepEqual(
+    [...new URLSearchParams(query)],
+    [
+      ["vue", ""],
+      ["type", "style"],
+      ["index", "0"],
+      ["lang", "css"],
+      ["inline", ""],
+      ["vize-file", filename],
+    ],
   );
+  assert.match(imports[0][1], /\.css\?[^.]+$/);
   assert.match(code, /_sfc_main\.styles = \[_style_0\];/);
 }
 
@@ -195,7 +212,7 @@ async function probeCustomElementOutput(): Promise<void> {
   const defaultPlugin = await bootPlugin(root);
   assertCustomElementStyleOutput(
     await loadResolvedVueModule(defaultPlugin, path.join(root, "Element.ce.vue")),
-    "Element.ce",
+    path.join(root, "Element.ce.vue"),
   );
   const plainId = path.join(root, "Plain.vue");
   assert.doesNotMatch(await loadResolvedVueModule(defaultPlugin, plainId), /__vize_css__/);
@@ -204,13 +221,13 @@ async function probeCustomElementOutput(): Promise<void> {
   const featurePlugin = await bootPlugin(root, { features: { customElement: /Feature\.vue$/ } });
   assertCustomElementStyleOutput(
     await loadResolvedVueModule(featurePlugin, path.join(root, "Feature.vue")),
-    "Feature",
+    path.join(root, "Feature.vue"),
   );
 
   const aliasPlugin = await bootPlugin(root, { customElement: /Alias\.vue$/ });
   assertCustomElementStyleOutput(
     await loadResolvedVueModule(aliasPlugin, path.join(root, "Alias.vue")),
-    "Alias",
+    path.join(root, "Alias.vue"),
   );
 }
 
