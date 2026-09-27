@@ -139,6 +139,15 @@ Tracked in [#6827](https://github.com/ubugeeei-prod/vize/issues/6827) and [#6845
 
 - One parse per file. Every product consumes the same artifacts.
 - **Formatter:** L1 only. A rewrite whose safety depends on L2 facts (for example component-dependent self-closing) is a linter autofix instead.
+
+  [Formatter fix-history output fixtures](./2026-09-27-formatter-fix-history.md) records [#6882](https://github.com/ubugeeei-prod/vize/issues/6882); six script byte comparisons are prepared, with full-history audit and shared corpus registration still pending.
+
+  Formatter history asset and binary-reference bytes disable Git text conversion, including on CRLF checkouts.
+
+  Legacy internal single-pass outputs remain API observations; native formatting does not inherit that mechanism. Product compatibility separately compares CLI check verdicts and streams.
+
+  Formatter byte snapshots replace duplicated partial checks in new history tests; original semantic regressions and measured golden/capture bytes remain unchanged.
+
 - **Linter:** syntax rules on L1, semantic rules on L2 and facts. Diagnostics go through L0, and autofixes are L1 span edits.
 - **Type checker:** the virtual-TS projection is an L4 target mapped back through `EmitDocument` links.
 - **LSP:** holds level artifacts incrementally and never parses by itself.
