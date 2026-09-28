@@ -104,5 +104,55 @@ This adds no replacement route for legacy compiler behavior. #6880 still
 gates any such replacement. The CLI and playground consume this sidecar in
 the next #6832 change; their old independent ladder feed is not production
 evidence. `vize_l0::dump::capture` moves with the L0 substrate in #6833;
-native SFC block splitting and the full tokenizer/dialect moves retain their
-own issue boundaries.
+the full product SFC descriptor and tokenizer/dialect moves retain their own
+issue boundaries.
+
+## Product feed and CLI input
+
+The CLI and Playground use the same host serializer for a version 2 product
+feed. It includes the chosen target, effective options, accepted/legacy/
+unavailable/rejected outcome, executed level pages, and explicit availability
+for timings and remarks. A non-accepted outcome has no native pages. An empty
+unobserved timing or remark array means unavailable, not zero events. The
+version 1 inspector ladder feed remains distinct and cannot fill missing
+product pages.
+
+The opt-in CLI uses the L1 Vue container to locate authored SFC block byte
+spans, including a nested template and quoted attributes. Its bounded scope
+is top-level blocks; non-template blocks end at the first literal matching
+close tag. The product SFC descriptor remains authoritative for script
+compilation. Before labeling a template span as authored, the CLI compares
+the native template bytes, language and offsets with that descriptor and
+rejects a mismatch. An unclosed interpolation or malformed block is reported
+instead of yielding an attributed page. Full SFC descriptor and tokenizer
+migration remains #6837 and #6835. Ordinary compilation never calls this
+CLI reader.
+
+Raw Pug input is parsed and derived with the native L1/L1-to-L2 Pug code;
+the emitted product compile consumes the derived Vue template. The feed
+distinguishes authored Pug from compiled Vue syntax. Until a source-map
+consumer is wired, it does not claim that the derived page's spans index
+the authored Pug text. The CLI pipeline selector accepts only real DOM,
+SSR and Vapor product backends; unsupported source/backend pairs and
+arbitrary named no-op passes are rejected. Page files use level and step
+names with a dump extension; historical fixture bytes remain unchanged.
+The CLI passes the real input filename to both descriptor parsing and product
+compilation, preserving scoped-style identity and relative script type-import
+resolution. Standalone dump uses its documented default compile options; build
+has its own explicit script, template and style options. External SFC block
+`src` inputs fail closed until the native CLI can resolve them. Reusing a dump
+directory removes only page files whose generated names and bytes match the
+previous version 2 `vize-dump` feed. A modified page or a colliding file stops
+the export without deleting user content; unrelated files remain untouched.
+
+## Merge sequence
+
+Dependent product capture slices are registered as one GitHub native Stack
+after each conventional PR has the true parent branch as its base. Check the
+Stack number and ordered positions through the GitHub API. Individual layers
+do not use auto-merge. Merge a contiguous exact-head-green prefix through the
+protected queue with `gh stack merge <highest-ready-PR> --yes --squash`; a red
+later layer stays out. Verify the prefix's actual merge, then rebase and
+retarget remaining layers on fresh main, rerun Actions, and verify Stack
+membership before the next prefix. Independent PRs use ordinary squash
+auto-merge after their checks pass.
