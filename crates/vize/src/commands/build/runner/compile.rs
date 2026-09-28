@@ -34,7 +34,8 @@ use std::{
 use vize_atelier_core::{CodegenOptions, options::CustomElementMatcher};
 use vize_atelier_sfc::{
     ScriptCompileOptions, SfcCompileExperimentalOptions, SfcCompileOptions, SfcParseOptions,
-    StyleCompileOptions, TemplateCompileOptions,
+    SfcScriptOutputMode, StyleCompileOptions, TemplateCompileOptions,
+    compile_sfc_for_adapter_with_stage_capture,
     compile_sfc_with_custom_elements_template_syntax_codegen_and_experimental_options, parse_sfc,
 };
 use vize_l0::cstr;
@@ -48,6 +49,7 @@ use crate::commands::build::config::{
 };
 use crate::commands::davinci_ice;
 
+use super::capture::BuildCapture;
 use super::profile_facts::{self, FileProfileFacts, StatsCacheStatus};
 use super::settings::CompileFileSettings;
 
@@ -65,7 +67,7 @@ pub(super) fn compile_file_with_profile(
     path: &PathBuf,
     settings: &CompileFileSettings,
     stats: &CompileStats,
-) -> Result<(CompileOutput, FileProfile), CompileError> {
+) -> Result<(CompileOutput, FileProfile, Option<BuildCapture>), CompileError> {
     if let Some(injection) = settings.davinci.injection_for(path)
         && (injection.when.is_none()
             || injection.fires_on(&vize_l0::source_io::read_to_string(path).unwrap_or_default()))
@@ -139,7 +141,7 @@ fn compile_file_inner(
     path: &PathBuf,
     settings: &CompileFileSettings,
     stats: &CompileStats,
-) -> Result<(CompileOutput, FileProfile), CompileError> {
+) -> Result<(CompileOutput, FileProfile, Option<BuildCapture>), CompileError> {
     let file_start = Instant::now();
 
     // Read file
@@ -255,19 +257,38 @@ fn compile_file_inner(
         scope_id: None,
     };
 
-    let result = profile!(
-        "atelier.sfc.compile",
-        compile_sfc_with_custom_elements_template_syntax_codegen_and_experimental_options(
-            &descriptor,
-            compile_opts,
-            settings.template_syntax,
-            custom_elements,
-            CodegenOptions::default(),
-            SfcCompileExperimentalOptions {
-                self_component: settings.experimental_self_component,
-            }
-        )
-    )
+    let (result, capture) = profile!("atelier.sfc.compile", {
+        let experimental = SfcCompileExperimentalOptions {
+            self_component: settings.experimental_self_component,
+        };
+        if settings.davinci.dump_dir.is_some() {
+            compile_sfc_for_adapter_with_stage_capture(
+                &descriptor,
+                compile_opts,
+                settings.template_syntax,
+                custom_elements,
+                CodegenOptions::default(),
+                SfcScriptOutputMode::InlineTemplate,
+                experimental,
+            )
+            .map(|(result, stages)| {
+                (
+                    result,
+                    Some(BuildCapture::from_descriptor(stages, &descriptor)),
+                )
+            })
+        } else {
+            compile_sfc_with_custom_elements_template_syntax_codegen_and_experimental_options(
+                &descriptor,
+                compile_opts,
+                settings.template_syntax,
+                custom_elements,
+                CodegenOptions::default(),
+                experimental,
+            )
+            .map(|result| (result, None))
+        }
+    })
     .map_err(|e| CompileError {
         path: path.clone(),
         error: e.message,
@@ -315,5 +336,5 @@ fn compile_file_inner(
         macro_artifacts: result.macro_artifacts,
     };
 
-    Ok((output, profile))
+    Ok((output, profile, capture))
 }

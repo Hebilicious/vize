@@ -229,21 +229,3 @@ fn a_malformed_repro_file_is_a_usage_error() {
     assert_eq!(output.status.code(), Some(2));
     let _ = fs::remove_dir_all(root);
 }
-
-#[test]
-fn the_build_folio_dir_is_created_and_stays_empty_until_p2_12b() {
-    // The compile path has no folio-printable stage artifact yet, so the
-    // pinned behavior of --folio-dir on `vize build` is: the directory
-    // exists and holds zero pages. This test is the "vacuity is measured,
-    // not decorative" witness; davinci-opt's twin dumps real pages.
-    let root = temp_project_dir("folio-dir");
-    write_batch(&root);
-    let output = vize(
-        &root,
-        &["build", "src", "--output", "dist", "--folio-dir", "folios"],
-    );
-    assert_eq!(output.status.code(), Some(0));
-    assert_eq!(sorted_entries(&root.join("dist")), ["a.js", "b.js", "c.js"]);
-    assert_eq!(sorted_entries(&root.join("folios")).len(), 0);
-    let _ = fs::remove_dir_all(root);
-}

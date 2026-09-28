@@ -4,6 +4,7 @@
 //! and per-file compilation with profiling.
 
 mod cache;
+mod capture;
 mod collect;
 mod compile;
 mod compile_stats;
@@ -12,6 +13,7 @@ mod fallback;
 mod output;
 mod profile_facts;
 mod settings;
+mod stats_run;
 
 use std::{
     sync::{Mutex, atomic::Ordering},
@@ -28,15 +30,14 @@ use vize_curator::profile::{
 
 use super::{
     BuildArgs, OutputFormat,
-    config::{CompileError, CompileStats, FileProfile},
+    config::{CompileError, CompileStats, ErrorPhase, FileProfile},
 };
 
-use cache::StatsCompileCache;
+use capture::compile_planned_file;
 use collect::{CollectedFiles, collect_files_or_exit};
-use compile::compile_file_with_profile;
-use compile_stats::compile_file_stats_with_cache;
 use output::{CompiledBuildOutput, WrittenFormat, plan_inputs, preflight_outputs, write_outputs};
 use settings::{CompileFileSettings, load_build_config};
+use stats_run::StatsRun;
 
 /// Main entry point for the build command.
 pub(crate) fn run(args: BuildArgs) {
@@ -82,7 +83,7 @@ pub(crate) fn run(args: BuildArgs) {
     }
 
     let stats_only = matches!(args.format, OutputFormat::Stats);
-    let planned_inputs = if stats_only {
+    let planned_inputs = if stats_only && args.dump_dir.is_none() {
         Vec::new()
     } else {
         let inputs = match plan_inputs(std::mem::take(&mut files), &roots) {
@@ -92,14 +93,17 @@ pub(crate) fn run(args: BuildArgs) {
                 std::process::exit(1);
             }
         };
-        if let Err(error) = preflight_outputs(&inputs, &args.output, args.format, args.script_ext) {
+        if !stats_only
+            && let Err(error) =
+                preflight_outputs(&inputs, &args.output, args.format, args.script_ext)
+        {
             eprintln!("\x1b[31mError:\x1b[0m {error}");
             std::process::exit(1);
         }
         inputs
     };
 
-    let total_files = if stats_only {
+    let total_files = if stats_only && args.dump_dir.is_none() {
         files.len()
     } else {
         planned_inputs.len()
@@ -126,42 +130,24 @@ pub(crate) fn run(args: BuildArgs) {
     let compile_settings = CompileFileSettings::resolve(&args, build_config);
 
     let results: Vec<_> = if stats_only {
-        let compile_cache = StatsCompileCache::default();
-        files.par_iter().for_each(|path| {
-            match compile_file_stats_with_cache(path, &compile_settings, &stats, &compile_cache) {
-                Ok((output_bytes, profile)) => {
-                    stats.success.fetch_add(1, Ordering::Relaxed);
-                    stats
-                        .output_bytes
-                        .fetch_add(output_bytes, Ordering::Relaxed);
-
-                    if profile.is_slow(slow_threshold)
-                        && let Ok(mut slow) = slow_files.lock()
-                    {
-                        slow.push(profile.clone());
-                    }
-
-                    if args.profile
-                        && let Ok(mut p) = profiles.lock()
-                    {
-                        p.push(profile);
-                    }
-                }
-                Err(err) => {
-                    stats.failed.fetch_add(1, Ordering::Relaxed);
-
-                    if let Ok(mut errs) = errors.lock() {
-                        errs.push(err);
-                    }
-                }
-            }
-        });
+        StatsRun {
+            planned_inputs: &planned_inputs,
+            files: &files,
+            settings: &compile_settings,
+            stats: &stats,
+            slow_threshold,
+            slow_files: &slow_files,
+            profiles: &profiles,
+            errors: &errors,
+            profile: args.profile,
+        }
+        .run();
         Vec::new()
     } else {
         planned_inputs
             .par_iter()
             .map(|input| {
-                match compile_file_with_profile(&input.source, &compile_settings, &stats) {
+                match compile_planned_file(input, &compile_settings, &stats) {
                     Ok((output, profile)) => {
                         stats.success.fetch_add(1, Ordering::Relaxed);
                         stats
@@ -186,9 +172,11 @@ pub(crate) fn run(args: BuildArgs) {
                     Err(err) => {
                         stats.failed.fetch_add(1, Ordering::Relaxed);
                         fallback::record_error(&errors, err.clone());
-                        args.continue_on_error.then(|| CompiledBuildOutput {
-                            input,
-                            output: fallback::fallback_output(&input.source, &err),
+                        (args.continue_on_error && err.phase != ErrorPhase::Dump).then(|| {
+                            CompiledBuildOutput {
+                                input,
+                                output: fallback::fallback_output(&input.source, &err),
+                            }
                         })
                     }
                 }
@@ -278,7 +266,11 @@ pub(crate) fn run(args: BuildArgs) {
                 note: "ignore-aware walk",
             },
             ProfilePhase {
-                name: "compile wall",
+                name: if args.dump_dir.is_some() {
+                    "compile and dump wall"
+                } else {
+                    "compile wall"
+                },
                 duration: compile_elapsed,
                 kind: ProfilePhaseKind::Wall,
                 note: "parallel worker elapsed time",
