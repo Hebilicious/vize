@@ -223,7 +223,7 @@ whole-history and native admission remain unfinished; the companion preserves ev
 ## Legacy deletion criteria
 
 See the [legacy deletion criteria decisions](./2026-09-27-level-restructure-history.md#legacy-deletion-criteria),
-[native-only accounting](./2026-09-27-native-selection-accounting.md),
+[native-only accounting](./2026-09-27-native-selection-accounting.md), [#6891's exact-stage shared result contract](./2026-09-28-differential-harness.md),
 and the [LSP fix-history response-fixture installment](./2026-09-27-lsp-fix-history.md)
 for the pinned review ledger, complete document-link and CRLF on-type response contracts and
 unfinished history obligations in #6883.
