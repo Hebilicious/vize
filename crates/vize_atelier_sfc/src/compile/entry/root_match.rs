@@ -11,8 +11,12 @@ use vize_atelier_core::{
     parser::parse_with_options_and_template_syntax,
 };
 use vize_atelier_core::{CodegenOptions, TemplateSyntaxMode, options::CustomElementMatcher};
-use vize_l0::String;
+use vize_l0::{String, dump::capture::StageCapture};
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "adapter inputs with optional stage capture"
+)]
 pub(super) fn compile_sfc_inner(
     descriptor: &SfcDescriptor,
     options: SfcCompileOptions,
@@ -21,6 +25,7 @@ pub(super) fn compile_sfc_inner(
     codegen_options: CodegenOptions,
     script_output: SfcScriptOutputMode,
     experimental_options: SfcCompileExperimentalOptions,
+    capture: Option<&mut StageCapture>,
 ) -> Result<SfcCompileResult, SfcError> {
     let descriptor = prepare_root_patterned_template(
         descriptor,
@@ -45,6 +50,7 @@ pub(super) fn compile_sfc_inner(
         codegen_options,
         script_output,
         experimental_options,
+        capture,
     )
 }
 

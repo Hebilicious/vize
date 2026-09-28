@@ -3,6 +3,7 @@
 //! This module handles compilation of `<template>` blocks,
 //! supporting both DOM mode and Vapor mode.
 
+use vize_l0::dump::capture::StageCapture;
 use vize_l0::{String, ToCompactString, profile};
 mod extraction;
 mod string_tracking;
@@ -72,6 +73,7 @@ pub(crate) struct TemplateBlockCompileContext<'a> {
 }
 
 /// Compile template block
+#[cfg(test)]
 pub(crate) fn compile_template_block(
     allocator: &Allocator,
     template: &SfcTemplateBlock,
@@ -80,6 +82,30 @@ pub(crate) fn compile_template_block(
     ctx: TemplateBlockCompileContext<'_>,
     template_syntax: TemplateSyntaxMode,
     codegen_options: &CodegenOptions,
+) -> Result<TemplateBlockCompileResult, SfcError> {
+    compile_template_block_with_capture(
+        allocator,
+        template,
+        options,
+        custom_elements,
+        ctx,
+        template_syntax,
+        codegen_options,
+        None,
+    )
+}
+
+/// Compile a template and observe the backend that supplies its render code.
+#[expect(clippy::too_many_arguments, reason = "independent compile inputs")]
+pub(crate) fn compile_template_block_with_capture(
+    allocator: &Allocator,
+    template: &SfcTemplateBlock,
+    options: &TemplateCompileOptions,
+    custom_elements: &CustomElementMatcher,
+    ctx: TemplateBlockCompileContext<'_>,
+    template_syntax: TemplateSyntaxMode,
+    codegen_options: &CodegenOptions,
+    capture: Option<&mut StageCapture>,
 ) -> Result<TemplateBlockCompileResult, SfcError> {
     let TemplateBlockCompileContext {
         scope_id,
@@ -128,15 +154,28 @@ pub(crate) fn compile_template_block(
 
         let (_, errors, result) = profile!(
             "atelier.sfc.template.ssr",
-            vize_atelier_ssr::compile_ssr_with_sfc_slotted_context(
-                allocator,
-                &template.content,
-                ssr_opts,
-                template_syntax,
-                custom_elements.clone(),
-                ssr_experimental_options,
-                slotted,
-            )
+            if let Some(capture) = capture {
+                vize_atelier_ssr::compile_ssr_with_sfc_slotted_context_and_capture(
+                    allocator,
+                    &template.content,
+                    ssr_opts,
+                    template_syntax,
+                    custom_elements.clone(),
+                    ssr_experimental_options,
+                    slotted,
+                    capture,
+                )
+            } else {
+                vize_atelier_ssr::compile_ssr_with_sfc_slotted_context(
+                    allocator,
+                    &template.content,
+                    ssr_opts,
+                    template_syntax,
+                    custom_elements.clone(),
+                    ssr_experimental_options,
+                    slotted,
+                )
+            }
         );
 
         // Recoverable parser diagnostics (e.g. duplicate attribute) must
@@ -215,16 +254,30 @@ pub(crate) fn compile_template_block(
     // and falls back to the compatibility path for unsupported shapes.
     let (errors, result) = profile!(
         "atelier.sfc.template.dom",
-        vize_atelier_dom::compile_sfc_template_with_custom_elements_template_syntax_hoisted_scope_id_sections_codegen_and_experimental_options(
-            allocator,
-            &template.content,
-            dom_opts,
-            template_syntax,
-            hoisted_scope_attr,
-            custom_elements.clone(),
-            codegen_options.clone(),
-            codegen_experimental_options,
-        )
+        if let Some(capture) = capture {
+            vize_atelier_dom::compile_sfc_template_with_custom_elements_template_syntax_hoisted_scope_id_sections_codegen_and_experimental_options_with_stage_capture(
+                allocator,
+                &template.content,
+                dom_opts,
+                template_syntax,
+                hoisted_scope_attr,
+                custom_elements.clone(),
+                codegen_options.clone(),
+                codegen_experimental_options,
+                capture,
+            )
+        } else {
+            vize_atelier_dom::compile_sfc_template_with_custom_elements_template_syntax_hoisted_scope_id_sections_codegen_and_experimental_options(
+                allocator,
+                &template.content,
+                dom_opts,
+                template_syntax,
+                hoisted_scope_attr,
+                custom_elements.clone(),
+                codegen_options.clone(),
+                codegen_experimental_options,
+            )
+        }
     );
 
     // See above — drop recoverable parser diagnostics from the gating
