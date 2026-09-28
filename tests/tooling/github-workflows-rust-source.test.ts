@@ -152,3 +152,35 @@ test("untrusted source checks cannot write trusted sticky disks", () => {
     );
   }
 });
+
+test("PR and merge-queue Rust jobs run the skeleton todo ratchet", () => {
+  const workflow = parse(readRepoFile(".github", "workflows", "pr-rust-checks.yml")) as {
+    jobs: Record<string, Job>;
+  };
+  for (const [jobName, event] of [
+    ["pr-rust-build", "pull_request"],
+    ["merge-rust-source", "merge_group"],
+  ]) {
+    const job = workflow.jobs[jobName];
+    assert.ok(job, `${jobName} must exist`);
+    const jobCondition = job.if ?? "";
+    assert.ok(
+      jobCondition.includes(`github.event_name == '${event}'`),
+      `${jobName} must run for ${event}`,
+    );
+    const ratchet = job.steps?.find((step) => step.name === "Skeleton todo ratchet");
+    assert.ok(ratchet, `${jobName} must run the skeleton todo ratchet`);
+    assert.ok(
+      jobCondition.includes("inputs.run-rust") || ratchet.if?.includes("inputs.run-rust"),
+      `${jobName} must run the ratchet when Rust is selected`,
+    );
+    assert.ok(
+      ratchet.run?.includes("check-skeleton-todos.rs") && ratchet.run.includes("--check"),
+      `${jobName} must check the skeleton todo ledger`,
+    );
+    assert.ok(
+      !ratchet.if || ratchet.if.includes("inputs.run-rust"),
+      `${jobName} must not skip the ratchet for ${event}`,
+    );
+  }
+});

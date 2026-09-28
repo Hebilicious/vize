@@ -1057,7 +1057,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.20",
  "valgrind-requests",
- "vize_carton",
+ "vize_l0",
  "vize_l1",
  "vize_l1_to_l2",
  "vize_l2",
@@ -1071,7 +1071,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror 2.0.20",
- "vize_carton",
+ "vize_l0",
 ]
 
 [[package]]
@@ -4224,7 +4224,6 @@ dependencies = [
  "vize_atelier_sfc",
  "vize_atelier_vapor",
  "vize_canon",
- "vize_carton",
  "vize_croquis",
  "vize_croquis_cf",
  "vize_curator",
@@ -4232,6 +4231,7 @@ dependencies = [
  "vize_doctor",
  "vize_fresco",
  "vize_glyph",
+ "vize_l0",
  "vize_l1",
  "vize_l1_to_l2",
  "vize_l2",
@@ -4258,7 +4258,7 @@ dependencies = [
  "oxc_syntax",
  "serde",
  "thiserror 2.0.20",
- "vize_carton",
+ "vize_l0",
  "vize_relief",
 ]
 
@@ -4286,9 +4286,9 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.20",
  "vize_armature",
- "vize_carton",
  "vize_croquis",
  "vize_davinci",
+ "vize_l0",
  "vize_l1",
  "vize_l1_to_l2",
  "vize_l2",
@@ -4308,9 +4308,9 @@ dependencies = [
  "thiserror 2.0.20",
  "toml",
  "vize_atelier_core",
- "vize_carton",
  "vize_croquis",
  "vize_davinci",
+ "vize_l0",
  "vize_l1_to_l2",
 ]
 
@@ -4335,9 +4335,9 @@ dependencies = [
  "vize_atelier_sfc",
  "vize_atelier_ssr",
  "vize_atelier_vapor",
- "vize_carton",
  "vize_croquis",
  "vize_davinci",
+ "vize_l0",
  "vize_l1_to_l2",
  "vize_l2",
  "vize_relief",
@@ -4377,8 +4377,8 @@ dependencies = [
  "vize_atelier_dom",
  "vize_atelier_ssr",
  "vize_atelier_vapor",
- "vize_carton",
  "vize_croquis",
+ "vize_l0",
  "vize_l1_to_l2",
 ]
 
@@ -4395,9 +4395,9 @@ dependencies = [
  "vize_armature",
  "vize_atelier_core",
  "vize_atelier_sfc",
- "vize_carton",
  "vize_croquis",
  "vize_davinci",
+ "vize_l0",
  "vize_l1",
  "vize_l1_to_l2",
  "vize_l2",
@@ -4481,9 +4481,9 @@ dependencies = [
  "vize_atelier_core",
  "vize_atelier_jsx",
  "vize_atelier_sfc",
- "vize_carton",
  "vize_croquis",
  "vize_davinci",
+ "vize_l0",
  "vize_l1",
  "vize_l1_to_l2",
  "vize_l2",
@@ -4592,10 +4592,10 @@ dependencies = [
  "serde_json",
  "vize_atelier_core",
  "vize_atelier_sfc",
- "vize_carton",
  "vize_croquis",
  "vize_croquis_cf",
  "vize_davinci",
+ "vize_l0",
  "vize_l1",
  "vize_l1_to_l2",
  "vize_l2",
@@ -4615,9 +4615,9 @@ dependencies = [
  "unicode-width",
  "vize_atelier_core",
  "vize_atelier_sfc",
- "vize_carton",
  "vize_croquis",
  "vize_davinci_derive",
+ "vize_l0",
  "vize_l1",
  "vize_l1_to_l2",
  "vize_l2",
@@ -4638,11 +4638,11 @@ version = "0.429.1"
 dependencies = [
  "serde_json",
  "sha2 0.11.0",
- "vize_carton",
  "vize_croquis",
  "vize_davinci",
  "vize_extension_contract",
  "vize_extension_host",
+ "vize_l0",
  "vize_l1",
  "vize_l1_to_l2",
  "vize_l2",
@@ -4659,9 +4659,9 @@ dependencies = [
  "sha2 0.11.0",
  "tempfile",
  "vize_armature",
- "vize_carton",
  "vize_croquis",
  "vize_croquis_cf",
+ "vize_l0",
 ]
 
 [[package]]
@@ -4669,8 +4669,8 @@ name = "vize_extension_contract"
 version = "0.429.1"
 dependencies = [
  "serde",
- "vize_carton",
  "vize_davinci",
+ "vize_l0",
  "vize_l1",
  "vize_l1_to_l2",
  "vize_l2",
@@ -4684,10 +4684,10 @@ dependencies = [
  "serde",
  "serde_json",
  "vize_canon",
- "vize_carton",
  "vize_davinci",
  "vize_extension_contract",
  "vize_extension_sdk",
+ "vize_l0",
  "vize_l1",
  "vize_l1_to_l2",
  "vize_l2",
@@ -4724,7 +4724,7 @@ dependencies = [
  "thiserror 2.0.20",
  "unicode-segmentation",
  "unicode-width",
- "vize_carton",
+ "vize_l0",
  "windows-sys",
 ]
 
@@ -4746,12 +4746,15 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.20",
  "vize_atelier_sfc",
- "vize_carton",
+ "vize_l0",
 ]
 
 [[package]]
 name = "vize_l0"
 version = "0.429.1"
+dependencies = [
+ "vize_carton",
+]
 
 [[package]]
 name = "vize_l1"
@@ -4760,7 +4763,7 @@ dependencies = [
  "davinci_test_support",
  "htmlize",
  "vize_armature",
- "vize_carton",
+ "vize_l0",
  "vize_relief",
 ]
 
@@ -4787,9 +4790,9 @@ dependencies = [
  "vize_atelier_core",
  "vize_atelier_dom",
  "vize_atelier_sfc",
- "vize_carton",
  "vize_croquis",
  "vize_davinci",
+ "vize_l0",
  "vize_l1",
  "vize_l2",
  "vize_l3",
@@ -4802,8 +4805,8 @@ dependencies = [
  "oxc_ast",
  "oxc_parser",
  "oxc_span",
- "vize_carton",
  "vize_davinci",
+ "vize_l0",
 ]
 
 [[package]]
@@ -4814,8 +4817,8 @@ dependencies = [
  "insta",
  "serde_json",
  "vize_atelier_sfc",
- "vize_carton",
  "vize_davinci",
+ "vize_l0",
  "vize_l1",
  "vize_l1_to_l2",
  "vize_l2",
@@ -4828,8 +4831,8 @@ version = "0.429.1"
 dependencies = [
  "serde_json",
  "toml",
- "vize_carton",
  "vize_davinci",
+ "vize_l0",
 ]
 
 [[package]]
@@ -4837,7 +4840,7 @@ name = "vize_l4"
 version = "0.429.1"
 dependencies = [
  "serde_json",
- "vize_carton",
+ "vize_l0",
  "vize_l2",
  "vize_l3",
 ]
@@ -4874,11 +4877,11 @@ dependencies = [
  "vize_atelier_jsx",
  "vize_atelier_sfc",
  "vize_canon",
- "vize_carton",
  "vize_croquis",
  "vize_croquis_cf",
  "vize_davinci",
  "vize_glyph",
+ "vize_l0",
  "vize_musea",
  "vize_patina",
  "vize_relief",
@@ -4893,7 +4896,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
- "vize_carton",
+ "vize_l0",
  "wit-parser 0.259.0",
 ]
 
@@ -4907,8 +4910,8 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.20",
- "vize_carton",
  "vize_croquis",
+ "vize_l0",
  "vize_l1",
 ]
 
@@ -4939,10 +4942,10 @@ dependencies = [
  "vize_atelier_jsx",
  "vize_atelier_sfc",
  "vize_canon",
- "vize_carton",
  "vize_croquis",
  "vize_davinci",
  "vize_glyph",
+ "vize_l0",
  "vize_l1",
  "vize_l1_to_l2",
  "vize_l2",
@@ -4959,8 +4962,8 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.20",
- "vize_carton",
  "vize_davinci",
+ "vize_l0",
 ]
 
 [[package]]
@@ -4969,9 +4972,9 @@ version = "0.429.1"
 dependencies = [
  "salsa",
  "toml",
- "vize_carton",
  "vize_croquis",
  "vize_davinci",
+ "vize_l0",
  "vize_l1",
  "vize_l1_to_l2",
  "vize_l2",
@@ -4988,7 +4991,7 @@ dependencies = [
  "vize_atelier_core",
  "vize_atelier_sfc",
  "vize_atelier_vapor",
- "vize_carton",
+ "vize_l0",
 ]
 
 [[package]]
@@ -5021,12 +5024,12 @@ dependencies = [
  "vize_atelier_ssr",
  "vize_atelier_vapor",
  "vize_canon",
- "vize_carton",
  "vize_croquis",
  "vize_croquis_cf",
  "vize_curator",
  "vize_davinci",
  "vize_glyph",
+ "vize_l0",
  "vize_l1",
  "vize_l1_to_l2",
  "vize_l2",
