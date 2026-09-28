@@ -91,8 +91,9 @@ pub(crate) fn generate_vapor_with_spans(
     experimental_options: VaporGenerateExperimentalOptions<'_>,
     spans: Option<&VaporSourceSpans>,
 ) -> VaporGenerateResult {
-    let ir_only = VaporSourceSpans::default();
-    let spans = spans.or_else(|| experimental_options.source_map.then_some(&ir_only));
+    let ir_only =
+        (spans.is_none() && experimental_options.source_map).then(VaporSourceSpans::default);
+    let spans = spans.or(ir_only.as_ref());
     let mut ctx = GenerateContext::new(
         &ir.element_template_map,
         &ir.standalone_text_elements,
@@ -192,7 +193,9 @@ pub(crate) fn generate_vapor_with_spans(
     let mut document = EmitDocument::with_capacity(capacity, spans.is_some());
     document.push_str(&imports);
     document.push_spanned(&template_code);
-    document.push_str(&delegate_code);
+    if !delegate_code.is_empty() {
+        document.push_str(&delegate_code);
+    }
     if !document.is_empty() {
         document.push_char('\n');
     }

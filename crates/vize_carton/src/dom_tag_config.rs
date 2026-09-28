@@ -96,9 +96,13 @@ pub static BOOLEAN_ATTRS: phf::Set<&'static str> = phf_set! {
 };
 
 /// Check if tag is a valid HTML tag
-#[inline]
+#[inline(never)]
 pub fn is_html_tag(tag: &str) -> bool {
-    HTML_TAGS.contains(tag)
+    // These common template tags are checked repeatedly during classification.
+    matches!(
+        tag,
+        "div" | "span" | "p" | "button" | "section" | "input" | "template"
+    ) || HTML_TAGS.contains(tag)
 }
 
 /// Check if tag is a valid SVG tag
@@ -155,7 +159,33 @@ pub fn is_rcdata_tag(tag: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_boolean_attr, is_html_tag, is_raw_text_tag, is_svg_tag, is_void_tag};
+    use super::{
+        HTML_TAGS, is_boolean_attr, is_html_tag, is_raw_text_tag, is_svg_tag, is_void_tag,
+    };
+
+    #[test]
+    fn html_tag_fast_path_preserves_the_exported_set() {
+        for tag in ["div", "span", "p", "button", "section", "input", "template"] {
+            let in_set = HTML_TAGS.contains(tag);
+            assert!(in_set, "fast-path tag left the set: {tag}");
+        }
+        for tag in HTML_TAGS.iter() {
+            assert!(is_html_tag(tag), "missing {tag}");
+        }
+        for tag in [
+            "",
+            "DIV",
+            "button-extra",
+            "svg",
+            "custom-element",
+            "é",
+            "div\0",
+            "template:slot",
+        ] {
+            let expected = HTML_TAGS.contains(tag);
+            assert_eq!(is_html_tag(tag), expected, "{tag:?}");
+        }
+    }
 
     #[test]
     fn test_html_tags() {
