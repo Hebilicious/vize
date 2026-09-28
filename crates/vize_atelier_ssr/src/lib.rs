@@ -1,7 +1,6 @@
 //! Vue SSR compiler for Vize.
 //!
 //! The SSR atelier specializes in server-rendered HTML strings, not VNode trees.
-
 pub mod codegen;
 mod compile;
 #[cfg(feature = "legacy-differential")]
@@ -22,7 +21,8 @@ pub use compile::{
     compile_l2_to_ssr, compile_ssr, compile_ssr_with_custom_elements_and_template_syntax,
     compile_ssr_with_custom_elements_template_syntax_and_experimental_options,
     compile_ssr_with_options, compile_ssr_with_sfc_slotted_context,
-    compile_ssr_with_template_syntax, compile_ssr_with_template_syntax_and_experimental_options,
+    compile_ssr_with_sfc_slotted_context_and_capture, compile_ssr_with_template_syntax,
+    compile_ssr_with_template_syntax_and_experimental_options,
 };
 pub use errors::SsrErrorCode;
 pub use options::{SsrCompilerExperimentalOptions, SsrCompilerOptions};

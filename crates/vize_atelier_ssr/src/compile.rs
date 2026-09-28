@@ -8,7 +8,12 @@ use vize_atelier_core::{
     options::{CustomElementMatcher, TemplateSyntaxMode},
     parser::parse_with_options_custom_elements_and_template_syntax,
 };
-use vize_l0::{Allocator, String, profile};
+use vize_l0::{
+    Allocator, String, cstr,
+    dump::capture::{CaptureOutcome, CaptureSink},
+    level::Level,
+    profile,
+};
 
 pub use crate::l4::compile_l2_to_ssr;
 
@@ -159,6 +164,37 @@ pub fn compile_ssr_with_sfc_slotted_context<'a>(
         slotted,
     )
 }
+
+/// Compile an SFC template and observe only stages that emitted its module.
+#[doc(hidden)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "SFC options plus an opt-in capture sink"
+)]
+pub fn compile_ssr_with_sfc_slotted_context_and_capture<'a, C: CaptureSink>(
+    allocator: &'a Allocator,
+    source: &'a str,
+    options: SsrCompilerOptions,
+    template_syntax: TemplateSyntaxMode,
+    custom_elements: CustomElementMatcher,
+    experimental_options: SsrCompilerExperimentalOptions,
+    slotted: bool,
+    capture: &mut C,
+) -> (RootNode<'a>, Vec<CompilerError>, SsrCodegenResult) {
+    compile_ssr_inner_captured(
+        allocator,
+        source,
+        options,
+        template_syntax,
+        custom_elements,
+        experimental_options,
+        slotted,
+        capture,
+    )
+}
+
+mod inner;
+use inner::compile_ssr_inner_captured;
 
 fn compile_ssr_inner<'a>(
     allocator: &'a Allocator,

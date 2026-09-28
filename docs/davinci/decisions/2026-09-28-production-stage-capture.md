@@ -31,6 +31,41 @@ with a `NoCapture` argument. The ordinary DOM root now keeps its original
 signature and direct compile body; the opt-in captured root is a sibling.
 The next exact-candidate instruction run must verify all 100 probes before
 the PR is updated.
+
+The same cost law applies to SSR and Vapor. Protected #7132 candidate
+`93c71ca` exceeded unchanged ceilings on four SSR full-compile, five Vapor
+lowering and two Vapor full-compile probes. Three Callgrind repetitions
+matched exactly:
+SSR paid two instructions in the ordinary compile call and four in its L4
+lower/emit call for `NoCapture` argument setup; a seventh argument to the
+L2-to-L3 selector spilled beyond the x86-64 integer registers. The ordinary
+SSR compile, source selector and L2-to-L3 selector therefore retain their
+no-sink signatures and bodies, with captured siblings only for observation.
+Vapor's lowerer was unchanged, but its existing element-template helper was
+outlined by the changed compile layout, adding 15 instructions per dynamic
+element; that helper is forced inline at its existing call sites. These are
+code generation remedies, not new stages or budget changes. A fresh 100-probe
+diagnostic must pass before #7132 is updated.
+The first fresh-main diagnostic `70fcdbd6e` reduced the 11 protected misses
+to four SSR full-compile probes (+1 or +3 instructions) and one Vapor
+generate-large probe (+2); the ordinary Vapor lowering and compilation
+probes all passed. Callgrind attributed SSR's common +1 to the extracted
+ordinary compile body, with deep's extra +2 in `memcpy`; Vapor's +2 was
+inside `memcmp` with exactly the same comparison calls. Restore the SSR
+ordinary body in its original compile module, keep the captured sibling,
+and keep the existing Vapor lowering helper inline. A second diagnostic
+`f777c645d` made all SSR probes pass, but changing the retained expression
+trim algorithm pushed eight Vapor generate/compile probes above their
+ceilings, so that experimental trim change is withdrawn. The next exact
+100-probe diagnostic must pass before the PR head changes.
+The isolated `fdb9e04ec` diagnostic then passed 99 of 100 probes; only Vapor
+generate-large remained two instructions over the unchanged ceiling.
+Callgrind showed the same 23 comparisons in its retained-expression resolver
+and two extra instructions inside libc `memcmp`. The resolver already has the
+trimmed subslice, so its byte offset from the original expression supplies
+the retained span adjustment without scanning leading whitespace again. This
+is a local ordinary-path optimization to be measured on all 100 probes;
+it changes neither parsed expressions nor output bytes.
 Each product records only boundaries it actually executed. Provisional pages
 are committed only after final product selection, including DOM source-map
 parity. A compatibility map mismatch returns the compatibility module and
@@ -38,6 +73,9 @@ discards native pages; selection accounting reports that final lane. A legacy
 selection, no-template result or rejected compile likewise discards pages. The sidecar
 records the target, effective options and explicit outcome so an empty feed
 cannot be mistaken for a native run with no changes.
+`timings_observed` and `remarks_observed` are false until a producer observes
+the entire respective channel; an empty unobserved channel is unavailable,
+not a claim that zero events occurred.
 
 DOM records its actual surface parse, lowering, resulting fact tables and render
 emission. These facts describe the current transitional DOM emitter; static
