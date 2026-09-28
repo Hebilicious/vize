@@ -319,7 +319,7 @@ required runtime proof to the receipted current CLI without cached fallback.
 Use test-step environment variables to retain the plain VP command and compose
 with the formatter's always-upload corpus evidence without changing build setup; [#6852's legacy fix input audit](./2026-09-28-legacy-fix-fixture-gate.md) remains report-only until every product adapter and queue proof exists.
 
-[Stacked PR checks](./2026-09-27-stacked-pr-checks.md) run on every PR base. [Rust PR archive and shard execution](./2026-09-27-rust-nextest-shards.md) records #6862's runner, doctest, resource and archive identity decisions.
+[Stacked PR checks](./2026-09-27-stacked-pr-checks.md) run on every PR base; dependent children target parent branches and revalidate on fresh `main` after squash merge (#6826, `AGENTS.md`, treated as Markdown guidance in T0). [Rust PR archive and shard execution](./2026-09-27-rust-nextest-shards.md) records #6862's runner, doctest, resource and archive identity decisions.
 
 [Rust source wiring](./2026-09-27-ci-rust-core.md) preserves full queue execution, proves the tested comparison base and records the intermediate scope.
 
