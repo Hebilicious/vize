@@ -4758,6 +4758,7 @@ name = "vize_l1"
 version = "0.429.1"
 dependencies = [
  "davinci_test_support",
+ "htmlize",
  "vize_armature",
  "vize_carton",
  "vize_relief",
