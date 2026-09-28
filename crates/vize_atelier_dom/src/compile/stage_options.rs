@@ -1,7 +1,5 @@
 //! Per-stage option construction for DOM template compilation.
-//!
-//! Keeps the parse/transform option wiring out of `compile.rs` so that entry
-//! point stays focused on pipeline flow.
+//! Parser, transform and emit wiring for the product pipeline.
 
 use vize_atelier_core::codegen::{CodegenResult, CodegenResultWithSections, CodegenSections};
 use vize_atelier_core::options::{
@@ -19,6 +17,9 @@ use super::pipeline::L2EmitSelection;
 use super::selection::DomLegacyReason;
 use crate::namespace::get_namespace;
 use crate::options::DomCompilerOptions;
+
+mod capture;
+pub(super) use capture::{emit_l2_captured, try_emit_l2_captured};
 
 /// Parser options with DOM-specific settings.
 pub(super) fn parser_options(options: &DomCompilerOptions) -> ParserOptions {
