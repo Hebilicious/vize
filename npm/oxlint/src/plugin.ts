@@ -40,11 +40,12 @@ function createOxlintDiagnostic(
     ? createOriginalSfcLoc(diagnostic)
     : mapToScriptLoc(diagnostic, scriptMap);
   const block = loc === null ? getDiagnosticBlock(diagnostic, getSfcBlocks(state)) : null;
+  const fallbackColumn = state.extractedScript.length === 0 ? 0 : 1;
 
   return {
     loc: loc ?? {
-      start: { line: 1, column: 1 },
-      end: { line: 1, column: 1 },
+      start: { line: 1, column: fallbackColumn },
+      end: { line: 1, column: fallbackColumn },
     },
     message: formatPatinaMessage(diagnostic, {
       hasMappedLocation: loc !== null,

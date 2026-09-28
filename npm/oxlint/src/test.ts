@@ -4,8 +4,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { assertEmptyScriptDiagnostic } from "./test-support/empty-script-diagnostic.ts";
 import { resetFixtureDir } from "./test-support/fixture-dir.ts";
-
 const packageDir = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.resolve(packageDir, "../../..");
 const pluginEntry = path.join(workspaceRoot, "npm/oxlint/dist/index.mjs");
@@ -60,7 +60,6 @@ function findOxlintBin() {
 
 const oxlintBin = findOxlintBin();
 resetFixtureDir(fixtureDir);
-
 fs.writeFileSync(
   configPath,
   JSON.stringify(
@@ -584,6 +583,7 @@ assert.equal(shortHelpRun.output, readSnapshot("stylish-short-help-output.txt"))
 const jsonRun = runOxlint(["-c", ".oxlintrc.no-help.json", "-f", "json", "App.vue"]);
 assert.notEqual(jsonRun.exitCode, 0, "json formatter should still report Patina failures");
 assert.equal(jsonRun.output, readSnapshot("json-no-help-output.txt"));
+assertEmptyScriptDiagnostic(fixtureDir, runOxlint);
 
 const scriptlessJsonRun = runOxlintVize([
   "-c",
