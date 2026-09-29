@@ -16,6 +16,7 @@ mod language_server;
 mod legacy_dialect_tests;
 mod library;
 mod lint_features;
+mod lsp_snapshot;
 mod parse;
 mod pkl;
 #[cfg(test)]
@@ -33,6 +34,7 @@ use super::model::{
 };
 pub use compiler_keys::*;
 pub use library::{LoadedLibConfig, load_lib_config_with_source};
+pub use lsp_snapshot::{LoadedLspConfig, load_lsp_config_snapshot};
 pub use {jsx::load_compiler_jsx_compat, vapor::load_compiler_vapor};
 pub use {language_server::*, lint_features::*};
 

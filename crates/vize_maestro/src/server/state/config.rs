@@ -32,7 +32,13 @@ impl ServerState {
     /// Get a clone of the current type checker config.
     #[inline]
     pub fn get_type_checker_config(&self) -> TypeCheckerConfig {
-        self.type_checker_config.read().clone()
+        self.type_checker_config.read().0.clone()
+    }
+
+    /// Effective editor Corsa request bound in milliseconds.
+    #[inline]
+    pub fn lsp_request_timeout_ms(&self) -> u64 {
+        self.type_checker_config.read().1
     }
 
     /// Build the shared virtual TypeScript options from workspace config.
@@ -75,8 +81,8 @@ impl ServerState {
         *self.dialect_config.write() = dialect;
     }
 
-    fn apply_type_checker_config(&self, config: TypeCheckerConfig, source: &str) {
-        *self.type_checker_config.write() = config;
+    fn apply_type_checker_config(&self, config: TypeCheckerConfig, timeout_ms: u64, source: &str) {
+        *self.type_checker_config.write() = (config, timeout_ms);
         self.invalidate_component_interfaces();
         // The tsconfig and runtime this selects decide which project the
         // overlays are layered onto, so a reload retargets them even though no
@@ -154,8 +160,7 @@ impl ServerState {
 
     /// Load all workspace-scoped options from `vize.config.pkl` (preferred) or JSON.
     pub fn load_workspace_config(&self, dir: &Path) {
-        let (loaded, linter_config) =
-            vize_l0::config::load_config_and_linter_with_features_and_source(Some(dir));
+        let loaded = vize_l0::config::load_lsp_config_snapshot(Some(dir));
         if let Some(source_path) = loaded.source_path {
             let source = source_path.display().to_string();
             let config = loaded.config;
@@ -164,16 +169,15 @@ impl ServerState {
                 *self.format_options.write() = format_options_from_config(&config.formatter);
                 tracing::info!("Loaded format config from {}", source);
             }
-            self.apply_linter_config(linter_config, &source);
-            *self.linter_rule_options.write() =
-                vize_l0::config::load_config_lint_rule_options(Some(dir));
+            self.apply_linter_config(loaded.linter, &source);
+            *self.linter_rule_options.write() = loaded.lint_rule_options;
             self.apply_global_types_config(config.global_types, &source);
-            self.apply_type_checker_config(config.type_checker, &source);
+            self.apply_type_checker_config(config.type_checker, loaded.request_timeout_ms, &source);
             self.apply_config_features(loaded.features);
             self.apply_lsp_config(
                 Self::lsp_config_section_from_file(
                     config.language_server,
-                    vize_l0::config::load_language_server_unstable_flags(Some(dir)),
+                    loaded.language_server_unstable_flags,
                 ),
                 &source,
             );
@@ -183,21 +187,19 @@ impl ServerState {
 
     /// Load LSP options from `vize.config.pkl` (preferred) or `vize.config.json`.
     pub fn load_lsp_config(&self, dir: &Path) {
-        let (loaded, linter_config) =
-            vize_l0::config::load_config_and_linter_with_features_and_source(Some(dir));
+        let loaded = vize_l0::config::load_lsp_config_snapshot(Some(dir));
         if let Some(source_path) = loaded.source_path {
             let source = source_path.display().to_string();
             let config = loaded.config;
-            self.apply_linter_config(linter_config, &source);
-            *self.linter_rule_options.write() =
-                vize_l0::config::load_config_lint_rule_options(Some(dir));
+            self.apply_linter_config(loaded.linter, &source);
+            *self.linter_rule_options.write() = loaded.lint_rule_options;
             self.apply_global_types_config(config.global_types, &source);
-            self.apply_type_checker_config(config.type_checker, &source);
+            self.apply_type_checker_config(config.type_checker, loaded.request_timeout_ms, &source);
             self.apply_config_features(loaded.features);
             self.apply_lsp_config(
                 Self::lsp_config_section_from_file(
                     config.language_server,
-                    vize_l0::config::load_language_server_unstable_flags(Some(dir)),
+                    loaded.language_server_unstable_flags,
                 ),
                 &source,
             );

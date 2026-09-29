@@ -11,15 +11,78 @@ fn lsp_corsa_request_bound_uses_workspace_config() {
     )
     .unwrap();
     let state = ServerState::new();
-    assert_eq!(
-        state.get_type_checker_config().lsp_request_timeout_ms(),
-        60_000
-    );
+    assert_eq!(state.lsp_request_timeout_ms(), 60_000);
     state.load_lsp_config(dir.path());
+    assert_eq!(state.lsp_request_timeout_ms(), 90_000);
     assert_eq!(
-        state.get_type_checker_config().lsp_request_timeout_ms(),
-        90_000
+        state.get_type_checker_config(),
+        vize_l0::config::TypeCheckerConfig::default()
     );
+    std::fs::write(dir.path().join("vize.config.json"), "{}").unwrap();
+    state.load_lsp_config(dir.path());
+    assert_eq!(state.lsp_request_timeout_ms(), 60_000);
+}
+
+#[test]
+fn lsp_corsa_request_bounds_are_independent_per_server() {
+    let first_dir = tempfile::tempdir().unwrap();
+    let second_dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        first_dir.path().join("vize.config.json"),
+        r#"{"typeChecker":{"lspRequestTimeoutMs":90000}}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        second_dir.path().join("vize.config.json"),
+        r#"{"typeChecker":{"lspRequestTimeoutMs":120000}}"#,
+    )
+    .unwrap();
+
+    let first = ServerState::new();
+    let second = ServerState::new();
+    first.load_lsp_config(first_dir.path());
+    second.load_lsp_config(second_dir.path());
+    assert_eq!(first.lsp_request_timeout_ms(), 90_000);
+    assert_eq!(second.lsp_request_timeout_ms(), 120_000);
+
+    std::fs::write(first_dir.path().join("vize.config.json"), "{}").unwrap();
+    first.load_lsp_config(first_dir.path());
+    assert_eq!(first.lsp_request_timeout_ms(), 60_000);
+    assert_eq!(second.lsp_request_timeout_ms(), 120_000);
+}
+
+#[test]
+fn lsp_config_uses_one_evaluation_for_type_checker_and_timeout() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("eval-count.txt"), "0").unwrap();
+    std::fs::write(
+        dir.path().join("vize.config.mjs"),
+        r#"
+import { readFileSync, writeFileSync } from 'node:fs';
+const counter = new URL('./eval-count.txt', import.meta.url);
+export default () => {
+  const count = Number(readFileSync(counter, 'utf8')) + 1;
+  writeFileSync(counter, String(count));
+  return { typeChecker: { strict: count === 1, lspRequestTimeoutMs: count === 1 ? 90000 : 120000 } };
+};
+"#,
+    )
+    .unwrap();
+
+    for load in [
+        ServerState::load_workspace_config,
+        ServerState::load_lsp_config,
+    ] {
+        std::fs::write(dir.path().join("eval-count.txt"), "0").unwrap();
+        let state = ServerState::new();
+        load(&state, dir.path());
+        assert!(state.get_type_checker_config().strict);
+        assert_eq!(state.lsp_request_timeout_ms(), 90_000);
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("eval-count.txt")).unwrap(),
+            "1"
+        );
+    }
 }
 
 #[test]
