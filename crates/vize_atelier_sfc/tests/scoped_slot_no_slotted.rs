@@ -33,3 +33,23 @@ fn slotted_selector_keeps_runtime_slotted_scope_behavior() {
     );
     insta::assert_snapshot!("slotted_selector", code);
 }
+
+#[test]
+fn slot_scope_policy_is_local_to_each_parallel_compile() {
+    const ORDINARY: &str =
+        "<template><div><slot /></div></template><style scoped>.box { color: red }</style>";
+    const SLOTTED: &str =
+        "<template><slot /></template><style scoped>:slotted(p) { color: red }</style>";
+    const COMPAT: &str = "<template><div title=\"&amp;\"><slot name=\"label\">fallback</slot></div></template><style scoped>.box { color: red }</style>";
+    let ordinary = std::thread::spawn(|| compiled(ORDINARY));
+    let slotted = std::thread::spawn(|| compiled(SLOTTED));
+    let compat = std::thread::spawn(|| compiled(COMPAT));
+
+    let ordinary = ordinary.join().unwrap();
+    let slotted = slotted.join().unwrap();
+    let compat = compat.join().unwrap();
+    // The serial outputs are already pinned byte-for-byte by the snapshots above.
+    assert_eq!(ordinary, compiled(ORDINARY));
+    assert_eq!(slotted, compiled(SLOTTED));
+    assert_eq!(compat, compiled(COMPAT));
+}
