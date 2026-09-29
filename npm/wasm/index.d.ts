@@ -92,6 +92,8 @@ export interface CompilerOptions {
   runtimeGlobalName?: string;
   /** SFC TypeScript output handling. */
   scriptExt?: "preserve" | "downcompile";
+  /** Include the same-run, versioned product stage capture in SFC results. */
+  captureStages?: boolean;
   /** Script binding information used by direct template compilation. */
   bindingMetadata?: BindingMetadata;
   /** @deprecated Use `templateSyntax: "quirks"`. */
@@ -193,9 +195,7 @@ export interface SfcCompileOptions extends CompilerOptions {}
 
 /** Result of SFC compilation */
 export interface SfcCompileResult {
-  /** Parsed SFC descriptor */
   descriptor: SfcDescriptor;
-  /** Compiled template result */
   template?: CompileResult;
   /** Compiled script result */
   script: {
@@ -204,16 +204,14 @@ export interface SfcCompileResult {
     /** Binding metadata */
     bindings?: BindingMetadata;
   };
-  /** Generated CSS */
   css?: string;
-  /** Compilation errors */
   errors: string[];
-  /** Compilation warnings */
   warnings: string[];
-  /** Compile-time macro artifacts */
   macroArtifacts?: MacroArtifact[];
   /** Flat binding map for feeding a later template-only compile. */
   bindingMetadata?: Record<string, BindingType>;
+  /** Present only when captureStages was requested. */
+  stageCapture?: unknown;
 }
 
 /** JSX/TSX compile options */
