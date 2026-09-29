@@ -5,6 +5,7 @@
 
 use vize_l0::dump::capture::StageCapture;
 use vize_l0::{String, ToCompactString, profile};
+mod duplicates;
 mod extraction;
 mod string_tracking;
 mod vapor;
@@ -107,6 +108,7 @@ pub(crate) fn compile_template_block_with_capture(
     codegen_options: &CodegenOptions,
     capture: Option<&mut StageCapture>,
 ) -> Result<TemplateBlockCompileResult, SfcError> {
+    duplicates::reject_duplicate_props(template)?;
     let TemplateBlockCompileContext {
         scope_id,
         apply_scope_id,
