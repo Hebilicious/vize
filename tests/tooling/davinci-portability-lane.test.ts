@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { test } from "node:test";
 
 import { readRepoFile, workflowJobBody } from "./support/github-workflows.ts";
@@ -52,8 +53,8 @@ test("TS-24: the wasm32-wasip2 lanes run in scheduled and manual Check", () => {
   const toolchainFile = readRepoFile("rust-toolchain.toml");
   assert.match(toolchainFile, /^targets = \[.*"wasm32-wasip2".*\]$/m);
 
-  // Both builds target libraries only. The host `davinci-opt` binary must not
-  // become evidence for a `no_std` claim merely because WASI provides std.
+  // Both builds target libraries only. A host executable does not establish
+  // the portability claim merely because WASI provides std.
   assert.ok(
     job.includes(`        run: ${defaultLane} && ${noDefaultLane}`),
     "TS-24 must build all six stage libraries with and without default features",
@@ -82,6 +83,16 @@ test("the no_std claim stays on all six stage libraries and excludes the std L0 
   const carton = readRepoFile("davinci", "vize_l0", "src", "lib.rs");
   assert.doesNotMatch(carton, /^#!\[no_std\]$/m, "L0 is the accepted std host foundation");
 
-  const davinciManifest = readRepoFile("davinci", "vize_davinci", "Cargo.toml");
-  assert.match(davinciManifest, /^path = "src\/bin\/davinci-opt\/main\.rs"$/m);
+  const resolved = JSON.parse(
+    execFileSync("cargo", ["metadata", "--no-deps", "--format-version", "1", "--locked"], {
+      encoding: "utf8",
+    }),
+  ) as { packages: Array<{ name: string; targets: Array<{ kind: string[] }> }> };
+  const substrate = resolved.packages.find((pkg) => pkg.name === "vize_davinci");
+  assert.ok(substrate, "the substrate package must be present in Cargo metadata");
+  assert.deepEqual(
+    substrate.targets.filter((target) => target.kind.includes("bin")),
+    [],
+    "Cargo must resolve no executable target for the retired host",
+  );
 });

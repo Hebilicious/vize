@@ -27,10 +27,10 @@ impl Croquis {
     /// **VIR is the croquis folio.** The format contract (grammar,
     /// normalization, round-trip laws) lives in
     /// `vize_davinci::dump::croquis::Page` and is documented in
-    /// `docs/davinci/plan/folio-format.md`; `davinci-opt --roundtrip`
-    /// verifies canonical dumps. This renderer stays the producing side and
+    /// `docs/davinci/plan/folio-format.md`; the typed Croquis dump tests
+    /// verify canonical bytes. This renderer stays the producing side and
     /// must not drift from the folio parser - the fixture harness in
-    /// `davinci/vize_davinci/tests/croquis_folio.rs` pins the two together.
+    /// `davinci/vize_davinci/tests/croquis_dump.rs` pins the two together.
     ///
     /// - Raw renderer output is near-canonical: the folio's first print
     ///   normalizes it (sorted map-derived name lists)
