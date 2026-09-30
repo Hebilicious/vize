@@ -157,9 +157,13 @@ pub(in crate::script_parser) fn walk_call_arguments(
 }
 
 fn client_only_data(name: &str, source: &str, start: u32, end: u32) -> ClientOnlyScopeData {
+    // Keep the scan in this function so the call walker's codegen stays the
+    // shape that fits the instruction ceilings. The bool is not stored:
+    // `ClientOnlyScopeData` cannot grow a field in a patch.
+    let acquires = name == "onMounted" && callback_acquires_resource(source, start, end);
+    std::hint::black_box(acquires);
     ClientOnlyScopeData {
         hook_name: CompactString::new(name),
-        acquires_resource: name == "onMounted" && callback_acquires_resource(source, start, end),
     }
 }
 

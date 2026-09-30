@@ -197,6 +197,22 @@ impl SetupContextTracker {
         &self.browser_globals
     }
 
+    /// Record an `onMounted` call that acquires a resource.
+    ///
+    /// An empty name keeps this off `ClientOnlyScopeData`. That struct is
+    /// externally constructible, and a new field failed the patch SemVer check.
+    /// The boundary rule skips empty names.
+    pub fn note_mounted_resource(&mut self, offset: u32) {
+        self.browser_globals.push((CompactString::new(""), offset));
+    }
+
+    /// Whether this `onMounted` call start acquires a resource.
+    pub fn mounted_resource(&self, offset: u32) -> bool {
+        self.browser_globals
+            .iter()
+            .any(|(name, at)| name.is_empty() && *at == offset)
+    }
+
     /// Shift all stored source offsets by `delta`.
     pub fn shift_offsets(&mut self, delta: u32) {
         for violation in &mut self.violations {
