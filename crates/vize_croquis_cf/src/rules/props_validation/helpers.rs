@@ -4,6 +4,12 @@ use crate::registry::ModuleEntry;
 use std::path::Path;
 use vize_carton::{CompactString, FxHashMap, String, camelize};
 use vize_croquis::macros::MacroKind;
+use vize_croquis::types::TypeDefinitions;
+
+#[path = "helpers_builtin_attr.rs"]
+mod builtin_attr;
+
+pub(super) use builtin_attr::is_builtin_attr;
 
 pub(super) struct PassedComponentUsage {
     pub(super) props: Vec<PassedPropInfo>,
@@ -110,10 +116,11 @@ fn prop_names_match(left: &str, right: &str) -> bool {
 
 pub(super) fn actual_literal_type(prop: &PassedPropInfo) -> Option<CompactString> {
     if !prop.is_dynamic {
-        return Some(if prop.value.is_some() {
-            CompactString::const_new("string")
-        } else {
-            CompactString::const_new("boolean")
+        // A static attribute is a string literal, not the wide `string` type.
+        // `name="check"` is `"check"`, so it can match `"check" | "close"`.
+        return Some(match prop.value.as_deref() {
+            Some(value) => quote_static_attribute(value),
+            None => CompactString::const_new("boolean"),
         });
     }
 
@@ -129,11 +136,114 @@ pub(super) fn actual_literal_type(prop: &PassedPropInfo) -> Option<CompactString
     }
 }
 
-pub(super) fn prop_type_accepts_actual(expected: &str, actual: &str) -> bool {
-    expected
-        .split('|')
-        .map(str::trim)
-        .any(|variant| variant == actual || variant == "unknown" || variant == "any")
+pub(super) fn prop_type_accepts_actual(
+    expected: &str,
+    actual: &str,
+    definitions: &TypeDefinitions,
+) -> bool {
+    type_accepts(expected, actual, definitions, 0)
+}
+
+fn type_accepts(expected: &str, actual: &str, definitions: &TypeDefinitions, depth: u8) -> bool {
+    let expected = expected.trim();
+    if expected.is_empty() || depth > 8 {
+        return false;
+    }
+    if expected == actual || expected == "unknown" || expected == "any" {
+        return true;
+    }
+    if expected == "string" && is_string_literal(actual) {
+        return true;
+    }
+    if let (Some(expected_literal), Some(actual_literal)) = (unquote(expected), unquote(actual))
+        && expected_literal == actual_literal
+    {
+        return true;
+    }
+    if is_type_name(expected)
+        && let Some(body) = definitions.resolve(expected)
+    {
+        return type_accepts(body.as_str(), actual, definitions, depth + 1);
+    }
+    if expected.contains('|') {
+        return union_members(expected)
+            .into_iter()
+            .any(|member| type_accepts(member, actual, definitions, depth));
+    }
+    false
+}
+
+fn quote_static_attribute(value: &str) -> CompactString {
+    let mut quoted = String::from("\"");
+    for character in value.chars() {
+        match character {
+            '\\' => quoted.push_str("\\\\"),
+            '"' => quoted.push_str("\\\""),
+            '\n' => quoted.push_str("\\n"),
+            _ => quoted.push(character),
+        }
+    }
+    quoted.push('"');
+    CompactString::new(&quoted)
+}
+
+fn unquote(value: &str) -> Option<&str> {
+    let bytes = value.as_bytes();
+    if bytes.len() < 2 {
+        return None;
+    }
+    let (first, last) = (bytes.first()?, bytes.last()?);
+    ((*first == b'\'' && *last == b'\'') || (*first == b'"' && *last == b'"'))
+        .then(|| value.get(1..value.len() - 1))
+        .flatten()
+}
+
+fn is_type_name(value: &str) -> bool {
+    let mut chars = value.chars();
+    match chars.next() {
+        Some(first) if first == '_' || first.is_ascii_alphabetic() => {
+            chars.all(|character| character == '_' || character.is_ascii_alphanumeric())
+        }
+        _ => false,
+    }
+}
+
+fn union_members(expected: &str) -> Vec<&str> {
+    let mut members = Vec::new();
+    let mut depth = 0i32;
+    let mut quote = None;
+    let mut start = 0usize;
+    let mut chars = expected.char_indices().peekable();
+    while let Some((index, character)) = chars.next() {
+        if let Some(delimiter) = quote {
+            if character == '\\' {
+                chars.next();
+            } else if character == delimiter {
+                quote = None;
+            }
+            continue;
+        }
+        match character {
+            '\'' | '"' | '`' => quote = Some(character),
+            '(' | '[' | '{' | '<' => depth += 1,
+            ')' | ']' | '}' | '>' => depth -= 1,
+            '|' if depth == 0 => {
+                if let Some(member) = expected.get(start..index).map(str::trim)
+                    && !member.is_empty()
+                {
+                    members.push(member);
+                }
+                start = index + character.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    if let Some(member) = expected.get(start..).map(str::trim)
+        && !member.is_empty()
+    {
+        members.push(member);
+    }
+    members
 }
 
 fn is_string_literal(value: &str) -> bool {
@@ -215,37 +325,6 @@ fn to_pascal_case(s: &str) -> String {
             }
         })
         .collect()
-}
-
-/// Check if an attribute name is a built-in HTML/Vue attribute.
-#[inline]
-pub(super) fn is_builtin_attr(name: &str) -> bool {
-    matches!(
-        name,
-        "key"
-            | "ref"
-            | "is"
-            | "class"
-            | "style"
-            | "id"
-            | "slot"
-            | "slot-scope"
-            | "v-slot"
-            | "v-if"
-            | "v-else"
-            | "v-else-if"
-            | "v-for"
-            | "v-show"
-            | "v-bind"
-            | "v-on"
-            | "v-model"
-            | "v-html"
-            | "v-text"
-            | "v-pre"
-            | "v-cloak"
-            | "v-once"
-            | "v-memo"
-    )
 }
 
 #[cfg(test)]

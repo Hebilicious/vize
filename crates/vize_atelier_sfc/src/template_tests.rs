@@ -3,8 +3,12 @@
 //!
 //! Split out of `lib.rs` so that module stays inside the per-file
 //! source-length budget.
+mod inline_render;
+use inline_render::assert_separate_template_local_directive_output;
+
 use super::{
-    SfcCompileOptions, SfcScriptOutputMode, compile_sfc, compile_sfc_for_adapter, parse_sfc,
+    SfcCompileOptions, SfcScriptOutputMode, TemplateCompileOptions, compile_sfc,
+    compile_sfc_for_adapter, parse_sfc,
 };
 use vize_atelier_core::{CodegenOptions, TemplateSyntaxMode, options::CustomElementMatcher};
 
@@ -128,6 +132,57 @@ fn scoped_vue2_line_breaks_keep_issue_6518_text_before_icon() {
         "{}",
         vapor_legacy.code
     );
+}
+
+#[test]
+fn scoped_vue2_line_breaks_keep_issue_7046_static_text_before_element() {
+    use vize_atelier_core::{WhitespaceStrategy, parser::with_whitespace_mode};
+    // Same shapes as #7046: static text before an element, a last-child
+    // label, and the same label in a component slot. Condense emits
+    // `" Label "`; the migration mode keeps the authored break as `" Label\n"`.
+    let sources = [
+        "<template><p>\n  Label\n  <i />\n</p></template>",
+        "<template><button>\n  Label\n</button></template>",
+        "<template><Btn>\n  Label\n</Btn></template>",
+    ];
+    for source in sources {
+        let descriptor = parse_sfc(source, Default::default()).unwrap();
+        for ssr in [false, true] {
+            let mut options = SfcCompileOptions::default();
+            options.template.ssr = ssr;
+            let default = compile_sfc(&descriptor, options.clone()).unwrap();
+            let legacy = with_whitespace_mode(WhitespaceStrategy::Condense, true, || {
+                compile_sfc(&descriptor, options).unwrap()
+            });
+            assert_ne!(default.code, legacy.code, "ssr={ssr} source={source}");
+            assert!(
+                legacy.code.contains(" Label\\n") || legacy.code.contains(" Label\n"),
+                "ssr={ssr} source={source}: {}",
+                legacy.code
+            );
+            assert!(
+                default.code.contains(" Label ")
+                    && !default.code.contains(" Label\n")
+                    && !default.code.contains(" Label\\n"),
+                "ssr={ssr} source={source}: {}",
+                default.code
+            );
+        }
+        let vapor_options = SfcCompileOptions {
+            vapor: true,
+            ..SfcCompileOptions::default()
+        };
+        let vapor_default = compile_sfc(&descriptor, vapor_options.clone()).unwrap();
+        let vapor_legacy = with_whitespace_mode(WhitespaceStrategy::Condense, true, || {
+            compile_sfc(&descriptor, vapor_options).unwrap()
+        });
+        assert_ne!(vapor_default.code, vapor_legacy.code, "{source}");
+        assert!(
+            vapor_legacy.code.contains(" Label\\n") || vapor_legacy.code.contains(" Label\n"),
+            "{source}: {}",
+            vapor_legacy.code
+        );
+    }
 }
 
 #[test]
@@ -361,80 +416,4 @@ const message = ref('hello')
 </script>
 "#;
     assert_separate_template_local_directive_output(imported_source);
-}
-
-fn assert_separate_template_local_directive_output(source: &str) {
-    let descriptor = parse_sfc(source, Default::default()).unwrap();
-    let result = compile_sfc_for_adapter(
-        &descriptor,
-        SfcCompileOptions::default(),
-        TemplateSyntaxMode::Standard,
-        CustomElementMatcher::default(),
-        CodegenOptions::default(),
-        SfcScriptOutputMode::SeparateTemplate,
-    )
-    .unwrap();
-
-    assert!(
-        result
-            .code
-            .contains(r#"const _directive_flip = $setup["vFlip"]"#),
-        "local script-setup directives must resolve from the setup state in separate-template mode:\n{}",
-        result.code
-    );
-    assert!(
-        !result.code.contains("const _directive_flip = vFlip"),
-        "separate-template render functions cannot close over setup locals:\n{}",
-        result.code
-    );
-
-    let returned = result
-        .code
-        .split("const __returned__ = {")
-        .nth(1)
-        .and_then(|tail| tail.split("Object.defineProperty").next())
-        .unwrap_or("");
-    assert!(
-        returned.contains("vFlip"),
-        "local directive binding must be returned to $setup:\n{}",
-        result.code
-    );
-}
-
-/// Options-API SFCs compile through the DOM lane with
-/// `prefix_identifiers: true`. Compound dynamic keys must walk each
-/// identifier; otherwise the render function throws `ReferenceError`.
-#[test]
-fn test_compile_sfc_compound_dynamic_bind_and_on_keys_prefix_identifiers() {
-    let source = r#"
-<template>
-  <div :[prefix+suffix]="value" @[prefix+suffix]="handler"></div>
-</template>
-
-<script>
-export default {
-  data() {
-    return { prefix: 'data-', suffix: 'id', value: 42 }
-  },
-  methods: {
-    handler() {}
-  }
-}
-</script>
-"#;
-    let descriptor = parse_sfc(source, Default::default()).unwrap();
-    let result = compile_sfc(&descriptor, SfcCompileOptions::default()).unwrap();
-
-    assert!(
-        result.code.contains("[$data.prefix+$data.suffix || \"\"]"),
-        "bind key was not prefixed:\n{}",
-        result.code
-    );
-    assert!(
-        result
-            .code
-            .contains("_toHandlerKey($data.prefix+$data.suffix)"),
-        "on key was not prefixed:\n{}",
-        result.code
-    );
 }

@@ -235,24 +235,49 @@ impl CodegenContext {
     }
 
     /// Push string to buffer
-    #[inline]
+    #[inline(always)]
     pub fn push(&mut self, code: &str) {
         self.out.push_str(code);
     }
 
     /// Push code with newline
-    #[inline]
+    #[inline(always)]
     pub fn push_line(&mut self, code: &str) {
         self.push(code);
         self.newline();
     }
 
-    /// Add newline with proper indentation
-    #[inline]
+    /// Add a newline and the current indent. The space run is outlined so a
+    /// wide literal is not copied into every caller.
+    #[inline(always)]
     pub fn newline(&mut self) {
         self.out.push_char('\n');
-        for _ in 0..self.indent_level {
-            self.out.push_str("  ");
+        let level = self.indent_level;
+        if level != 0 {
+            Self::write_indent(&mut self.out, level);
+        }
+    }
+
+    #[inline(never)]
+    fn write_indent(out: &mut EmitDocument, level: u32) {
+        const SPACES: &str = "                                                                                                                                ";
+        match level {
+            1 => out.push_str("  "),
+            2 => out.push_str("    "),
+            3 => out.push_str("      "),
+            4 => out.push_str("        "),
+            5 => out.push_str("          "),
+            6 => out.push_str("            "),
+            level => {
+                let mut spaces = (level as usize).saturating_mul(2);
+                while spaces > SPACES.len() {
+                    out.push_str(SPACES);
+                    spaces -= SPACES.len();
+                }
+                if let Some(indent) = SPACES.get(..spaces) {
+                    out.push_str(indent);
+                }
+            }
         }
     }
 

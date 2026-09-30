@@ -7,6 +7,7 @@
 //! bound expression.
 
 use super::component_props::ComponentPropSource;
+use super::incomplete::{IsolatedExpression, isolate_incomplete_expression};
 use super::reserved_props::rewrite_reserved_template_binding;
 use crate::virtual_ts::template_binding_access::TemplateBindingAccess;
 use oxc_allocator::Allocator;
@@ -33,25 +34,57 @@ fn push_ts_string_literal(out: &mut String, value: &str) {
     out.push('"');
 }
 
+pub(crate) struct PropSpan {
+    pub(crate) text: String,
+    mapped_start: usize,
+    mapped_len: usize,
+}
+
+impl PropSpan {
+    pub(crate) fn plain(text: String) -> Self {
+        let mapped_len = text.len();
+        Self {
+            text,
+            mapped_start: 0,
+            mapped_len,
+        }
+    }
+
+    pub(crate) fn mapped_limit(&self, value_start: usize) -> usize {
+        value_start + self.mapped_start + self.mapped_len
+    }
+
+    pub(crate) fn omits_tail(&self) -> bool {
+        self.mapped_start + self.mapped_len < self.text.len()
+    }
+}
+
 pub(crate) fn generated_prop_value(
     prop: &PassedProp,
     template_binding_access: &TemplateBindingAccess,
 ) -> Option<String> {
-    generated_prop_value_with_comment_policy(prop, template_binding_access, false)
+    generated_prop_span(prop, template_binding_access).map(|span| span.text)
 }
 
-pub(crate) fn generated_prop_value_preserving_comments(
+pub(crate) fn generated_prop_span(
     prop: &PassedProp,
     template_binding_access: &TemplateBindingAccess,
-) -> Option<String> {
-    generated_prop_value_with_comment_policy(prop, template_binding_access, true)
+) -> Option<PropSpan> {
+    generated_prop_span_with_comment_policy(prop, template_binding_access, false)
 }
 
-fn generated_prop_value_with_comment_policy(
+pub(crate) fn generated_prop_span_preserving_comments(
+    prop: &PassedProp,
+    template_binding_access: &TemplateBindingAccess,
+) -> Option<PropSpan> {
+    generated_prop_span_with_comment_policy(prop, template_binding_access, true)
+}
+
+fn generated_prop_span_with_comment_policy(
     prop: &PassedProp,
     template_binding_access: &TemplateBindingAccess,
     preserve_comments: bool,
-) -> Option<String> {
+) -> Option<PropSpan> {
     if !prop.is_dynamic {
         let mut value = String::default();
         if let Some(static_value) = prop.value.as_ref() {
@@ -70,7 +103,7 @@ fn generated_prop_value_with_comment_policy(
         } else {
             value.push_str("true");
         }
-        return Some(value);
+        return Some(PropSpan::plain(value));
     }
 
     let raw_value = prop.value.as_ref()?.as_str();
@@ -81,10 +114,21 @@ fn generated_prop_value_with_comment_policy(
     };
     let trimmed_value = value.as_ref().trim();
     let rewritten_value = rewrite_reserved_template_binding(trimmed_value, template_binding_access);
-    Some(rewritten_value.as_ref().map_or_else(
-        || String::from(value.as_ref()),
-        |s| String::from(s.as_str()),
-    ))
+    let raw = rewritten_value
+        .as_ref()
+        .map_or_else(|| value.as_ref(), |rewritten| rewritten.as_str());
+    Some(match isolate_incomplete_expression(raw) {
+        IsolatedExpression::Borrowed(text) => PropSpan::plain(String::from(text)),
+        IsolatedExpression::Owned {
+            text,
+            mapped_start,
+            mapped_len,
+        } => PropSpan {
+            text,
+            mapped_start,
+            mapped_len,
+        },
+    })
 }
 
 /// Append one generated prop value and return its range without synthetic

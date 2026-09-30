@@ -26,6 +26,9 @@ use super::bindings::{
 };
 
 mod define_model_destructure;
+mod object_origins;
+
+use object_origins::record_object_pattern_property_origins;
 
 pub(in crate::script_parser) fn process_variable_declarator(
     result: &mut ScriptParseResult,
@@ -155,9 +158,19 @@ pub(in crate::script_parser) fn process_variable_declarator(
                 walk_expression(result, init, source);
 
                 // Check for ref.value extraction: const x = someRef.value
-                check_ref_value_extraction(result, &declarator.id, init);
+                check_ref_value_extraction(
+                    result,
+                    &declarator.id,
+                    declarator.type_annotation.as_deref(),
+                    init,
+                );
                 // Check for reactive object property extraction: const x = props.x
-                check_reactive_property_extraction(result, &declarator.id, init);
+                check_reactive_property_extraction(
+                    result,
+                    &declarator.id,
+                    declarator.type_annotation.as_deref(),
+                    init,
+                );
                 // Check for getter-backed context extraction hidden behind wrappers
                 check_getter_call_extraction(result, &declarator.id, init);
                 // Check aliases of known plain snapshots: const alias = count
@@ -356,41 +369,50 @@ pub(in crate::script_parser) fn process_variable_declarator(
                 // Destructuring reactive variable: const { count } = state
                 let destructured_props = collect_object_pattern_keys(obj);
                 record_object_pattern_property_origins(result, obj, source_name.clone());
-                result
-                    .reactivity
-                    .record_destructure(source_name, destructured_props, start, end);
+                if !super::super::extract::snapshot_in_reexecuted_scope(result) {
+                    result.reactivity.record_destructure(
+                        source_name,
+                        destructured_props,
+                        start,
+                        end,
+                    );
+                }
             } else if let Some((source_name, is_ref_value, start, end)) = reactive_destructure_expr
             {
                 let destructured_props = collect_object_pattern_keys(obj);
                 use crate::reactivity::{ReactivityLoss, ReactivityLossKind};
                 record_object_pattern_property_origins(result, obj, source_name.clone());
-                let kind = if is_ref_value {
-                    ReactivityLossKind::RefValueDestructure {
-                        source_name,
-                        destructured_props,
-                    }
-                } else {
-                    ReactivityLossKind::ReactiveDestructure {
-                        source_name,
-                        destructured_props,
-                    }
-                };
-                result
-                    .reactivity
-                    .add_loss(ReactivityLoss { kind, start, end });
+                if !super::super::extract::snapshot_in_reexecuted_scope(result) {
+                    let kind = if is_ref_value {
+                        ReactivityLossKind::RefValueDestructure {
+                            source_name,
+                            destructured_props,
+                        }
+                    } else {
+                        ReactivityLossKind::ReactiveDestructure {
+                            source_name,
+                            destructured_props,
+                        }
+                    };
+                    result
+                        .reactivity
+                        .add_loss(ReactivityLoss { kind, start, end });
+                }
             } else if let Some((fn_name, start, end)) = direct_reactive_call {
                 // Direct destructuring: const { count } = reactive({ count: 0 })
                 let destructured_props = collect_object_pattern_keys(obj);
                 use crate::reactivity::{ReactivityLoss, ReactivityLossKind};
                 record_object_pattern_property_origins(result, obj, fn_name.clone());
-                result.reactivity.add_loss(ReactivityLoss {
-                    kind: ReactivityLossKind::ReactiveDestructure {
-                        source_name: fn_name,
-                        destructured_props,
-                    },
-                    start,
-                    end,
-                });
+                if !super::super::extract::snapshot_in_reexecuted_scope(result) {
+                    result.reactivity.add_loss(ReactivityLoss {
+                        kind: ReactivityLossKind::ReactiveDestructure {
+                            source_name: fn_name,
+                            destructured_props,
+                        },
+                        start,
+                        end,
+                    });
+                }
             }
 
             // If defineProps, process it first to extract prop definitions
@@ -670,47 +692,4 @@ fn collect_object_pattern_keys(obj: &ObjectPattern<'_>) -> Vec<CompactString> {
     }
 
     keys
-}
-
-fn record_object_pattern_property_origins(
-    result: &mut ScriptParseResult,
-    obj: &ObjectPattern<'_>,
-    source_name: CompactString,
-) {
-    for prop in obj.properties.iter() {
-        let prop_name = match &prop.key {
-            PropertyKey::StaticIdentifier(id) => CompactString::new(id.name.as_str()),
-            PropertyKey::StringLiteral(s) => CompactString::new(s.value.as_str()),
-            _ => {
-                let Some(local_name) = get_binding_pattern_name(&prop.value) else {
-                    continue;
-                };
-                CompactString::new(&local_name)
-            }
-        };
-
-        let Some(local_name) = get_binding_pattern_name(&prop.value) else {
-            continue;
-        };
-
-        result.reactive_value_origins.insert(
-            CompactString::new(&local_name),
-            ReactiveValueOrigin::ReactiveProperty {
-                source_name: source_name.clone(),
-                prop_name,
-            },
-        );
-    }
-
-    if let Some(rest) = &obj.rest
-        && let Some(local_name) = get_binding_pattern_name(&rest.argument)
-    {
-        result.reactive_value_origins.insert(
-            CompactString::new(&local_name),
-            ReactiveValueOrigin::ReactiveProperty {
-                source_name,
-                prop_name: CompactString::new("(rest)"),
-            },
-        );
-    }
 }

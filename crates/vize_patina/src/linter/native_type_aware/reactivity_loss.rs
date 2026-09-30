@@ -1,13 +1,33 @@
+mod spreads;
+use spreads::{computed_value_spread_spans, diagnostic_key, reactivity_loss_diagnostic};
+
 use super::document::TypeAwareDocument;
 use super::{
     LintResult, Linter, RULE_NO_REACTIVITY_LOSS, markers::marker_insert_offset, push_warning,
 };
 use crate::diagnostic::LintDiagnostic;
+use oxc_allocator::Allocator as OxcAllocator;
+use oxc_ast::ast::{
+    Argument, ArrowFunctionExpression, BindingPattern, CallExpression, ChainElement, Expression,
+    Function, FunctionBody, ImportDeclaration, ImportDeclarationSpecifier, ModuleExportName,
+    ObjectExpression, ObjectPropertyKind, PropertyKey, PropertyKind, SpreadElement,
+    VariableDeclarator,
+};
+use oxc_ast_visit::{
+    Visit,
+    walk::{
+        walk_arrow_function_expression, walk_call_expression, walk_function,
+        walk_import_declaration, walk_spread_element, walk_variable_declarator,
+    },
+};
+use oxc_parser::Parser as OxcParser;
+use oxc_span::SourceType;
+use oxc_syntax::scope::ScopeFlags;
 use vize_croquis::{
     reactivity::{ReactivityLoss, ReactivityLossKind},
     script_parser::ScriptParseResult,
 };
-use vize_l0::{CompactString, FxHashSet, String, ToCompactString, cstr};
+use vize_l0::{CompactString, FxHashSet, String, ToCompactString, profile};
 
 #[derive(Clone)]
 pub(super) struct ReactivityLossQuery {
@@ -54,8 +74,23 @@ pub(super) fn collect_reactivity_loss_queries(
 
     let mut queries = Vec::with_capacity(parse_result.reactivity.losses().len());
     let mut immediate = FxHashSet::default();
+    let exempt_value_spreads = if parse_result
+        .reactivity
+        .losses()
+        .iter()
+        .any(|loss| matches!(loss.kind, ReactivityLossKind::ReactiveSpread { .. }))
+    {
+        computed_value_spread_spans(script_content)
+    } else {
+        Default::default()
+    };
 
     for loss in parse_result.reactivity.losses() {
+        if matches!(loss.kind, ReactivityLossKind::ReactiveSpread { .. })
+            && exempt_value_spreads.contains(&(loss.start, loss.end))
+        {
+            continue;
+        }
         let diagnostic = reactivity_loss_diagnostic(loss);
         let expressions = query_expressions_for_loss(loss, script_content);
 
@@ -132,139 +167,52 @@ fn query_expressions_for_loss(loss: &ReactivityLoss, script_content: &str) -> Ve
     }
 }
 
-fn reactivity_loss_diagnostic(loss: &ReactivityLoss) -> ReactivityLossQuery {
-    let (message, help) = match &loss.kind {
-        ReactivityLossKind::ReactiveDestructure {
-            source_name,
-            destructured_props,
-        } => (
-            cstr!(
-                "Destructuring reactive value '{}' creates plain snapshots for: {}",
-                source_name,
-                destructured_props.join(", ")
-            ),
-            "Use `toRefs(...)`, `toRef(...)`, or access the property through the reactive object.",
-        ),
-        ReactivityLossKind::RefValueDestructure {
-            source_name,
-            destructured_props,
-        } => (
-            cstr!(
-                "Destructuring '{}.value' creates plain snapshots for: {}",
-                source_name,
-                destructured_props.join(", ")
-            ),
-            "Keep the ref boundary and derive values through `computed(...)` or `toRef(...)`.",
-        ),
-        ReactivityLossKind::RefValueExtract {
-            source_name,
-            target_name,
-        } => (
-            cstr!(
-                "Assigning '{}.value' to '{}' stores a plain snapshot",
-                source_name,
-                target_name
-            ),
-            "Pass the ref itself, use a getter `() => ref.value`, or wrap the derived value in `computed(...)`.",
-        ),
-        ReactivityLossKind::ReactivePropertyExtract {
-            source_name,
-            prop_name,
-            target_name,
-        } => (
-            cstr!(
-                "Assigning '{}.{}' to '{}' stores a plain snapshot",
-                source_name,
-                prop_name,
-                target_name
-            ),
-            "Use `toRef(source, 'key')`, `toRefs(source)`, or access the property on the reactive object.",
-        ),
-        ReactivityLossKind::PropsDestructure { destructured_props } => (
-            cstr!(
-                "Destructuring props creates plain snapshots for: {}",
-                destructured_props.join(", ")
-            ),
-            "Use `toRefs(props)`, `toRef(props, 'key')`, or pass a getter `() => prop` across call boundaries.",
-        ),
-        ReactivityLossKind::FunctionArgumentExtract {
-            source_name,
-            argument_name,
-            callee_name,
-        } => (
-            cstr!(
-                "Passing '{}' to '{}' cuts the reactive graph from '{}'",
-                argument_name,
-                callee_name,
-                source_name
-            ),
-            "Pass `Ref<T>` or `ComputedRef<T>` instead, for example `toRef(source, 'key')` or `computed(() => value)`.",
-        ),
-        ReactivityLossKind::GetterCallExtract {
-            context_name,
-            getter_name,
-            target_name,
-            callee_name,
-            source_name,
-        } => (
-            cstr!(
-                "Assigning '{}.{}()' to '{}' stores a plain snapshot from '{}' returned by '{}'",
-                context_name,
-                getter_name,
-                target_name,
-                source_name,
-                callee_name
-            ),
-            "Keep the getter lazy, wrap it in `computed(...)`, or have the composable return a ref-like value.",
-        ),
-        ReactivityLossKind::PlainValueAlias {
-            source_name,
-            alias_name,
-            target_name,
-        } if alias_name == "<mutation>" => (
-            cstr!(
-                "Mutating '{}' writes through a plain snapshot from '{}'",
-                target_name,
-                source_name
-            ),
-            "Mutate the reactive source directly, or keep the value as a ref/computed.",
-        ),
-        ReactivityLossKind::PlainValueAlias {
-            source_name,
-            alias_name,
-            target_name,
-        } => (
-            cstr!(
-                "Assigning plain snapshot '{}' to '{}' keeps reactivity lost from '{}'",
-                alias_name,
-                target_name,
-                source_name
-            ),
-            "Pass the reactive source itself, a getter, `toRef(...)`, or `computed(...)` instead of aliasing the snapshot.",
-        ),
-        ReactivityLossKind::ReactiveSpread { source_name } => (
-            cstr!("Spreading '{}' creates a non-reactive copy", source_name),
-            "Keep the reactive object intact, or copy through refs with `toRefs(...)` when destructuring is intentional.",
-        ),
-        ReactivityLossKind::ReactiveReassign { source_name } => (
-            cstr!(
-                "Reassigning reactive binding '{}' breaks tracked identity",
-                source_name
-            ),
-            "Mutate the reactive object in place or store replaceable state in a ref.",
-        ),
-    };
+#[cfg(test)]
+mod tests {
+    use super::super::lint_sfc_with_corsa;
+    use crate::{LintPreset, Linter};
 
-    ReactivityLossQuery {
-        generated_offset: 0,
-        source_start: loss.start,
-        source_end: loss.end.max(loss.start.saturating_add(1)),
-        message,
-        help,
+    fn spread_messages(source: &str) -> Vec<std::string::String> {
+        let linter = Linter::with_preset(LintPreset::Opinionated).with_type_aware_lint(true);
+        let wrapped = format!("<script setup lang=\"ts\">\n{source}\n</script>\n");
+        let result = lint_sfc_with_corsa(&linter, &wrapped, "Fixture.vue");
+        result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.rule_name == "type/no-reactivity-loss")
+            .map(|diagnostic| diagnostic.message.as_str().to_string())
+            .collect()
     }
-}
 
-#[inline]
-fn diagnostic_key(start: u32, end: u32) -> u64 {
-    ((start as u64) << 32) | end as u64
+    #[test]
+    fn value_spread_inside_computed_getter_is_not_reactivity_loss() {
+        let messages = spread_messages(
+            r#"
+import { computed as useComputed, ref } from 'vue'
+const state = ref({ count: 1, tags: ['a'] })
+const alias = useComputed
+const view = computed(() => ({ ...state.value }))
+const block = computed(() => { return { ...state.value } })
+const options = computed({ get() { return { ...state.value } } })
+const viaAlias = alias(() => ({ ...state.value }))
+const outside = { ...state.value }
+const nested = computed(() => {
+  const leak = () => ({ ...state.value })
+  return leak()
+})
+const tags = { ...state.value.tags }
+"#,
+        );
+        let mut value_spreads = 0;
+        let mut tag_spreads = 0;
+        for message in &messages {
+            if message.contains("Spreading 'state.value.tags'") {
+                tag_spreads += 1;
+            } else if message.contains("Spreading 'state.value'") {
+                value_spreads += 1;
+            }
+        }
+        assert_eq!(value_spreads, 2, "{messages:?}");
+        assert_eq!(tag_spreads, 1, "{messages:?}");
+    }
 }

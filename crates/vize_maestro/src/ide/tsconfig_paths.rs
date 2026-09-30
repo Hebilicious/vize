@@ -3,13 +3,21 @@
 //! Anchoring matches the session's rule: the nearest `tsconfig.json` governs;
 //! when it is a solution-style shell that declares no `paths` of its own, the
 //! first referenced project config that does wins (the create-vue app/node
-//! split has exactly one). Comment stripping is string-aware — every `paths`
-//! pattern contains `/*` (`"@/*"`), so a stripper that ignores string state
-//! destroys exactly the value these features need.
+//! split has exactly one). `extends` merges the way TypeScript merges it: a
+//! later config replaces `paths` and `baseUrl` wholesale, and relative `paths`
+//! targets resolve against the effective `baseUrl` when any config in the
+//! chain declares one, otherwise against the directory of the config that
+//! declared the winning `paths` map. Comment stripping is string-aware — every
+//! `paths` pattern contains `/*` (`"@/*"`), so a stripper that ignores string
+//! state destroys exactly the value these features need.
 #![expect(
     clippy::disallowed_types,
     reason = "tower-lsp lsp_types take std String/HashMap values, built with to_string/format!"
 )]
+
+#[path = "tsconfig_paths_load.rs"]
+mod load;
+use load::{inherited_paths, referenced_configs};
 
 use std::path::{Path, PathBuf};
 
@@ -27,126 +35,40 @@ pub(crate) fn project_paths(source_path: &Path) -> Option<ProjectPaths> {
         .skip(1)
         .find(|dir| dir.join("tsconfig.json").is_file())?;
     let shell = anchor.join("tsconfig.json");
-    if let Some(paths) = paths_of(&shell) {
+    let mut stack = Vec::new();
+    if let Some(paths) = paths_of(&shell, &mut stack) {
         return Some(paths);
     }
     referenced_configs(&shell)
         .into_iter()
-        .find_map(|referenced| paths_of(&referenced))
+        .find_map(|referenced| paths_of(&referenced, &mut Vec::new()))
 }
 
-fn paths_of(config_path: &Path) -> Option<ProjectPaths> {
-    let value = read_jsonc(config_path)?;
-    let compiler_options = value.get("compilerOptions")?;
-    let paths = compiler_options.get("paths")?.as_object()?;
-    let config_dir = config_path.parent()?;
-    // TypeScript resolves `paths` targets against `baseUrl` when it is set,
-    // falling back to the declaring config's directory otherwise.
-    let anchor = match compiler_options.get("baseUrl").and_then(|v| v.as_str()) {
-        Some(base_url) => config_dir.join(base_url),
-        None => config_dir.to_path_buf(),
-    };
-    let mut entries = Vec::new();
-    for (pattern, targets) in paths {
-        for target in targets.as_array().into_iter().flatten() {
-            if let Some(target) = target.as_str() {
-                entries.push((pattern.clone(), target.to_owned()));
-            }
-        }
+/// `paths` and `baseUrl` after an `extends` merge. Each anchor directory is
+/// the config whose declaration survived, not the file that was asked for.
+struct InheritedPaths {
+    paths_dir: Option<PathBuf>,
+    entries: Vec<(std::string::String, std::string::String)>,
+    base_url_dir: Option<PathBuf>,
+    base_url: Option<std::string::String>,
+}
+
+fn paths_of(config_path: &Path, stack: &mut Vec<PathBuf>) -> Option<ProjectPaths> {
+    let inherited = inherited_paths(config_path, stack)?;
+    if inherited.entries.is_empty() {
+        return None;
     }
-    (!entries.is_empty()).then_some(ProjectPaths { anchor, entries })
-}
-
-/// The project configs a solution-style shell references, in declaration
-/// order; a `path` may name a config file or a directory.
-fn referenced_configs(config_path: &Path) -> Vec<PathBuf> {
-    let Some(value) = read_jsonc(config_path) else {
-        return Vec::new();
+    // A relative target is resolved against the effective `baseUrl` when one
+    // survived the merge, and against the winning `paths` map's directory
+    // otherwise. Targets stay spelled as written; callers join them to `anchor`.
+    let anchor = match (&inherited.base_url, &inherited.base_url_dir) {
+        (Some(base_url), Some(dir)) => dir.join(base_url),
+        _ => inherited.paths_dir?,
     };
-    let Some(references) = value.get("references").and_then(|v| v.as_array()) else {
-        return Vec::new();
-    };
-    let base = config_path.parent().unwrap_or(Path::new("."));
-    references
-        .iter()
-        .filter_map(|reference| reference.get("path").and_then(|p| p.as_str()))
-        .filter_map(|path| {
-            let joined = base.join(path);
-            if joined.is_file() {
-                return Some(joined);
-            }
-            let as_directory = joined.join("tsconfig.json");
-            as_directory.is_file().then_some(as_directory)
-        })
-        .collect()
-}
-
-fn read_jsonc(path: &Path) -> Option<serde_json::Value> {
-    let content = std::fs::read_to_string(path).ok()?;
-    serde_json::from_str(&content)
-        .ok()
-        .or_else(|| serde_json::from_str(&strip_jsonc_sugar(&content)).ok())
-}
-
-/// Reduce the JSONC that TypeScript accepts to the JSON `serde_json` parses:
-/// comments and trailing commas, both of which `tsc` allows anywhere. String
-/// state is tracked throughout, because every `paths` pattern contains `/*`
-/// (`"@/*"`) and a stripper that ignores it destroys the value we came for.
-fn strip_jsonc_sugar(source: &str) -> std::string::String {
-    let mut out = std::string::String::with_capacity(source.len());
-    let mut chars = source.chars().peekable();
-    let mut in_string = false;
-    let mut escaped = false;
-    while let Some(c) = chars.next() {
-        if in_string {
-            out.push(c);
-            if escaped {
-                escaped = false;
-            } else if c == '\\' {
-                escaped = true;
-            } else if c == '"' {
-                in_string = false;
-            }
-            continue;
-        }
-        match c {
-            '"' => {
-                in_string = true;
-                out.push(c);
-            }
-            '/' if chars.peek() == Some(&'/') => {
-                for c in chars.by_ref() {
-                    if c == '\n' {
-                        out.push('\n');
-                        break;
-                    }
-                }
-            }
-            '/' if chars.peek() == Some(&'*') => {
-                chars.next();
-                let mut last = ' ';
-                for c in chars.by_ref() {
-                    if last == '*' && c == '/' {
-                        break;
-                    }
-                    last = c;
-                }
-            }
-            // A closing brace or bracket retroactively makes any comma that
-            // precedes it (across whitespace and stripped comments) trailing.
-            '}' | ']' => {
-                while out.ends_with(char::is_whitespace) {
-                    out.pop();
-                }
-                if out.ends_with(',') {
-                    out.pop();
-                }
-                out.push(c);
-            }
-            _ => out.push(c),
-        }
-    }
-    out
+    Some(ProjectPaths {
+        anchor,
+        entries: inherited.entries,
+    })
 }
 
 #[cfg(test)]
@@ -233,10 +155,149 @@ mod tests {
   "compilerOptions": { "paths": { "@/*": ["./src/*"] } }
 }"#;
         let value: serde_json::Value =
-            serde_json::from_str(&super::strip_jsonc_sugar(source)).unwrap();
+            serde_json::from_str(&super::load::strip_jsonc_sugar(source)).unwrap();
         assert_eq!(
             value["compilerOptions"]["paths"]["@/*"][0],
             serde_json::json!("./src/*")
+        );
+    }
+
+    #[test]
+    fn extends_loads_paths_anchored_at_the_base_config() {
+        let dir = temp_dir();
+        let root = dir.path();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("gen")).unwrap();
+        fs::write(
+            root.join("gen/tsconfig.json"),
+            r##"{ "compilerOptions": { "paths": { "#c/*": ["../src/*"] } } }"##,
+        )
+        .unwrap();
+        fs::write(
+            root.join("tsconfig.json"),
+            r#"{ "extends": "./gen/tsconfig.json" }"#,
+        )
+        .unwrap();
+        let paths = super::project_paths(&root.join("src/App.vue")).unwrap();
+        assert_eq!(paths.anchor, root.join("gen"));
+        assert_eq!(
+            paths.entries,
+            vec![("#c/*".to_string(), "../src/*".to_string())]
+        );
+    }
+
+    #[test]
+    fn child_paths_replace_extended_paths() {
+        let dir = temp_dir();
+        let root = dir.path();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("base.json"),
+            r##"{ "compilerOptions": { "paths": { "#c/*": ["../src/*"] } } }"##,
+        )
+        .unwrap();
+        fs::write(
+            root.join("tsconfig.json"),
+            r#"{ "extends": "./base.json", "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }"#,
+        )
+        .unwrap();
+        let paths = super::project_paths(&root.join("src/App.vue")).unwrap();
+        assert_eq!(paths.anchor, root);
+        assert_eq!(
+            paths.entries,
+            vec![("@/*".to_string(), "./src/*".to_string())]
+        );
+    }
+
+    #[test]
+    fn child_base_url_reanchors_inherited_paths() {
+        let dir = temp_dir();
+        let root = dir.path();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("base.json"),
+            r#"{ "compilerOptions": { "paths": { "@/*": ["*"] } } }"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("tsconfig.json"),
+            r#"{ "extends": "./base.json", "compilerOptions": { "baseUrl": "./src" } }"#,
+        )
+        .unwrap();
+        let paths = super::project_paths(&root.join("src/App.vue")).unwrap();
+        assert_eq!(paths.anchor, root.join("src"));
+        assert_eq!(paths.entries, vec![("@/*".to_string(), "*".to_string())]);
+    }
+
+    #[test]
+    fn later_extends_array_entry_replaces_earlier_paths() {
+        let dir = temp_dir();
+        let root = dir.path();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("first.json"),
+            r#"{ "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("second.json"),
+            r##"{ "compilerOptions": { "paths": { "#c/*": ["./src/*"] } } }"##,
+        )
+        .unwrap();
+        fs::write(
+            root.join("tsconfig.json"),
+            r#"{ "extends": ["./first.json", "./second.json"] }"#,
+        )
+        .unwrap();
+        let paths = super::project_paths(&root.join("src/App.vue")).unwrap();
+        assert_eq!(
+            paths.entries,
+            vec![("#c/*".to_string(), "./src/*".to_string())]
+        );
+    }
+
+    #[test]
+    fn extends_cycle_keeps_the_paths_outside_the_loop() {
+        let dir = temp_dir();
+        let root = dir.path();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("a.json"), r#"{ "extends": "./b.json" }"#).unwrap();
+        fs::write(
+            root.join("b.json"),
+            r##"{ "extends": "./a.json", "compilerOptions": { "paths": { "#c/*": ["./src/*"] } } }"##,
+        )
+        .unwrap();
+        fs::write(root.join("tsconfig.json"), r#"{ "extends": "./a.json" }"#).unwrap();
+        let paths = super::project_paths(&root.join("src/App.vue")).unwrap();
+        assert_eq!(paths.anchor, root);
+        assert_eq!(
+            paths.entries,
+            vec![("#c/*".to_string(), "./src/*".to_string())]
+        );
+    }
+
+    #[test]
+    fn package_extends_loads_paths_from_node_modules() {
+        let dir = temp_dir();
+        let root = dir.path();
+        let package = root.join("node_modules/@scope/pkg");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(&package).unwrap();
+        fs::write(
+            package.join("tsconfig.json"),
+            r##"{ "compilerOptions": { "paths": { "#c/*": ["../../src/*"] } } }"##,
+        )
+        .unwrap();
+        fs::write(
+            root.join("tsconfig.json"),
+            r#"{ "extends": "@scope/pkg/tsconfig.json" }"#,
+        )
+        .unwrap();
+        let paths = super::project_paths(&root.join("src/App.vue")).unwrap();
+        assert_eq!(paths.anchor, package);
+        assert_eq!(
+            paths.entries,
+            vec![("#c/*".to_string(), "../../src/*".to_string())]
         );
     }
 }

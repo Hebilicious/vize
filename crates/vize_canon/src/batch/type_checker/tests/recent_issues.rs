@@ -1,4 +1,5 @@
 use super::{create_project_case, resolve_test_tsgo_binary, snapshot_project_diagnostics};
+mod art_variant;
 mod component_event_assignment_scope;
 mod component_options_index_signature;
 mod component_prop_regressions;
@@ -48,6 +49,7 @@ mod template_key_expressions;
 mod template_ref_slot_vnode_handlers;
 mod ts_extension_substitution;
 mod tsx_catch_all_emits;
+mod unknown_checks;
 mod unmapped_template_fallback;
 mod v_for_source_callbacks;
 mod vapor_anchors;

@@ -2,9 +2,11 @@
 
 use crate::steps::v_slot::{collect_slots, get_slot_name, has_v_slot, is_dynamic_slot};
 use crate::{ElementNode, ExpressionNode, PropNode, RuntimeHelper, TemplateChildNode};
-use vize_l0::String;
 
 use super::super::context::CodegenContext;
+
+mod slot_params;
+
 use super::super::expression::generate_expression;
 use super::super::helpers::{escape_js_string, is_valid_js_identifier};
 use super::super::node::generate_node;
@@ -15,6 +17,7 @@ use super::detect::{
 };
 use super::name::{component_root_slot, emit_slot_property_name};
 use super::params::{extract_slot_params, get_slot_props, prefix_slot_defaults};
+use slot_params::strip_ctx_prefix_for_slot_params;
 
 /// Generate slots object for component
 ///
@@ -198,7 +201,7 @@ pub fn generate_slots(ctx: &mut CodegenContext, el: &ElementNode<'_>) {
             }
         }
 
-        // Generate default slot for non-template children
+        let has_slot_template = super::detect::has_authored_slot_template(el);
         let default_children: Vec<_> = el
             .children
             .iter()
@@ -210,8 +213,9 @@ pub fn generate_slots(ctx: &mut CodegenContext, el: &ElementNode<'_>) {
                 }
             })
             .collect();
-
-        if !default_children.is_empty() && !has_generated_default {
+        let has_default_content = !has_slot_template
+            || super::detect::slot_children_have_meaningful_content(&default_children);
+        if !default_children.is_empty() && !has_generated_default && has_default_content {
             if !first_slot {
                 ctx.push(",");
             }
@@ -398,18 +402,4 @@ fn generate_slot_expression(ctx: &mut CodegenContext, expr: &ExpressionNode<'_>)
             }
         }
     }
-}
-
-/// Strip _ctx. prefix from identifiers that are slot parameters
-fn strip_ctx_prefix_for_slot_params(ctx: &CodegenContext, content: &str) -> String {
-    let mut result = String::new(content);
-    for param in ctx.slot_params.keys() {
-        // Replace _ctx.paramName with paramName
-        let mut prefixed = String::with_capacity(5 + param.len());
-        prefixed.push_str("_ctx.");
-        prefixed.push_str(param);
-        let replaced = result.replace(prefixed.as_str(), param.as_str());
-        result = String::from(replaced);
-    }
-    result
 }

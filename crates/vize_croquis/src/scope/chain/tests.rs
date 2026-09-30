@@ -10,6 +10,8 @@ use crate::scope::types::JsRuntime;
 use insta::assert_snapshot;
 use vize_carton::{append, smallvec};
 
+mod empty_visible;
+
 #[test]
 fn test_scope_chain_basic() {
     let mut chain = ScopeChain::new();
@@ -372,6 +374,7 @@ fn test_client_only_scope() {
     chain.enter_client_only_scope(
         ClientOnlyScopeData {
             hook_name: CompactString::new("onMounted"),
+            acquires_resource: false,
         },
         100,
         200,
@@ -388,6 +391,7 @@ fn test_client_only_scope() {
     chain.enter_client_only_scope(
         ClientOnlyScopeData {
             hook_name: CompactString::new("onBeforeUnmount"),
+            acquires_resource: false,
         },
         250,
         300,
@@ -574,6 +578,7 @@ fn test_nested_ssr_scopes() {
     chain.enter_client_only_scope(
         ClientOnlyScopeData {
             hook_name: CompactString::new("onMounted"),
+            acquires_resource: false,
         },
         100,
         200,
@@ -997,13 +1002,4 @@ fn test_bindings_visible_at_respects_shadowing() {
     let xs: Vec<_> = visible.iter().filter(|(name, _, _)| *name == "x").collect();
     assert_eq!(xs.len(), 1, "shadowed name should appear only once: {xs:?}");
     assert_eq!(xs[0].1.binding_type, BindingType::SetupLet);
-}
-
-#[test]
-fn test_bindings_visible_at_returns_empty_outside_any_scope() {
-    let chain = ScopeChain::new();
-    // Root scope uses the default span (0..0), so any non-zero offset finds
-    // no containing scope and returns nothing.
-    let visible = chain.bindings_visible_at(42);
-    assert!(visible.is_empty(), "expected empty, got {visible:?}");
 }

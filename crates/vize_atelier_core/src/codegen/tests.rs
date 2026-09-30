@@ -1,5 +1,7 @@
 //! Snapshot and assertion tests for codegen.
 
+mod source_map_identity;
+
 use crate::compile;
 
 fn result_output(result: &super::CodegenResult) -> vize_l0::String {
@@ -146,6 +148,20 @@ fn test_root_only_directive_comment_compiles_to_null() {
     let result = compile!("<!-- @vize:forget no render output -->");
 
     assert_codegen_snapshot!(result);
+}
+
+#[test]
+fn root_siblings_keep_a_same_line_space() {
+    let result = compile!("<span>a</span> <span>b</span>");
+    let output = result_output(&result);
+    assert!(output.contains("_createTextVNode()"), "{output}");
+}
+
+#[test]
+fn root_siblings_drop_indentation_newlines() {
+    let result = compile!("<span>a</span>\n  <span>b</span>");
+    let output = result_output(&result);
+    assert!(!output.contains("_createTextVNode()"), "{output}");
 }
 
 #[test]
@@ -455,6 +471,22 @@ fn test_codegen_conditional_named_slot_preserves_implicit_default_slot() {
         "conditional named slot should still be dynamic:\n{}",
         output
     );
+}
+
+#[test]
+fn comment_only_child_creates_a_default_slot_in_development() {
+    let result = compile!("<Card><!-- body comes later --></Card>");
+    let output = result_output(&result);
+    assert!(output.contains("default: _withCtx(() => ["), "{output}");
+    assert!(output.contains("_createCommentVNode"), "{output}");
+}
+
+#[test]
+fn comment_next_to_named_slot_does_not_create_a_default_slot() {
+    let result = compile!("<Card><!-- body comes later --><template #footer>ok</template></Card>");
+    let output = result_output(&result);
+    assert!(output.contains("footer: _withCtx(() => ["), "{output}");
+    assert!(!output.contains("default: _withCtx(() => ["), "{output}");
 }
 
 #[test]
@@ -1446,48 +1478,4 @@ fn source_map_names_array_deduplicates_repeated_symbols() {
         id_count, 1,
         "`id` should appear exactly once in `names` even across two elements"
     );
-}
-
-#[test]
-fn source_map_static_attr_and_text_do_not_alter_generated_code() {
-    // The additive invariant extended to the new anchor kinds: a template that
-    // exercises static attributes, a dynamic prop key, text, and a comment must
-    // still produce byte-identical `code`/`preamble` with source maps off.
-    let src = r#"<div id="app" :title="t"><!--c-->hello {{ x }}</div>"#;
-
-    let with_map = compile_with_map(src, "Foo.vue");
-
-    let allocator = vize_l0::Allocator::new();
-    let (mut root, errors) = crate::parser::parse(&allocator, src);
-    assert!(errors.is_empty(), "Parse errors: {:?}", errors);
-    crate::lane::transform(
-        &allocator,
-        &mut root,
-        crate::options::TransformOptions {
-            prefix_identifiers: true,
-            ..Default::default()
-        },
-        None,
-    );
-    let without_map = super::generate(
-        &root,
-        crate::options::CodegenOptions {
-            prefix_identifiers: true,
-            source_map: false,
-            filename: "Foo.vue".into(),
-            ..Default::default()
-        },
-    );
-
-    assert_eq!(
-        with_map.code.as_str(),
-        without_map.code.as_str(),
-        "generated code must be byte-identical regardless of source_map flag"
-    );
-    assert_eq!(
-        with_map.preamble.as_str(),
-        without_map.preamble.as_str(),
-        "preamble must be byte-identical regardless of source_map flag"
-    );
-    assert!(without_map.map.is_none());
 }

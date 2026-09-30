@@ -92,8 +92,13 @@ pub struct ScriptParseResult {
     pub(crate) reactive_getter_contexts: FxHashMap<CompactString, ReactiveGetterContext>,
     /// Setup context violation tracking
     pub setup_context: SetupContextTracker,
+    /// Browser globals read from this script (`window.innerWidth`, `fetch()`).
+    pub script_browser_globals: Vec<(CompactString, u32)>,
     /// Flag to track if we're in a non-setup script context
     pub(crate) is_non_setup_script: bool,
+    /// Compile demand skips browser-global and race reports. Full and doctor
+    /// walks leave this false so those reports stay.
+    pub(crate) skip_diagnostics: bool,
     /// Import statement spans in script content
     pub import_statements: Vec<ImportStatementInfo>,
     /// Re-export statement spans (`export { ... } from "..."`)
@@ -129,6 +134,11 @@ pub struct ScriptParseResult {
     pub(crate) options_descriptor: Option<OptionsDescriptor>,
     /// Whether component options disable attribute inheritance.
     pub inherit_attrs_disabled: bool,
+    /// Reactive root of a member assignment while its right-hand side is walked.
+    ///
+    /// `open.value = [...open.value, index]` writes the copy back, so the spread
+    /// is not a lost subscription.
+    pub(crate) reactive_assignment_root: Option<CompactString>,
 }
 
 /// Options for plain script parsing.
@@ -255,6 +265,7 @@ impl ScriptParseResult {
         summary.scopes = self.scopes;
         summary.provide_inject = self.provide_inject;
         summary.setup_context = self.setup_context;
+        summary.script_browser_globals = self.script_browser_globals;
         summary.import_statements = self.import_statements;
         summary.re_exports = self.re_exports;
         summary.re_export_forwards = self.re_export_forwards;

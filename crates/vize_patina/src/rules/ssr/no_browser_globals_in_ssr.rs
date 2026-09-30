@@ -45,13 +45,9 @@
 use crate::context::LintContext;
 use crate::diagnostic::Severity;
 use crate::rule::{Rule, RuleCategory, RuleMeta};
-use oxc_allocator::Allocator;
-use oxc_ast::ast::TSType;
-use oxc_ast_visit::Visit;
-use oxc_parser::Parser;
-use oxc_span::{GetSpan, SourceType};
-use vize_l0::String;
 use vize_relief::BindingType;
+
+mod type_ranges;
 use vize_relief::{ElementNode, ExpressionNode, InterpolationNode, RootNode};
 
 /// Browser-only global names that are NOT available in SSR
@@ -183,6 +179,21 @@ impl NoBrowserGlobalsInSsr {
         } else {
             // Fall back to static list if analysis is not available
             Self::is_browser_global_static(name)
+        }
+    }
+
+    /// A script or template binding shadows a browser global of the same name.
+    ///
+    /// Scope lookup finds ambient browser globals (`open`, `close`) before the
+    /// script binding map, so a destructured prop is not "undefined" just
+    /// because the global scope also has that name.
+    fn is_local_binding(ctx: &LintContext<'_>, name: &str) -> bool {
+        if ctx.is_v_for_var(name) || ctx.has_script_binding(name) {
+            return true;
+        }
+        match ctx.get_binding_type(name) {
+            Some(BindingType::JsGlobalBrowser) | None => false,
+            Some(_) => true,
         }
     }
 
@@ -400,7 +411,7 @@ impl NoBrowserGlobalsInSsr {
             return identifiers.into_iter().map(|(name, _)| name).collect();
         }
 
-        let type_ranges = Self::type_ranges(expr);
+        let type_ranges = type_ranges::type_ranges(expr);
         identifiers
             .into_iter()
             .filter(|(_, offset)| {
@@ -409,39 +420,6 @@ impl NoBrowserGlobalsInSsr {
                     .any(|(start, end)| *offset >= *start && *offset < *end)
             })
             .map(|(name, _)| name)
-            .collect()
-    }
-
-    fn type_ranges(expr: &str) -> Vec<(usize, usize)> {
-        const PREFIX: &str = "const __vize_ssr_expr = (";
-        let mut source = String::with_capacity(PREFIX.len() + expr.len() + 2);
-        source.push_str(PREFIX);
-        source.push_str(expr);
-        source.push_str(");");
-
-        let allocator = Allocator::default();
-        let parsed = Parser::new(&allocator, source.as_str(), SourceType::ts()).parse();
-        if parsed.panicked || !parsed.diagnostics.is_empty() {
-            return Vec::new();
-        }
-
-        struct TypeRanges(Vec<(usize, usize)>);
-        impl<'a> Visit<'a> for TypeRanges {
-            fn visit_ts_type(&mut self, ty: &TSType<'a>) {
-                let span = ty.span();
-                self.0.push((span.start as usize, span.end as usize));
-            }
-        }
-
-        let mut ranges = TypeRanges(Vec::new());
-        ranges.visit_program(&parsed.program);
-        ranges
-            .0
-            .into_iter()
-            .filter_map(|(start, end)| {
-                let offset = PREFIX.len();
-                (start >= offset).then_some((start - offset, end.saturating_sub(offset)))
-            })
             .collect()
     }
 }
@@ -472,14 +450,11 @@ impl Rule for NoBrowserGlobalsInSsr {
         let identifiers = Self::runtime_identifiers(content);
 
         for ident in identifiers {
-            // Skip if it's defined as a local variable (from v-for, etc.)
-            if ctx.is_variable_defined(ident) {
+            if Self::is_local_binding(ctx, ident) {
                 continue;
             }
 
-            // Check using croquis analysis or fall back to static list
-            if Self::is_browser_global_binding(ctx, ident) || Self::is_browser_global_static(ident)
-            {
+            if Self::is_browser_global_binding(ctx, ident) {
                 ctx.warn_with_help(
                     ctx.t_fmt("ssr/no-browser-globals-in-ssr.message", &[("name", ident)]),
                     &interpolation.loc,
@@ -509,15 +484,11 @@ impl Rule for NoBrowserGlobalsInSsr {
             let identifiers = Self::runtime_identifiers(content);
 
             for ident in identifiers {
-                // Skip if it's defined as a local variable
-                if ctx.is_variable_defined(ident) {
+                if Self::is_local_binding(ctx, ident) {
                     continue;
                 }
 
-                // Check using croquis analysis or fall back to static list
-                if Self::is_browser_global_binding(ctx, ident)
-                    || Self::is_browser_global_static(ident)
-                {
+                if Self::is_browser_global_binding(ctx, ident) {
                     ctx.warn_with_help(
                         ctx.t_fmt("ssr/no-browser-globals-in-ssr.message", &[("name", ident)]),
                         &directive.loc,

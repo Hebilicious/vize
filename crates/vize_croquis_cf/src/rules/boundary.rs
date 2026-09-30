@@ -6,6 +6,10 @@
 //! - Missing error boundaries
 //! - Hydration mismatch risks
 
+#[path = "boundary_graph.rs"]
+mod graph_walk;
+use graph_walk::{find_error_sources, find_protected_components, has_ancestor_with_boundary};
+
 use crate::diagnostics::{CrossFileDiagnostic, CrossFileDiagnosticKind, DiagnosticSeverity};
 use crate::facts::ErrorBoundaryRule;
 use crate::graph::{DependencyEdge, DependencyGraph};
@@ -213,13 +217,23 @@ fn find_browser_api_usage(
         ("prompt", "Browser dialog"),
     ];
 
-    // Check template expressions
+    // Check template expressions. Match a whole identifier so `confirmDeleting`
+    // and `fetchItems` are not treated as `confirm` / `fetch`.
     for expr in &analysis.template_expressions {
         for (api, context) in &browser_apis {
-            if expr.content.contains(api) {
+            if contains_ident(expr.content.as_str(), api) {
                 usages.push((CompactString::new(*api), expr.start, *context));
             }
         }
+    }
+
+    for (api, offset) in &analysis.script_browser_globals {
+        let context = browser_apis
+            .iter()
+            .find(|(name, _)| *name == api.as_str())
+            .map(|(_, context)| *context)
+            .unwrap_or("Browser global");
+        usages.push((api.clone(), *offset, context));
     }
 
     // Note: We intentionally don't check global scopes here because they define
@@ -227,6 +241,34 @@ fn find_browser_api_usage(
     // Instead, we only check template expressions for actual usage of these APIs.
 
     usages
+}
+
+fn contains_ident(haystack: &str, ident: &str) -> bool {
+    let bytes = haystack.as_bytes();
+    let needle = ident.as_bytes();
+    if needle.is_empty() {
+        return false;
+    }
+    let mut start = 0;
+    while start + needle.len() <= bytes.len() {
+        if bytes.get(start..start + needle.len()) == Some(needle) {
+            let before_ok = start == 0
+                || bytes
+                    .get(start - 1)
+                    .is_some_and(|byte| !is_ident_byte(*byte));
+            let after = start + needle.len();
+            let after_ok = bytes.get(after).is_none_or(|byte| !is_ident_byte(*byte));
+            if before_ok && after_ok {
+                return true;
+            }
+        }
+        start += 1;
+    }
+    false
+}
+
+fn is_ident_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'$'
 }
 
 /// Check if an offset is inside a client-only context.
@@ -253,97 +295,51 @@ fn is_in_client_only_context(analysis: &vize_croquis::Croquis, offset: u32) -> b
     false
 }
 
-/// Find potential error sources in a component.
-fn find_error_sources(analysis: &vize_croquis::Croquis) -> Vec<u32> {
-    let mut sources = Vec::new();
-
-    // Look for common error patterns
-    let error_patterns = [
-        "throw",
-        "Error(",
-        "reject(",
-        "JSON.parse",
-        "fetch(",
-        "axios",
-        "await ",
-    ];
-
-    for expr in &analysis.template_expressions {
-        for pattern in &error_patterns {
-            if expr.content.contains(pattern) {
-                sources.push(expr.start);
-                break;
-            }
-        }
-    }
-
-    sources
-}
-
-/// Check if a component has an ancestor with a boundary.
-fn has_ancestor_with_boundary(
-    file_id: FileId,
-    boundaries: &FxHashSet<FileId>,
-    graph: &DependencyGraph,
-) -> bool {
-    let mut visited = FxHashSet::default();
-    let mut queue = vec![file_id];
-
-    while let Some(current) = queue.pop() {
-        if visited.contains(&current) {
-            continue;
-        }
-        visited.insert(current);
-
-        // Check if current is a boundary
-        if current != file_id && boundaries.contains(&current) {
-            return true;
-        }
-
-        // Add parents to queue
-        for (parent_id, edge_type) in graph.dependents(current) {
-            if edge_type == DependencyEdge::ComponentUsage && !visited.contains(&parent_id) {
-                queue.push(parent_id);
-            }
-        }
-    }
-
-    false
-}
-
-/// Find all components protected by a boundary.
-fn find_protected_components(boundary_id: FileId, graph: &DependencyGraph) -> Vec<FileId> {
-    let mut protected = Vec::new();
-    let mut visited = FxHashSet::default();
-    let mut queue = vec![boundary_id];
-
-    while let Some(current) = queue.pop() {
-        if visited.contains(&current) {
-            continue;
-        }
-        visited.insert(current);
-
-        // Add children (components used by this one)
-        for (child_id, edge_type) in graph.dependencies(current) {
-            if edge_type == DependencyEdge::ComponentUsage {
-                protected.push(child_id);
-                if !visited.contains(&child_id) {
-                    queue.push(child_id);
-                }
-            }
-        }
-    }
-
-    protected
-}
-
 #[cfg(test)]
 mod tests {
-    use super::BoundaryKind;
+    use super::{BoundaryKind, find_browser_api_usage};
+    use vize_carton::CompactString;
+    use vize_croquis::{Croquis, ScopeId, TemplateExpression, TemplateExpressionKind};
 
     #[test]
     fn test_boundary_kind() {
         let kind = BoundaryKind::Error;
         assert_eq!(kind, BoundaryKind::Error);
+    }
+
+    #[test]
+    fn template_browser_api_does_not_match_name_prefixes() {
+        let mut analysis = Croquis::new();
+        for content in [
+            "confirmationMessage",
+            "confirmDeleting",
+            "fetchItems",
+            "window.innerWidth",
+            "confirm()",
+        ] {
+            analysis.template_expressions.push(TemplateExpression {
+                content: CompactString::new(content),
+                kind: TemplateExpressionKind::VOn,
+                start: 0,
+                end: content.len() as u32,
+                scope_id: ScopeId::ROOT,
+                vif_guard: None,
+            });
+        }
+
+        let names: Vec<_> = find_browser_api_usage(&analysis)
+            .into_iter()
+            .map(|(name, _, _)| name.clone())
+            .collect();
+        assert!(names.iter().any(|name| name == "window"), "{names:?}");
+        assert!(names.iter().any(|name| name == "confirm"), "{names:?}");
+        assert_eq!(
+            names
+                .iter()
+                .filter(|name| name.as_str() == "confirm")
+                .count(),
+            1
+        );
+        assert!(!names.iter().any(|name| name == "fetch"), "{names:?}");
     }
 }

@@ -16,7 +16,9 @@
 //! as its first argument (`emit('change')`). An event declared but never emitted
 //! through that function is reported. When the `defineEmits` return value is not
 //! assigned to a binding (e.g. a bare `defineEmits([...])`), emits cannot be
-//! tracked, so nothing is reported.
+//! tracked, so nothing is reported. When the binding escapes — passed to a
+//! call, stored, or returned — every declared event is treated as used,
+//! because the callee can emit any of them.
 //!
 //! Top-level `<script setup>` bindings are template-visible, so when the block
 //! is linted as part of an SFC the same call forms are also resolved from the
@@ -54,7 +56,7 @@
 
 use oxc_ast::ast::{
     Argument, ArrayExpressionElement, BindingPattern, CallExpression, Expression,
-    ObjectPropertyKind, Program, PropertyKey, Statement, TSLiteral, TSSignature, TSType,
+    IdentifierReference, ObjectPropertyKind, Program, Statement, TSLiteral, TSSignature, TSType,
 };
 use oxc_ast_visit::{Visit, walk::walk_call_expression};
 use oxc_span::{GetSpan, Span};
@@ -64,6 +66,10 @@ use vize_l0::{CompactString, FxHashSet};
 use super::super::{ScriptLintResult, ScriptRule, ScriptRuleMeta, SfcScriptContext};
 use super::template_emits::collect_template_emitted_events;
 use crate::diagnostic::{LintDiagnostic, Severity};
+
+mod keys;
+
+use keys::property_key_name;
 
 static META: ScriptRuleMeta = ScriptRuleMeta {
     name: "script/no-unused-emit-declarations",
@@ -118,8 +124,15 @@ impl ScriptRule for NoUnusedEmitDeclarations {
         let mut collector = EmittedCollector {
             emit_name: declaration.binding,
             used: &mut used,
+            direct_callees: Vec::new(),
+            escaped: false,
         };
         collector.visit_program(program);
+        // `useClose(emit)`, `const saved = emit`, or `return emit` can emit
+        // any declared event. The rule cannot see which, so none are unused.
+        if collector.escaped {
+            return;
+        }
 
         // Top-level `<script setup>` bindings are template-visible, so emit
         // calls in template expressions count as usage too (#3209).
@@ -258,21 +271,37 @@ fn collect_event_from_signature(member: &TSSignature<'_>, events: &mut Vec<Decla
 }
 
 /// Walks the program collecting the first string-literal argument of every call
-/// to the captured emit function (`emit('change')`).
+/// to the captured emit function (`emit('change')`). A reference that is not
+/// that direct callee means the function value escaped.
 struct EmittedCollector<'a, 'set> {
     emit_name: &'a str,
     used: &'set mut FxHashSet<CompactString>,
+    direct_callees: Vec<Span>,
+    escaped: bool,
 }
 
 impl<'a> Visit<'a> for EmittedCollector<'_, '_> {
     fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
         if let Expression::Identifier(callee) = &it.callee
             && callee.name.as_str() == self.emit_name
-            && let Some(Argument::StringLiteral(literal)) = it.arguments.first()
         {
-            self.used.insert(CompactString::new(literal.value.as_str()));
+            self.direct_callees.push(callee.span);
+            if let Some(Argument::StringLiteral(literal)) = it.arguments.first() {
+                self.used.insert(CompactString::new(literal.value.as_str()));
+            }
         }
         walk_call_expression(self, it);
+    }
+
+    fn visit_identifier_reference(&mut self, it: &IdentifierReference<'a>) {
+        if it.name.as_str() == self.emit_name
+            && !self
+                .direct_callees
+                .iter()
+                .any(|callee| callee.start == it.span.start && callee.end == it.span.end)
+        {
+            self.escaped = true;
+        }
     }
 }
 
@@ -311,14 +340,6 @@ fn report(name: &str, span: Span, offset: usize, result: &mut ScriptLintResult) 
              declaration.",
         );
     result.add_diagnostic(diagnostic);
-}
-
-fn property_key_name<'a>(key: &'a PropertyKey<'a>) -> Option<&'a str> {
-    match key {
-        PropertyKey::StaticIdentifier(identifier) => Some(identifier.name.as_str()),
-        PropertyKey::StringLiteral(string) => Some(string.value.as_str()),
-        _ => None,
-    }
 }
 
 #[cfg(test)]

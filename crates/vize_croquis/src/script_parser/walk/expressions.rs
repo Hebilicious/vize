@@ -3,6 +3,10 @@
 //! Recursively walks expression nodes to find nested function scopes,
 //! callback arguments, reactivity losses, and client-only lifecycle hooks.
 
+mod calls;
+pub(in crate::script_parser) use calls::walk_call_arguments;
+use calls::{identifier_might_be_browser_global, note_script_browser_global};
+
 use oxc_ast::ast::{Argument, AssignmentTarget, CallExpression, ObjectPropertyKind, Statement};
 
 use super::{
@@ -92,6 +96,12 @@ pub(in crate::script_parser) fn walk_expression(
         // Call expressions may contain callbacks as arguments
         Expression::CallExpression(call) => {
             walk_call_arguments(result, call, source);
+        }
+
+        Expression::Identifier(id) => {
+            if !result.skip_diagnostics && identifier_might_be_browser_global(id.name.as_str()) {
+                note_script_browser_global(result, id.name.as_str(), id.span.start);
+            }
         }
 
         // Member expressions - walk the object
@@ -230,7 +240,13 @@ pub(in crate::script_parser) fn walk_expression(
                     );
                 }
             }
-            walk_expression(result, &assign.right, source);
+            if let Some(root) = super::super::extract::member_assignment_root(&assign.left) {
+                let previous = result.reactive_assignment_root.replace(root);
+                walk_expression(result, &assign.right, source);
+                result.reactive_assignment_root = previous;
+            } else {
+                walk_expression(result, &assign.right, source);
+            }
         }
 
         Expression::UpdateExpression(update) => {
@@ -254,163 +270,5 @@ pub(in crate::script_parser) fn walk_expression(
 
         // Other expressions don't need walking for scopes
         _ => {}
-    }
-}
-
-/// Walk call expression arguments to find callbacks
-#[inline]
-pub(in crate::script_parser) fn walk_call_arguments(
-    result: &mut ScriptParseResult,
-    call: &CallExpression<'_>,
-    source: &str,
-) {
-    // First, walk the callee (might be a chained call like foo.bar().baz())
-    walk_expression(result, &call.callee, source);
-
-    // Check for provide/inject calls
-    detect_provide_inject_call(result, call, source);
-    detect_race_condition_call(result, call, source);
-    detect_call_argument_reactivity_loss(result, call, source);
-    super::super::extract::check_reactive_plain_call_mutation(result, call, source);
-
-    // Check if this is a client-only lifecycle hook
-    let is_lifecycle_hook = if let Expression::Identifier(id) = &call.callee {
-        is_client_only_hook(id.name.as_str())
-    } else {
-        false
-    };
-
-    let hook_name = if is_lifecycle_hook {
-        if let Expression::Identifier(id) = &call.callee {
-            Some(id.name.as_str())
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-    let mut lifecycle_callback_scope_recorded = false;
-
-    // Then walk each argument
-    for arg in call.arguments.iter() {
-        match arg {
-            Argument::SpreadElement(spread) => {
-                super::super::extract::check_reactive_spread_expression(
-                    result,
-                    &spread.argument,
-                    source,
-                    spread.span.start,
-                    spread.span.end,
-                );
-                walk_expression(result, &spread.argument, source);
-            }
-            _ => {
-                if let Some(expr) = arg.as_expression() {
-                    // If this is a lifecycle hook and the argument is a function,
-                    // wrap it in a ClientOnly scope
-                    if let Some(name) = hook_name {
-                        match expr {
-                            Expression::ArrowFunctionExpression(arrow) => {
-                                lifecycle_callback_scope_recorded = true;
-                                // Enter client-only scope
-                                result.scopes.enter_client_only_scope(
-                                    ClientOnlyScopeData {
-                                        hook_name: CompactString::new(name),
-                                    },
-                                    call.span.start,
-                                    call.span.end,
-                                );
-
-                                // Now create the closure scope inside the client-only scope
-                                let params = extract_function_params(&arrow.params);
-                                result.scopes.enter_closure_scope(
-                                    ClosureScopeData {
-                                        name: None,
-                                        param_names: params,
-                                        is_arrow: true,
-                                        is_async: arrow.r#async,
-                                        is_generator: false,
-                                    },
-                                    arrow.span.start,
-                                    arrow.span.end,
-                                );
-
-                                // Walk the body
-                                if arrow.expression {
-                                    if let Some(Statement::ExpressionStatement(expr_stmt)) =
-                                        arrow.body.statements.first()
-                                    {
-                                        walk_expression(result, &expr_stmt.expression, source);
-                                    }
-                                } else {
-                                    for stmt in arrow.body.statements.iter() {
-                                        walk_statement(result, stmt, source);
-                                    }
-                                }
-
-                                result.scopes.exit_scope(); // Exit closure scope
-                                result.scopes.exit_scope(); // Exit client-only scope
-                                continue;
-                            }
-                            Expression::FunctionExpression(func) => {
-                                lifecycle_callback_scope_recorded = true;
-                                // Enter client-only scope
-                                result.scopes.enter_client_only_scope(
-                                    ClientOnlyScopeData {
-                                        hook_name: CompactString::new(name),
-                                    },
-                                    call.span.start,
-                                    call.span.end,
-                                );
-
-                                // Create closure scope inside client-only scope
-                                let params = extract_function_params(&func.params);
-                                let fn_name = func
-                                    .id
-                                    .as_ref()
-                                    .map(|id| CompactString::new(id.name.as_str()));
-
-                                result.scopes.enter_closure_scope(
-                                    ClosureScopeData {
-                                        name: fn_name,
-                                        param_names: params,
-                                        is_arrow: false,
-                                        is_async: func.r#async,
-                                        is_generator: func.generator,
-                                    },
-                                    func.span.start,
-                                    func.span.end,
-                                );
-
-                                if let Some(body) = &func.body {
-                                    for stmt in body.statements.iter() {
-                                        walk_statement(result, stmt, source);
-                                    }
-                                }
-
-                                result.scopes.exit_scope(); // Exit closure scope
-                                result.scopes.exit_scope(); // Exit client-only scope
-                                continue;
-                            }
-                            _ => {}
-                        }
-                    }
-                    walk_expression(result, expr, source);
-                }
-            }
-        }
-    }
-
-    if let Some(name) = hook_name
-        && !lifecycle_callback_scope_recorded
-    {
-        result.scopes.enter_client_only_scope(
-            ClientOnlyScopeData {
-                hook_name: CompactString::new(name),
-            },
-            call.span.start,
-            call.span.end,
-        );
-        result.scopes.exit_scope();
     }
 }

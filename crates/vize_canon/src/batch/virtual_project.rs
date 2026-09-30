@@ -98,6 +98,7 @@ mod project;
 mod setup_props;
 mod topology;
 pub use topology::BatchTopologyMetrics;
+mod included_sources;
 mod tsconfig_gen;
 pub use tsconfig_gen::{
     TsconfigOwnershipCache, TsconfigOwnershipOptions, TsconfigSourceKind,
@@ -112,7 +113,14 @@ mod vue_compiler_comments;
 #[expect(clippy::disallowed_macros, reason = "fixtures use std strings")]
 #[expect(clippy::disallowed_types, reason = "fixtures use std strings")]
 #[cfg(test)]
+mod incomplete_expression_tests;
+#[expect(clippy::disallowed_macros, reason = "fixtures use std strings")]
+#[expect(clippy::disallowed_types, reason = "fixtures use std strings")]
+#[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod unknown_checks_tests;
 
 pub(super) const AUTO_IMPORT_STUBS_FILE: &str = "__vize_auto_imports.d.ts";
 pub(super) const MODULE_AUGMENTATION_STUBS_FILE: &str = "__vize_module_augmentations.d.ts";

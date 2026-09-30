@@ -1,5 +1,7 @@
 use super::Linter;
 
+mod script_style;
+
 #[test]
 fn test_vize_todo_emits_warning() {
     let linter = Linter::new();

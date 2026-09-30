@@ -1,5 +1,8 @@
 //! Tests for SFC type checking.
 #![cfg(test)]
+#[path = "tests_heritage_props.rs"]
+mod heritage_props;
+
 mod emit_props;
 mod fallthrough_ranges;
 mod optional_chain_props;
@@ -125,7 +128,10 @@ const props = defineProps({ ...common, foo: String });
 }
 
 #[test]
-fn test_type_check_renamed_props_destructure_does_not_emit_original_prop_binding() {
+fn test_type_check_renamed_props_destructure_keeps_declared_prop_name() {
+    // #7161: `const { foo: bar } = defineProps<{ foo: string }>()` must still
+    // expose the declared prop `foo` to the template. Only the local `bar` is
+    // a script binding; dropping `foo` is a false TS2339.
     let source = r#"<script setup lang="ts">
 const { foo: bar } = defineProps<{ foo: string }>()
 void bar
@@ -136,8 +142,8 @@ void bar
     let virtual_ts = result.virtual_ts.expect("virtual ts should be generated");
 
     assert!(
-        !virtual_ts.contains(r#"const foo = props["foo"];"#),
-        "renamed props destructure must not emit a phantom original-key binding:\n{virtual_ts}"
+        virtual_ts.contains(r#"const foo = props["foo"];"#),
+        "renamed props destructure must keep the declared prop name in the template:\n{virtual_ts}"
     );
     assert!(
         virtual_ts.contains("void bar;"),
@@ -145,7 +151,35 @@ void bar
     );
     assert!(
         virtual_ts.contains("void (foo);"),
-        "template reference to original key should remain unresolved in virtual TS:\n{virtual_ts}"
+        "template reference to the declared prop name should resolve through the projected binding:\n{virtual_ts}"
+    );
+}
+
+#[test]
+fn test_slot_outlet_key_stays_in_checked_props() {
+    // #7048: `:key` on `<slot>` is part of the checked slot props. A fresh
+    // object spread is invisible to defineSlots required-property checks.
+    let source = r#"<script setup lang="ts">
+defineSlots<{ default(props: { key: number; label: string }): unknown }>()
+const label = "item"
+const key = 1
+</script>
+<template><slot :key="key" :label="label" /></template>"#;
+    let options = SfcTypeCheckOptions::new("test.vue").with_virtual_ts();
+    let result = type_check_sfc(source, &options);
+    let virtual_ts = result.virtual_ts.expect("virtual ts should be generated");
+
+    assert!(
+        virtual_ts.contains(r#"...__vizeSlotOutletKey("key", key)"#),
+        "slot outlet key must stay in the checked props:\n{virtual_ts}"
+    );
+    assert!(
+        !virtual_ts.contains(r#"...({ "key""#),
+        "fresh key spread is dropped from required slot props:\n{virtual_ts}"
+    );
+    assert!(
+        virtual_ts.contains(r#""label": label"#),
+        "sibling slot props stay checked:\n{virtual_ts}"
     );
 }
 
@@ -1321,61 +1355,6 @@ export const foo = 'bar'
         .iter()
         .any(|d| d.code.as_deref() == Some("invalid-export"));
     assert!(!has_invalid, "Should not check when disabled");
-}
-
-#[test]
-fn imported_heritage_props_are_not_undefined_bindings() {
-    // Regression: props inherited through an imported type
-    // (`interface Props extends Pick<ImportedProps, ...>`) were flagged as
-    // undefined references in template expressions by the editor while
-    // `vize check` was clean — croquis alone cannot resolve imported types,
-    // so the script compile context's resolved props must be merged in.
-    let nonce = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let project = std::env::temp_dir().join(format!(
-        "vize-canon-heritage-props-{}-{nonce}",
-        std::process::id()
-    ));
-    let src = project.join("src");
-    std::fs::create_dir_all(&src).unwrap();
-    std::fs::write(
-        src.join("types.ts"),
-        "export interface RootProps { side?: 'left' | 'right'; resizable?: boolean }",
-    )
-    .unwrap();
-
-    let component = src.join("Comp.vue");
-    let source = r#"<script setup lang="ts">
-import type { RootProps } from './types'
-
-interface Props extends Pick<RootProps, 'side' | 'resizable'> {
-  label?: string
-}
-
-const props = defineProps<Props>()
-</script>
-
-<template>
-  <div v-if="side === 'left'">{{ label }} {{ resizable }}</div>
-</template>
-"#;
-
-    let options = SfcTypeCheckOptions::new(component.to_string_lossy().as_ref());
-    let result = type_check_sfc(source, &options);
-    let undefined: Vec<_> = result
-        .diagnostics
-        .iter()
-        .filter(|d| d.code.as_deref() == Some("undefined-binding"))
-        .map(|d| d.message.clone())
-        .collect();
-    assert!(
-        undefined.is_empty(),
-        "inherited props flagged as undefined: {undefined:?}"
-    );
-
-    let _ = std::fs::remove_dir_all(project);
 }
 
 #[test]

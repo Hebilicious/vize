@@ -1,3 +1,6 @@
+#[path = "tests_print_width.rs"]
+mod print_width;
+
 use super::{directives, format_template_content, formatter, helpers};
 use crate::options::{AttributeSortOrder, FormatOptions};
 use directives::{custom_attribute_priority, format_v_for_expression, matches_attr_pattern};
@@ -569,21 +572,4 @@ fn test_matches_attr_pattern() {
     assert!(matches_attr_pattern("@click", "@*"));
     assert!(matches_attr_pattern("v-for", "v-*"));
     assert!(matches_attr_pattern("anything", "*"));
-}
-
-#[test]
-fn test_print_width_triggers_multiline() {
-    // Very narrow print_width should trigger multiline
-    let source = r#"<div class="container" id="main" title="tooltip"></div>"#;
-    let options = FormatOptions {
-        print_width: 30,
-        ..FormatOptions::default()
-    };
-    let result = format_template_content(source, &options).unwrap();
-
-    let lines: Vec<&str> = result.lines().collect();
-    assert!(
-        lines.len() > 2,
-        "Narrow print_width should trigger multiline attributes"
-    );
 }

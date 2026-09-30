@@ -14,6 +14,8 @@ mod generic_private_names;
 mod incremental;
 mod metrics;
 mod paths;
+#[path = "type_checker/registered.rs"]
+mod registered;
 mod result;
 pub use declarations::{DeclarationEmitOptions, DeclarationEmitResult, DeclarationOutput};
 pub use metrics::IncrementalCheckMetrics;
@@ -230,11 +232,27 @@ impl BatchTypeChecker {
         // Same reachability pass as `scan_paths`: imports that leave the
         // project root register instead of falling back to the stub (#3887).
         self.project.register_reachable_dependencies()?;
+        self.project.ensure_included_sources()?;
         self.project.finalize_package_routes()?;
         self.scanned = true;
         self.incremental_paths
             .after_project_scan(&self.project, &paths);
         Ok(())
+    }
+
+    /// Register tsconfig `include` sources the file walk did not hand to
+    /// `scan_paths`. Explicit subset scans do not call this.
+    pub fn ensure_included_sources(&mut self) -> CorsaResult<()> {
+        self.project.ensure_included_sources()
+    }
+
+    /// Register diagnosed paths that exist as project sources and were never
+    /// mirrored. `node_modules` paths stay out; TypeScript loads those itself.
+    pub fn adopt_diagnostic_sources(
+        &mut self,
+        paths: impl IntoIterator<Item = PathBuf>,
+    ) -> CorsaResult<()> {
+        self.project.adopt_diagnostic_sources(paths)
     }
 
     /// Get the number of registered files.
@@ -284,7 +302,7 @@ impl TypeChecker for BatchTypeChecker {
         temp_project.register_reachable_dependencies()?;
 
         let result = self.executor.check(&temp_project)?;
-        Ok(Self::finish_registered_result(result, &temp_project)?.diagnostics)
+        Ok(registered::finish_registered_result(result, &temp_project)?.diagnostics)
     }
 
     fn check_incremental(&mut self, changed: &[PathBuf]) -> CorsaResult<TypeCheckResult> {
@@ -304,33 +322,14 @@ impl BatchTypeChecker {
         let result = self
             .executor
             .check_with_servers(project, self.server_count)?;
-        Self::finish_registered_result(result, project)
+        registered::finish_registered_result(result, project)
     }
 
     fn check_registered_project_incremental(&mut self) -> CorsaResult<TypeCheckResult> {
         let result = self
             .executor
             .check_incremental_session(&mut self.project, self.server_count)?;
-        Self::finish_registered_result(result, &self.project)
-    }
-
-    fn finish_registered_result(
-        mut result: TypeCheckResult,
-        project: &VirtualProject,
-    ) -> CorsaResult<TypeCheckResult> {
-        result
-            .diagnostics
-            .extend(project.diagnostics().iter().cloned());
-        let had_errors = result.has_errors();
-        generic_private_names::apply(&mut result.diagnostics, project);
-        if result.has_errors() {
-            result.success = false;
-            result.exit_code = result.exit_code.max(1);
-        } else if had_errors {
-            result.success = true;
-            result.exit_code = 0;
-        }
-        Ok(result)
+        registered::finish_registered_result(result, &self.project)
     }
 }
 

@@ -17,6 +17,7 @@ mod directive_values;
 mod directive_values_tests;
 mod dynamic_arguments;
 mod generic_props_call;
+mod incomplete;
 mod model_update;
 mod native_props;
 #[cfg(test)]
@@ -43,8 +44,10 @@ pub(crate) use component_props::{
     ComponentPropCheckContext, ComponentPropSource, generate_component_prop_checks,
 };
 pub(crate) use generic_props_call::generate_slot_host_binding;
+pub(crate) use incomplete::isolate_incomplete_expression;
 pub(crate) use prop_sources::{
-    append_prop_value, generated_prop_value, prop_name_source_range, prop_value_source_range,
+    append_prop_value, generated_prop_span, generated_prop_value, prop_name_source_range,
+    prop_value_source_range,
 };
 pub(crate) use reserved_props::{
     map_rewritten_template_binding, rewrite_reserved_template_binding,

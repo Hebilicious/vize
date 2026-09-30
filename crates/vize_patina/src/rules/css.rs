@@ -38,6 +38,9 @@ mod prefer_logical_properties;
 mod prefer_nested_selectors;
 mod prefer_slotted;
 mod require_font_display;
+mod strip_comments;
+
+pub use strip_comments::strip_vize_comments;
 
 use vize_l0::FxHashSet;
 
@@ -301,34 +304,6 @@ impl DisabledRules {
     }
 }
 
-/// Strip vize disable comments from CSS source for compilation
-pub fn strip_vize_comments(source: &str) -> String {
-    let mut result = String::with_capacity(source.len());
-    let mut rest = source;
-
-    while let Some((before, from_comment)) =
-        rest.find("/*").and_then(|at| rest.split_at_checked(at))
-    {
-        result.push_str(before);
-        // An unterminated comment runs to the end of the source.
-        let comment_len = from_comment
-            .get(2..)
-            .and_then(|body| body.find("*/"))
-            .map_or(from_comment.len(), |end| end + 4);
-        let (comment, after) = from_comment
-            .split_at_checked(comment_len)
-            .unwrap_or((from_comment, ""));
-        // Only strip vize-related comments
-        if !comment.contains("vize-disable") && !comment.contains("vize-enable") {
-            result.push_str(comment);
-        }
-        rest = after;
-    }
-    result.push_str(rest);
-
-    result
-}
-
 /// Linter for style blocks using lightning-css
 pub struct CssLinter {
     rules: Vec<Box<dyn CssRule>>,
@@ -412,7 +387,12 @@ impl CssLinter {
                 |pos: u32| -> usize { line_starts.partition_point(|&start| start <= pos as usize) };
 
             result.diagnostics.retain(|d| {
-                let line = get_line(d.start);
+                // Rule spans are file-absolute. Disable comments are measured
+                // in this style block, so subtract the block's file offset
+                // before choosing a line. Leaving the offset in maps every
+                // diagnostic onto the block's last line.
+                let local = d.start.saturating_sub(offset as u32);
+                let line = get_line(local);
                 !disabled.is_disabled(d.rule_name, line)
             });
 
@@ -474,6 +454,23 @@ mod disable_tests {
             disabled.is_disabled("css/no-important", 2),
             "css/no-important should be disabled on line 2"
         );
+    }
+
+    #[test]
+    fn test_disable_line_uses_the_style_block_offset() {
+        let mut linter = CssLinter::new();
+        linter.add_rule(Box::new(super::NoImportant));
+        let source = "\
+.a { color: red !important; }
+.b { color: red !important; } /* vize-disable-line css/no-important */
+.c { color: red !important; }";
+        let result = linter.lint(source, 240);
+        let reported = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.rule_name == "css/no-important")
+            .count();
+        assert_eq!(reported, 2, "{:?}", result.diagnostics);
     }
 
     #[test]

@@ -11,6 +11,8 @@ use super::{
     walk_expression,
 };
 
+mod with_statement;
+
 /// Walk a statement to find nested scopes
 #[inline]
 pub(in crate::script_parser) fn walk_statement(
@@ -31,9 +33,17 @@ pub(in crate::script_parser) fn walk_statement(
 
                     // Check for ref.value extraction: const x = someRef.value
                     // This also applies in block scopes (e.g., { const x = countRef.value })
-                    super::super::extract::check_ref_value_extraction(result, &decl.id, init);
+                    super::super::extract::check_ref_value_extraction(
+                        result,
+                        &decl.id,
+                        decl.type_annotation.as_deref(),
+                        init,
+                    );
                     super::super::extract::check_reactive_property_extraction(
-                        result, &decl.id, init,
+                        result,
+                        &decl.id,
+                        decl.type_annotation.as_deref(),
+                        init,
                     );
                     super::super::extract::check_getter_call_extraction(result, &decl.id, init);
                     super::super::extract::check_reactive_plain_alias_extraction(
@@ -328,16 +338,7 @@ pub(in crate::script_parser) fn walk_statement(
             }
         }
         Statement::WithStatement(with_stmt) => {
-            walk_expression(result, &with_stmt.object, source);
-            result.scopes.enter_block_scope(
-                BlockScopeData {
-                    kind: BlockKind::With,
-                },
-                with_stmt.body.span().start,
-                with_stmt.body.span().end,
-            );
-            walk_statement(result, &with_stmt.body, source);
-            result.scopes.exit_scope();
+            with_statement::walk_with_statement(result, with_stmt, source);
         }
         _ => {}
     }

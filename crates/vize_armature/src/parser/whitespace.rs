@@ -19,7 +19,16 @@ fn is_vue_whitespace(c: char) -> bool {
 ///
 /// Returns `None` when the text already satisfies the condense strategy, so
 /// the untouched node keeps borrowing the template source.
-fn condense_internal_whitespace<'a>(allocator: &'a Allocator, text: &str) -> Option<&'a str> {
+///
+/// Vue 2 line-break migration keeps one authored break that condense would
+/// turn into a trailing space. A break between an interpolation and the next
+/// node is its own whitespace text and is handled above; a break after static
+/// text is folded into that text node, so the same replacement happens here.
+fn condense_internal_whitespace<'a>(
+    allocator: &'a Allocator,
+    text: &str,
+    legacy_line_breaks: bool,
+) -> Option<&'a str> {
     let needs_condense = {
         let mut prev_ws = false;
         let mut any_run = false;
@@ -57,7 +66,17 @@ fn condense_internal_whitespace<'a>(allocator: &'a Allocator, text: &str) -> Opt
             prev_ws = false;
         }
     }
-    Some(out.into_str())
+    let condensed = out.into_str();
+    if legacy_line_breaks
+        && trailing_whitespace_has_line_break(text)
+        && let Some(without_trailing_space) = condensed.strip_suffix(' ')
+    {
+        let mut rewritten = StringBuilder::with_capacity_in(condensed.len(), allocator);
+        rewritten.push_str(without_trailing_space);
+        rewritten.push('\n');
+        return Some(rewritten.into_str());
+    }
+    Some(condensed)
 }
 
 /// Condense whitespace in children
@@ -70,6 +89,20 @@ pub(super) fn condense_whitespace<'a>(
     allocator: &'a Allocator,
     children: &mut Vec<'a, TemplateChildNode<'a>>,
     is_pre_tag: fn(&str) -> bool,
+) {
+    condense_whitespace_in(
+        allocator,
+        children,
+        is_pre_tag,
+        super::current_legacy_line_breaks(),
+    );
+}
+
+fn condense_whitespace_in<'a>(
+    allocator: &'a Allocator,
+    children: &mut Vec<'a, TemplateChildNode<'a>>,
+    is_pre_tag: fn(&str) -> bool,
+    legacy_line_breaks: bool,
 ) {
     // First pass: remove leading whitespace-only text nodes
     while children.first().is_some_and(is_whitespace_text) {
@@ -111,7 +144,7 @@ pub(super) fn condense_whitespace<'a>(
             } else {
                 WhitespaceAction::Condense(
                     run_end - i,
-                    super::current_legacy_line_breaks() && prev_is_text && has_newline,
+                    legacy_line_breaks && prev_is_text && has_newline,
                 )
             }
         } else {
@@ -142,7 +175,8 @@ pub(super) fn condense_whitespace<'a>(
                 // z` would keep its raw whitespace and diverge from
                 // `@vue/compiler-sfc`. (#960)
                 if let Some(TemplateChildNode::Text(text)) = children.get_mut(i)
-                    && let Some(condensed) = condense_internal_whitespace(allocator, text.content)
+                    && let Some(condensed) =
+                        condense_internal_whitespace(allocator, text.content, legacy_line_breaks)
                 {
                     text.content = condensed;
                 }
@@ -155,7 +189,12 @@ pub(super) fn condense_whitespace<'a>(
                 ensure_sufficient_stack(|| normalize_pre_newlines(allocator, &mut el.children));
             } else {
                 ensure_sufficient_stack(|| {
-                    condense_whitespace(allocator, &mut el.children, is_pre_tag)
+                    condense_whitespace_in(
+                        allocator,
+                        &mut el.children,
+                        is_pre_tag,
+                        legacy_line_breaks,
+                    )
                 });
             }
         }
@@ -232,6 +271,14 @@ fn whitespace_has_newline(child: &TemplateChildNode<'_>) -> bool {
         child,
         TemplateChildNode::Text(text) if text.content.contains('\n') || text.content.contains('\r')
     )
+}
+
+/// The text's own trailing `[ \t\n\f\r]` run contains a line break.
+fn trailing_whitespace_has_line_break(text: &str) -> bool {
+    text.chars()
+        .rev()
+        .take_while(|character| is_vue_whitespace(*character))
+        .any(|character| character == '\n' || character == '\r')
 }
 
 #[inline]

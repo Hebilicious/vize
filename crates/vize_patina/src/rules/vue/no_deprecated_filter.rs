@@ -34,7 +34,14 @@
 //! {{ capitalize(message) }}
 //! <div :id="toId(rawId)" />
 //! {{ a || b }}
+//! <Draggable :item-key="(item: A | B | C) => item.id" />
 //! ```
+
+mod scan;
+use scan::{
+    find_arrow_after_type, is_arrow_at, push_param_type_spans, regex_allowed, skip_regex,
+    skip_string, skip_template,
+};
 
 use crate::context::LintContext;
 use crate::diagnostic::Severity;
@@ -118,10 +125,13 @@ impl Rule for NoDeprecatedFilter {
 /// Scans the raw expression text once, skipping over string literals, template
 /// literals and regular-expression literals so a `|` inside any of them is never
 /// mistaken for a filter. A doubled `||` is the logical-OR operator, never a
-/// filter, so both bytes are consumed together. Any remaining single `|` is a
-/// filter pipe — Vue 3 has no bitwise-OR meaning for template expressions that
-/// would clash, and eslint-plugin-vue treats a lone `|` the same way.
+/// filter, so both bytes are consumed together. A `|` inside an arrow-function
+/// parameter or return type (`(item: A | B | C) => item.id`) is a TypeScript
+/// union, not a filter. Any remaining single `|` is a filter pipe — Vue 3 has
+/// no bitwise-OR meaning for template expressions that would clash, and
+/// eslint-plugin-vue treats a lone `|` the same way.
 fn has_filter_pipe(expr: &str) -> bool {
+    let type_spans = arrow_param_type_spans(expr);
     let bytes = expr.as_bytes();
     let mut i = 0;
     // Tracks whether a `/` begins a regex literal (start of expression or right
@@ -155,6 +165,12 @@ fn has_filter_pipe(expr: &str) -> bool {
                     prev_significant = b'|';
                     continue;
                 }
+                // A `|` inside `(item: A | B) => …` is a type union, not a filter.
+                if type_spans.iter().any(|&(start, end)| i >= start && i < end) {
+                    i += 1;
+                    prev_significant = b'|';
+                    continue;
+                }
                 // A `|` preceded by `|` (the second half of `||`) was already
                 // consumed above, so any `|` reaching here is a lone pipe.
                 return true;
@@ -171,88 +187,72 @@ fn has_filter_pipe(expr: &str) -> bool {
     false
 }
 
-/// Returns whether a `/` at this position starts a regex literal, based on the
-/// previous significant byte. A regex can begin at the start of the expression
-/// or after an operator/opening bracket, but not after a value (identifier,
-/// number, `)`, `]`, etc.) where `/` means division.
-fn regex_allowed(prev: u8) -> bool {
-    match prev {
-        // No preceding token: start of expression.
-        0 => true,
-        // After a closing bracket / paren or a word char or `$`, `/` is division.
-        b')' | b']' | b'}' => false,
-        _ => !(prev.is_ascii_alphanumeric() || prev == b'_' || prev == b'$'),
-    }
-}
+/// Spans of TypeScript annotations in arrow parameters and return types.
+///
+/// `(item: A | B | C) => item.id` and `(item): A | B => item` both put `|`
+/// in type grammar. The body after `=>` stays an expression, so a filter
+/// there is still visible.
+fn arrow_param_type_spans(expr: &str) -> Vec<(usize, usize)> {
+    let bytes = expr.as_bytes();
+    let mut spans = Vec::new();
+    let mut paren_stack = Vec::new();
+    let mut i = 0;
+    let mut prev_significant = 0u8;
 
-/// Advance past a `'`/`"` string literal starting at the opening quote `i`.
-/// Returns the index just past the closing quote (or end of input).
-fn skip_string(bytes: &[u8], i: usize, quote: u8) -> usize {
-    let len = bytes.len();
-    let mut j = i + 1;
-    while let Some(&byte) = bytes.get(j) {
-        match byte {
-            b'\\' => j += 2,
-            c if c == quote => return j + 1,
-            _ => j += 1,
-        }
-    }
-    len
-}
-
-/// Advance past a template literal starting at the backtick `i`. Nested `${ … }`
-/// interpolations are skipped with brace counting so a `|` inside `${a|b}` is
-/// also ignored (template-literal contents are opaque to filter detection).
-fn skip_template(bytes: &[u8], i: usize) -> usize {
-    let len = bytes.len();
-    let mut j = i + 1;
-    while let Some(&byte) = bytes.get(j) {
-        match byte {
-            b'\\' => j += 2,
-            b'`' => return j + 1,
-            b'$' if bytes.get(j + 1) == Some(&b'{') => {
-                // Skip the balanced `${ … }` interpolation block.
-                let mut depth = 1;
-                j += 2;
-                while let Some(&byte) = bytes.get(j)
-                    && depth > 0
-                {
-                    match byte {
-                        b'{' => depth += 1,
-                        b'}' => depth -= 1,
-                        _ => {}
-                    }
+    while i < bytes.len() {
+        let Some(&c) = bytes.get(i) else {
+            break;
+        };
+        match c {
+            b'\'' | b'"' => {
+                i = skip_string(bytes, i, c);
+                prev_significant = c;
+            }
+            b'`' => {
+                i = skip_template(bytes, i);
+                prev_significant = c;
+            }
+            b'/' if regex_allowed(prev_significant) => {
+                i = skip_regex(bytes, i);
+                prev_significant = b'/';
+            }
+            b'(' => {
+                paren_stack.push(i);
+                prev_significant = c;
+                i += 1;
+            }
+            b')' => {
+                let open = paren_stack.pop();
+                let mut j = i + 1;
+                while j < bytes.len() && bytes.get(j).is_some_and(u8::is_ascii_whitespace) {
                     j += 1;
                 }
+                if bytes.get(j) == Some(&b':') {
+                    let type_start = j + 1;
+                    if let Some(arrow) = find_arrow_after_type(bytes, type_start) {
+                        if let Some(open) = open {
+                            push_param_type_spans(bytes, open + 1, i, &mut spans);
+                        }
+                        spans.push((type_start, arrow));
+                    }
+                } else if is_arrow_at(bytes, j)
+                    && let Some(open) = open
+                {
+                    push_param_type_spans(bytes, open + 1, i, &mut spans);
+                }
+                prev_significant = c;
+                i += 1;
             }
-            _ => j += 1,
+            _ => {
+                if !c.is_ascii_whitespace() {
+                    prev_significant = c;
+                }
+                i += 1;
+            }
         }
     }
-    len
-}
 
-/// Advance past a regex literal starting at the `/` at `i`. Character classes
-/// `[ … ]` are honoured so a `/` inside them does not end the literal early.
-fn skip_regex(bytes: &[u8], i: usize) -> usize {
-    let len = bytes.len();
-    let mut j = i + 1;
-    let mut in_class = false;
-    while let Some(&byte) = bytes.get(j) {
-        match byte {
-            b'\\' => j += 2,
-            b'[' => {
-                in_class = true;
-                j += 1;
-            }
-            b']' => {
-                in_class = false;
-                j += 1;
-            }
-            b'/' if !in_class => return j + 1,
-            _ => j += 1,
-        }
-    }
-    len
+    spans
 }
 
 #[cfg(test)]

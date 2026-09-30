@@ -1,3 +1,13 @@
+mod store;
+pub(super) use store::remove_finished_process_sessions;
+pub(super) use store::resolve_corsa_executable;
+pub(super) use store::resolve_project_root;
+pub(super) use store::session_tsconfig_contents;
+use store::{
+    cleanup_stale_session_roots, push_u64, remove_empty_session_parents, session_store_root,
+};
+
+use serde_json::Value;
 use std::{
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
@@ -88,152 +98,13 @@ pub(super) fn next_session_directory_name() -> String {
     name
 }
 
-fn session_store_root(project_root: &Path) -> PathBuf {
-    project_root.join(".vize").join("patina")
-}
-
-fn legacy_session_store_root(project_root: &Path) -> PathBuf {
-    project_root
-        .join("node_modules")
-        .join(".vize")
-        .join("patina")
-}
-
-fn cleanup_stale_session_roots(project_root: &Path) {
-    cleanup_stale_sessions_in(&session_store_root(project_root));
-    cleanup_stale_sessions_in(&legacy_session_store_root(project_root));
-}
-
-fn cleanup_stale_sessions_in(session_store: &Path) {
-    let Ok(entries) = std::fs::read_dir(session_store) else {
-        return;
-    };
-
-    for entry in entries.flatten() {
-        let Ok(file_type) = entry.file_type() else {
-            continue;
-        };
-        if !file_type.is_dir() {
-            continue;
-        }
-
-        let name = entry.file_name();
-        let Some(name) = name.to_str() else {
-            continue;
-        };
-        if is_stale_session_directory(name) {
-            remove_session_root(&entry.path());
-        }
-    }
-}
-
-fn is_stale_session_directory(name: &str) -> bool {
-    let Some(pid) = session_directory_pid(name) else {
-        return false;
-    };
-    !process_is_running(pid)
-}
-
-fn session_directory_pid(name: &str) -> Option<u64> {
-    let rest = name.strip_prefix(SESSION_DIRECTORY_PREFIX)?;
-    let (pid, _) = rest.split_once('-')?;
-    pid.parse().ok()
-}
-
-#[cfg(unix)]
-fn process_is_running(pid: u64) -> bool {
-    if pid == 0 || pid > i32::MAX as u64 {
-        return false;
-    }
-
-    let result = unsafe { libc::kill(pid as libc::pid_t, 0) };
-    result == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
-}
-
-#[cfg(not(unix))]
-fn process_is_running(_pid: u64) -> bool {
-    true
-}
-
-fn remove_empty_session_parents(session_root: &Path) {
-    let Some(session_store) = session_root.parent() else {
-        return;
-    };
-    let _ = std::fs::remove_dir(session_store);
-
-    let Some(vize_dir) = session_store.parent() else {
-        return;
-    };
-    if vize_dir.file_name().and_then(|name| name.to_str()) == Some(".vize") {
-        let _ = std::fs::remove_dir(vize_dir);
-    }
-}
-
-pub(super) fn resolve_project_root(filename: &str) -> PathBuf {
-    let start_dir = source_directory(filename);
-    let mut current = start_dir.as_path();
-    let mut package_root = None;
-
-    loop {
-        if current.join("node_modules").join("vue").is_dir() {
-            return current.to_path_buf();
-        }
-        if package_root.is_none() && current.join("package.json").is_file() {
-            package_root = Some(current.to_path_buf());
-        }
-        let Some(parent) = current.parent() else {
-            break;
-        };
-        current = parent;
-    }
-
-    package_root.unwrap_or(start_dir)
-}
-
-pub(super) fn resolve_corsa_executable(
-    project_root: &Path,
-    configured_path: Option<&Path>,
-) -> Result<PathBuf, String> {
-    let request = CorsaResolveRequest {
-        explicit_path: configured_path,
-        project_root: Some(project_root),
-    };
-
-    match vize_l0::corsa_resolver::resolve_corsa_executable(request) {
-        Ok(path) => Ok(path),
-        // Preserve the historical lenient fallback: a bare `corsa` lets the
-        // spawn-time `PATH` lookup have the final word.
-        Err(CorsaResolveError::NotFound) => Ok(PathBuf::from(CORSA_EXECUTABLE_NAMES[0])),
-        Err(error @ CorsaResolveError::ExplicitNotFound { .. }) => Err(cstr!("{error}")),
-    }
-}
-
-fn source_directory(filename: &str) -> PathBuf {
-    let path = Path::new(filename);
-    if path.is_absolute() {
-        return path
-            .parent()
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|| path.to_path_buf());
-    }
-
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let joined = cwd.join(path);
-    joined.parent().map(Path::to_path_buf).unwrap_or(cwd)
-}
-
-fn push_u64(buffer: &mut String, value: u64) {
-    let rendered = value.to_compact_string();
-    buffer.push_str(rendered.as_str());
-}
-
 #[cfg(test)]
 mod tests {
     #[cfg(unix)]
-    use super::is_stale_session_directory;
+    use super::store::is_stale_session_directory;
     use super::{
-        cleanup_stale_session_roots, resolve_corsa_executable, session_store_root,
-        virtual_file_path,
+        cleanup_stale_session_roots, remove_finished_process_sessions, resolve_corsa_executable,
+        session_store_root, session_tsconfig_contents, virtual_file_path,
     };
     use std::{
         path::{Path, PathBuf},
@@ -338,6 +209,122 @@ mod tests {
         assert!(live.exists());
 
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn removes_finished_process_session_directories() {
+        let root = case_dir("finished-session");
+        let _ = std::fs::remove_dir_all(&root);
+        let store = session_store_root(&root);
+        let live = store.join(format!("session-{}-7", std::process::id()));
+        let foreign = store.join("session-9999999999-7");
+        let legacy = root
+            .join("node_modules")
+            .join(".vize")
+            .join("patina")
+            .join(format!("session-{}-8", std::process::id()));
+
+        std::fs::create_dir_all(&live).unwrap();
+        std::fs::create_dir_all(&foreign).unwrap();
+        std::fs::create_dir_all(&legacy).unwrap();
+
+        remove_finished_process_sessions(&root);
+
+        assert!(!live.exists());
+        assert!(!legacy.exists());
+        assert!(foreign.exists());
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn session_tsconfig_honors_extended_paths() {
+        let root = case_dir("tsconfig-paths");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::write(
+            root.join("base.json"),
+            r#"{ "compilerOptions": { "paths": { "@app/*": ["src/*"] } } }"#,
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("tsconfig.json"),
+            r#"{ "extends": "./base.json", "compilerOptions": { "baseUrl": "." } }"#,
+        )
+        .unwrap();
+
+        let value: serde_json::Value = serde_json::from_str(&session_tsconfig_contents(
+            &root,
+            &root.join("src/App.vue").to_string_lossy(),
+        ))
+        .unwrap();
+        let canonical = std::fs::canonicalize(&root).unwrap();
+        let options = &value["compilerOptions"];
+        assert_eq!(
+            Path::new(options["baseUrl"].as_str().unwrap()),
+            canonical.as_path()
+        );
+        assert_eq!(
+            Path::new(options["paths"]["@app/*"][0].as_str().unwrap()),
+            canonical.join("src/*")
+        );
+        assert_eq!(value["include"][0], "**/*.patina.ts");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn session_tsconfig_includes_ambient_declarations_from_include() {
+        let root = case_dir("tsconfig-ambient");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::write(
+            root.join("src/env.d.ts"),
+            "declare module \"vue\" { interface ComponentCustomProperties { $t: (key: string) => string } }\n",
+        )
+        .unwrap();
+        std::fs::write(root.join("src/skip.ts"), "export const skip = 1\n").unwrap();
+        std::fs::write(
+            root.join("src/hidden.d.ts"),
+            "declare module \"hidden\" { export const hidden: string }\n",
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("tsconfig.json"),
+            r#"{
+              // ambient augmentations only
+              "compilerOptions": { "strict": true },
+              "include": ["src/**/*.d.ts", "src/**/*.ts"],
+              "exclude": ["src/hidden.d.ts"]
+            }"#,
+        )
+        .unwrap();
+
+        let value: serde_json::Value = serde_json::from_str(&session_tsconfig_contents(
+            &root,
+            &root.join("src/App.vue").to_string_lossy(),
+        ))
+        .unwrap();
+        let files: Vec<_> = value["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|entry| entry.as_str())
+            .collect();
+        let env = slash_display(&std::fs::canonicalize(root.join("src/env.d.ts")).unwrap());
+        let hidden = slash_display(&std::fs::canonicalize(root.join("src/hidden.d.ts")).unwrap());
+        assert!(files.contains(&env.as_str()), "{files:?}");
+        assert!(
+            !files.iter().any(|file| file.ends_with("skip.ts")),
+            "{files:?}"
+        );
+        assert!(!files.contains(&hidden.as_str()), "{files:?}");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    fn slash_display(path: &Path) -> std::string::String {
+        path.to_string_lossy().replace('\\', "/")
     }
 
     #[cfg(unix)]

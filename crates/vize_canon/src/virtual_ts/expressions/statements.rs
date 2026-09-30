@@ -259,8 +259,12 @@ fn emit_expression_statement(
     let generated_expression = rewritten_expression
         .as_ref()
         .map_or_else(|| statement_expression, |s| s.as_str());
-    let mapping_needle = if rewritten_expression.is_some() {
-        generated_expression
+    let isolated_expression =
+        super::incomplete::isolate_incomplete_expression(generated_expression);
+    let generated_expression = isolated_expression.as_str();
+    let mapped_bounds = isolated_expression.mapped_bounds();
+    let mapping_needle = if isolated_expression.is_owned() || rewritten_expression.is_some() {
+        isolated_expression.mapped_str()
     } else {
         statement_expression
     };
@@ -271,7 +275,7 @@ fn emit_expression_statement(
             mappings,
             expr,
             native_prop,
-            generated_expression,
+            (generated_expression, mapped_bounds.0, mapped_bounds.1),
             template_offset,
             indent,
         );
@@ -284,6 +288,7 @@ fn emit_expression_statement(
             mappings,
             expr,
             generated_expression,
+            mapped_bounds,
             template_offset,
             indent,
         );
@@ -298,9 +303,9 @@ fn emit_expression_statement(
             mappings,
             expr,
             directive_value,
-            generated_expression,
+            (generated_expression, mapped_bounds.0, mapped_bounds.1),
             template_offset,
-            indent,
+            (indent, checks.check_unknown_directives),
         );
         return;
     }
@@ -310,7 +315,7 @@ fn emit_expression_statement(
             ts,
             mappings,
             expr,
-            generated_expression,
+            (generated_expression, mapped_bounds.0, mapped_bounds.1),
             template_offset,
             indent,
             checks.template_source,

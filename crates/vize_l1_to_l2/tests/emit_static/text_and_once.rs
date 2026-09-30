@@ -73,7 +73,7 @@ function render(_ctx, _cache, $props, $setup, $data, $options) {
 }
 
 #[test]
-fn root_fragment_compound_text_drops_dynamic_gap_like_the_shipped_snapshot() {
+fn root_fragment_compound_text_keeps_the_space_between_dynamics() {
     assert_eq!(
         assembled("x {{ a }} {{ b }}"),
         "\
@@ -83,6 +83,7 @@ function render(_ctx, _cache, $props, $setup, $data, $options) {
   return (_openBlock(), _createElementBlock(_Fragment, null, [
     _createTextVNode(\"x \"),
     _toDisplayString(a),
+    _createTextVNode(),
     _toDisplayString(b)
   ], 64 /* STABLE_FRAGMENT */))
 }"
@@ -90,15 +91,23 @@ function render(_ctx, _cache, $props, $setup, $data, $options) {
     assert_eq!(
         assembled("{{ a }} {{ b }}"),
         "\
-const { toDisplayString: _toDisplayString, openBlock: _openBlock, createElementBlock: _createElementBlock, Fragment: _Fragment } = Vue
+const { toDisplayString: _toDisplayString, openBlock: _openBlock, createElementBlock: _createElementBlock, Fragment: _Fragment, createTextVNode: _createTextVNode } = Vue
 
 function render(_ctx, _cache, $props, $setup, $data, $options) {
   return (_openBlock(), _createElementBlock(_Fragment, null, [
     _toDisplayString(a),
+    _createTextVNode(),
     _toDisplayString(b)
   ], 64 /* STABLE_FRAGMENT */))
 }"
     );
+}
+
+#[test]
+fn root_fragment_keeps_the_condensed_space_next_to_an_element() {
+    assert_shipped_parity("{{ loading }}\n<span></span>");
+    assert_shipped_parity("<input/>\n{{ foo }}");
+    assert_shipped_parity("<span></span>\n{{ mid }}\n<i></i>");
 }
 
 #[test]

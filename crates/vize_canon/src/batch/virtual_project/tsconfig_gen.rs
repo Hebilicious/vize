@@ -8,9 +8,13 @@ mod native_options;
 mod path_rebase;
 pub(super) mod references;
 pub use references::{TsconfigOwnershipCache, TsconfigOwnershipOptions, TsconfigSourceKind};
+#[path = "tsconfig_gen_jsx_files.rs"]
+mod jsx_files;
 mod remap;
 mod vue_alias;
 mod vue_compiler_options;
+
+use jsx_files::compiler_option_enabled;
 use std::path::{Path, PathBuf};
 
 use serde_json::{Map, Value};
@@ -284,16 +288,22 @@ impl VirtualProject {
     }
 
     pub(super) fn needs_vue_jsx_compiler_options(&self) -> bool {
-        self.virtual_files.values().any(|file| {
-            file.virtual_path
-                .file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| {
-                    name.ends_with(".vue.tsx")
-                        || name.ends_with(".tsx.ts")
-                        || name.ends_with(".jsx.ts")
-                })
-        })
+        jsx_files::needs_vue_jsx_compiler_options(self)
+    }
+
+    /// In-project roots, diagnosed scripts, and out-of-root `.d.ts` roots join
+    /// `include` (#7217, #5629). An out-of-root script stays out (`TS2451`).
+    fn virtual_file_is_program_member(&self, file: &super::VirtualFile) -> bool {
+        let original = vize_carton::path::canonicalize_non_verbatim(&file.original_path);
+        let declaration = crate::batch::declaration_path::is_declaration_file(&original);
+        if !declaration && !original.starts_with(&self.project_root) {
+            return false;
+        }
+        self.is_declaration_root(&original)
+            || (self
+                .source_file_policy()
+                .accepts_diagnostic_input(&file.virtual_path)
+                && !declaration)
     }
 
     pub(super) fn include_paths(
@@ -311,11 +321,7 @@ impl VirtualProject {
             None => self
                 .virtual_files
                 .values()
-                .filter(|file| {
-                    let original =
-                        vize_carton::path::canonicalize_non_verbatim(&file.original_path);
-                    self.is_declaration_root(&original)
-                })
+                .filter(|file| self.virtual_file_is_program_member(file))
                 .filter_map(|file| relative(&file.virtual_path))
                 .collect(),
         };
@@ -323,9 +329,7 @@ impl VirtualProject {
             includes.extend(self.package_shadow_files.iter().filter_map(
                 |(materialized_path, canonical_path)| {
                     let file = self.virtual_files.get(canonical_path)?;
-                    let original =
-                        vize_carton::path::canonicalize_non_verbatim(&file.original_path);
-                    self.is_declaration_root(&original)
+                    self.virtual_file_is_program_member(file)
                         .then(|| relative(materialized_path))
                         .flatten()
                 },
@@ -342,9 +346,4 @@ impl VirtualProject {
         includes.dedup();
         includes
     }
-}
-
-#[expect(clippy::disallowed_types, reason = "serde_json keys are std String")]
-fn compiler_option_enabled(options: &Map<std::string::String, Value>, name: &str) -> bool {
-    options.get(name).and_then(Value::as_bool).unwrap_or(false)
 }

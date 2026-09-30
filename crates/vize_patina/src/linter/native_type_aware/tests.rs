@@ -1,3 +1,5 @@
+mod severity;
+
 mod opt_in;
 mod options_api;
 use super::{
@@ -1403,49 +1405,4 @@ const payload: unknown = 'safe'
         "v-if narrowing should keep template binding safe: {:?}",
         result.diagnostics
     );
-}
-
-#[test]
-fn type_aware_diagnostics_snapshot() {
-    if !corsa_available() {
-        return;
-    }
-    let linter = Linter::with_preset(LintPreset::Opinionated).with_type_aware_lint(true);
-    let source = r#"<script setup lang="ts">
-import { ref } from 'vue'
-defineProps(['msg'])
-defineEmits(['save'])
-const payload: any = { label: 'unsafe' }
-const anyHandler: any = () => {}
-const countRef = ref(0)
-const count = countRef.value
-
-async function loadData(): Promise<number> {
-  return 1
-}
-
-loadData()
-useMyComposable(count)
-</script>
-
-<template>
-  <div>{{ payload.label }}</div>
-  <button @click="anyHandler()">Save</button>
-</template>"#;
-    let result = lint_sfc_with_corsa(&linter, source, "TypeAwareFixture.vue");
-    let mut diagnostics = result
-        .diagnostics
-        .iter()
-        .map(|diag| {
-            (
-                diag.rule_name,
-                diag.message.as_str(),
-                diag.start,
-                diag.end,
-                diag.help.as_deref(),
-            )
-        })
-        .collect::<Vec<_>>();
-    diagnostics.sort_unstable();
-    insta::assert_debug_snapshot!(diagnostics);
 }

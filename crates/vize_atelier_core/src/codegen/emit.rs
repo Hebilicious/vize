@@ -40,11 +40,27 @@ pub(super) fn generate_with_sections_and_options(
         None => root.source.into(),
     };
     ctx.static_cache = ctx.options.inline | !root.hoists.is_empty();
-    let root_children: std::vec::Vec<&TemplateChildNode<'_>> = root
-        .children
-        .iter()
-        .filter(|child| !is_ignorable_root_text(child) && !is_directive_comment(child))
-        .collect();
+    // Edge whitespace is ignorable. An internal space stays a text VNode.
+    // Directive comments are dropped. One pass avoids shifting the vec.
+    let mut root_children: std::vec::Vec<&TemplateChildNode<'_>> = std::vec::Vec::new();
+    let mut seen_content = false;
+    let mut trailing_ws = 0usize;
+    for child in root.children.iter() {
+        if is_directive_comment(child) {
+            continue;
+        }
+        if is_ignorable_root_text(child) {
+            if seen_content {
+                root_children.push(child);
+                trailing_ws += 1;
+            }
+            continue;
+        }
+        seen_content = true;
+        trailing_ws = 0;
+        root_children.push(child);
+    }
+    root_children.truncate(root_children.len().saturating_sub(trailing_ws));
 
     // Generate function signature, anchored at the template section start.
     crate::walk_probe::record_walk(crate::walk_probe::WalkStage::Codegen);
