@@ -14,9 +14,9 @@ NEW = "vize_guest"
 OLD_DIR = ROOT / "crates" / OLD
 NEW_DIR = ROOT / "crates" / NEW
 ARCHIVED = (
-    "crates/vize_extension_host/tests/fixtures/sdk-0.1.2/",
-    "crates/vize_extension_host/tests/guests/sdk-hello-0-1-2/",
-    "crates/vize_extension_host/tests/guests/expression-echo-0-1-2/",
+    "davinci/vize_extension_host/tests/fixtures/sdk-0.1.2/",
+    "davinci/vize_extension_host/tests/guests/sdk-hello-0-1-2/",
+    "davinci/vize_extension_host/tests/guests/expression-echo-0-1-2/",
 )
 
 
@@ -40,7 +40,7 @@ for encoded in git("ls-files", "-z").split(b"\0"):
     relative = encoded.decode()
     if (
         relative.startswith(ARCHIVED)
-        or relative.startswith("crates/vize_guest/wit/")
+        or relative.startswith("davinci/vize_guest/wit/")
         or relative == "tools/commands/davinci/rename-guest-sdk.py"
         or relative == "docs/davinci/decisions/2026-09-28-guest-sdk-crate-axis.md"
     ):

@@ -13,6 +13,7 @@ Tracking issues: [#6826](https://github.com/ubugeeei-prod/vize/issues/6826) (res
 
 ## Levels and naming
 
+- **Directory split (2026-09-30):** the maintainer requested `davinci/` for levels, guest, dialect and extension infrastructure; Carton and legacy products stay in `crates/`, in one PR. The [directory record](./2026-09-30-davinci-directory.md) defines the boundary and replay commands. This program root is the explicit exception to the codename directory rule.
 - The stages are renamed **L0–L4** (levels). The rename is in progress.
 - **Internal Davinci crates are named by level only**: `vize_l0` … `vize_l4`, and conversions `vize_l1_to_l2` and `vize_l2_to_l3`. `vize_l0_derive` stays separate for proc macros. The independent external Rust guest product is the explicit `vize_guest` exception ([decision](./2026-09-28-guest-sdk-crate-axis.md)).
 - There are no functional internal crate names (no `vize_folio`, `vize_dialect`, …). Internal functional concerns are modules inside a level crate.
@@ -73,11 +74,10 @@ Tracked in [#6833](https://github.com/ubugeeei-prod/vize/issues/6833) and [#6834
 
 Tracked in [#6831](https://github.com/ubugeeei-prod/vize/issues/6831) and [#6851](https://github.com/ubugeeei-prod/vize/issues/6851).
 
+- `crates/` may consume `davinci/`; `davinci/` cannot consume `crates/` through normal or build dependencies, even optionally, on another target, or through a workspace helper. Dev-only differential oracles remain permitted. The directory gate has no exceptions. Shared Namespace, error-code and stage identities move below Relief, whose existing public paths re-export them; the old level-to-Relief allowlist is empty.
 - Level crates never take normal dependencies on legacy crates: `vize_armature`, `vize_relief`, `vize_atelier_*`, `vize_croquis`, `vize_croquis_cf`. Legacy may depend on levels. Dev-dependencies used as differential oracles are fine.
 - **Croquis counts as legacy.** Script analysis is rebuilt natively in the levels ([#6844](https://github.com/ubugeeei-prod/vize/issues/6844)). No adapter presents legacy output as Davinci facts.
-- A `cargo metadata` gate enforces the rule. It starts with a shrinking allowlist and later covers product crates too.
 - The [declaration ratchet](./2026-09-27-foundation-stack-replay.md#dependency-gate) records shrinking #6831 permissions, enforcement and remaining scope.
-- The L1→L2 prefix collector owns its retained-AST lexical-scope walk until L2 identifier-resolution facts replace prefix rewriting. Its direct `vize_relief` edge is removed; the two remaining L1 legacy edges belong to #6835.
 
 ## L1: what the text _is_
 
@@ -91,7 +91,7 @@ Tracked in [#6835](https://github.com/ubugeeei-prod/vize/issues/6835), [#6836](h
   - Profiles: `document` (HTML and in-DOM rules, used by petite-vue) and `component` (SFC template rules).
   - One shared lexer, `Lexer<P: Profile>`, with static dispatch.
   - The template tokenizer moves from armature into `vize_l1::markup`, so armature depends on L1 and not the other way round. [#7136's instruction gate](./2026-09-29-l1-tokenizer-instruction-gate.md) passed all 100 pinned probes on #7152 main after bounded escape-scanning optimizations; #7155 then changed only npm/oxlint files, so exact PR Actions and the protected queue must validate the rebased head, and #6835 stays open.
-- The [L1 tokenizer ownership record](./2026-09-28-l1-markup-skeleton.md#tokenizer-source-relocation-6835) tracks the source move and dependency inversion separately from the remaining generic-profile parity work. The #6831 allowlist removes the now-stale L1→Armature permission for L1 and L1→L2; L1→Relief remains. Moving the same tokenizer code does not switch a product from its legacy parser path; that still requires #6880.
+- The [L1 tokenizer ownership record](./2026-09-28-l1-markup-skeleton.md#tokenizer-source-relocation-6835) tracks the source move and dependency inversion separately from the remaining generic-profile parity work. The #6831 allowlist removes the now-stale L1→Armature permission for L1 and L1→L2; The directory split removes the final L1→Relief permission. Moving the same tokenizer code does not switch a product from its legacy parser path; that still requires #6880.
 - The #6835 parity fixture keeps the preserved tokenizer's first-scalar `&fjlig;` output explicit. L1's sink carries the full decoded value and authored span; the opt-in `CompatSink` maps L1 events to Armature callbacks and preserves the first-scalar legacy output. PR and merge-queue Actions explicitly run feature-gated event and parser AST/diagnostic parity. Production still uses the preserved tokenizer; full output and instruction-count gates plus #6880 are required before removing that state machine.
 - **Container** is the file-format layer. SFC block splitting moves here out of Croquis, laid out so Svelte, Analog and TSRX containers fit later.
 - **Dialect syntax hooks** decompose directive names (`v-on:click.stop`, `@click`, `#default`, `:[dyn]`). They play the role of MLIR custom assembly formats.

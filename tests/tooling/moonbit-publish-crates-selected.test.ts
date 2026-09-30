@@ -7,6 +7,7 @@ import { test } from "node:test";
 
 import { repoRoot, runMoonScript } from "./_helpers/moonbit.ts";
 import { assertPublishManifestIsSanitized } from "./support/fake-cargo-publish.ts";
+import { getMetadata } from "./support/publish-crates-plan.ts";
 import { writeFakeCommand } from "./support/fake-command.ts";
 
 function workspaceVersion(): string {
@@ -29,7 +30,9 @@ test("publish_crates can target the JSX and Patina handoff set", () => {
   assert.ok(version);
   const manifestSnapshots = new Map(
     selectedCrates.map((crateName) => {
-      const manifestPath = path.join(repoRoot, "crates", crateName, "Cargo.toml");
+      const manifestPath = getMetadata().packages.find(
+        (pkg) => pkg.name === crateName,
+      )!.manifest_path;
       return [manifestPath, fs.readFileSync(manifestPath, "utf8")] as const;
     }),
   );

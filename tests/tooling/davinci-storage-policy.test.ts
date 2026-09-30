@@ -15,16 +15,21 @@ import { hasStorage, scanStorage, storageKinds, type FileStorage } from "./davin
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const libraryRoots = [
-  "crates/vize_l0/src",
-  "crates/vize_davinci/src",
-  "crates/vize_l1/src",
-  "crates/vize_l2/src",
-  "crates/vize_l3/src",
-  "crates/vize_l1_to_l2/src",
-  "crates/vize_l2_to_l3/src",
+  "davinci/vize_l0/src",
+  "davinci/vize_davinci/src",
+  "davinci/vize_l1/src",
+  "davinci/vize_l2/src",
+  "davinci/vize_l3/src",
+  "davinci/vize_l1_to_l2/src",
+  "davinci/vize_l2_to_l3/src",
 ];
 const inventoryPath = path.join(repoRoot, "docs/davinci/plan/storage-inventory.tsv");
-const davinciOptRoot = "crates/vize_davinci/src/bin/davinci-opt/";
+// These existing std bridges were previously outside the stage gate in Carton.
+// Keep an exact inventory rather than exempting the whole L0 crate or a folder.
+const foundationBridges = JSON.parse(
+  fs.readFileSync(path.join(repoRoot, "docs/davinci/plan/foundation-storage-bridges.json"), "utf8"),
+) as { issues: string[] };
+const davinciOptRoot = "davinci/vize_davinci/src/bin/davinci-opt/";
 
 function rustFiles(root: string): string[] {
   const files: string[] = [];
@@ -41,13 +46,13 @@ function isDavinciOptHostEdge(relative: string): boolean {
 }
 
 function scopeFor(file: string): StorageScope {
-  if (file.startsWith("crates/vize_l0/")) return "infra";
-  if (file.startsWith("crates/vize_davinci/")) return "infra";
-  if (file.startsWith("crates/vize_l1/")) return "l1";
-  if (file.startsWith("crates/vize_l2/")) return "l2";
-  if (file.startsWith("crates/vize_l3/")) return "l3";
-  if (file.startsWith("crates/vize_l1_to_l2/")) return "l1_to_l2";
-  if (file.startsWith("crates/vize_l2_to_l3/")) return "l2_to_l3";
+  if (file.startsWith("davinci/vize_l0/")) return "infra";
+  if (file.startsWith("davinci/vize_davinci/")) return "infra";
+  if (file.startsWith("davinci/vize_l1/")) return "l1";
+  if (file.startsWith("davinci/vize_l2/")) return "l2";
+  if (file.startsWith("davinci/vize_l3/")) return "l3";
+  if (file.startsWith("davinci/vize_l1_to_l2/")) return "l1_to_l2";
+  if (file.startsWith("davinci/vize_l2_to_l3/")) return "l2_to_l3";
   throw new Error(`unknown storage scope: ${file}`);
 }
 
@@ -107,8 +112,14 @@ function format(value: { directPaths: number; boundUses: number }): string {
   return `${value.directPaths}/${value.boundUses}`;
 }
 
-test("stage storage has no opaque imports or std paths", () => {
-  assert.deepEqual(measureInventory().issues, []);
+test("stage storage has no opaque imports or unreviewed std paths", () => {
+  for (const issue of foundationBridges.issues) {
+    assert.match(
+      issue,
+      /^davinci\/vize_l0\/src\/(?:allocator(?:\/tests)?|config\/[^:]+|path|pool(?:\/tests)?|profiler\/core|source_io|telegraph)\.rs: forbidden std storage (?:path|import): /u,
+    );
+  }
+  assert.deepEqual(measureInventory().issues.toSorted(), foundationBridges.issues.toSorted());
 });
 
 test("all owned storage equals the reviewed per-file inventory", () => {
@@ -127,11 +138,11 @@ test("all owned storage equals the reviewed per-file inventory", () => {
 
 test("production inventory excludes cfg(test) size evidence", () => {
   const byFile = new Map(expectedRows.map((row) => [row.file, row]));
-  assert.deepEqual(byFile.get("crates/vize_l1_to_l2/src/emit/on.rs")?.storage.allocVec, {
+  assert.deepEqual(byFile.get("davinci/vize_l1_to_l2/src/emit/on.rs")?.storage.allocVec, {
     directPaths: 0,
     boundUses: 0,
   });
-  assert.deepEqual(byFile.get("crates/vize_l0/src/side_table.rs")?.storage.allocVec, {
+  assert.deepEqual(byFile.get("davinci/vize_l0/src/side_table.rs")?.storage.allocVec, {
     directPaths: 1,
     boundUses: 2,
   });
@@ -265,6 +276,6 @@ test("scanner rejects escape hatches and masks only cfg(test) items", () => {
 });
 
 test("davinci-opt is the exact host edge", () => {
-  assert.equal(isDavinciOptHostEdge("crates/vize_davinci/src/bin/davinci-opt/main.rs"), true);
-  assert.equal(isDavinciOptHostEdge("crates/vize_davinci/src/lib.rs"), false);
+  assert.equal(isDavinciOptHostEdge("davinci/vize_davinci/src/bin/davinci-opt/main.rs"), true);
+  assert.equal(isDavinciOptHostEdge("davinci/vize_davinci/src/lib.rs"), false);
 });

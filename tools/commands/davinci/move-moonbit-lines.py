@@ -5,8 +5,8 @@ from pathlib import Path
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[3]
-old = ROOT / "crates/vize_dialect_moonbit/src/lines.rs"
-new = ROOT / "crates/vize_l1/src/lang/moonbit/lines.rs"
+old = ROOT / "davinci/vize_dialect_moonbit/src/lines.rs"
+new = ROOT / "davinci/vize_l1/src/lang/moonbit/lines.rs"
 
 if old.is_file() and not new.exists():
     new.parent.mkdir(parents=True, exist_ok=True)
