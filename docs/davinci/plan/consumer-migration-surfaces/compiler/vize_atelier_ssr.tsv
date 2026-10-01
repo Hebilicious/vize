@@ -35,7 +35,7 @@ compiler	Compiler	source	crates/vize_atelier_ssr/src/l4.rs	19	l1_to_l2	L1->L2	st
 compiler	Compiler	source	crates/vize_atelier_ssr/src/l4/bindings.rs	4	l1_to_l2	L1->L2	stage	vize_l1_to_l2	preferred	1
 compiler	Compiler	source	crates/vize_atelier_ssr/src/l4/croquis.rs	12	croquis	Croquis analysis	old	vize_croquis	legacy	3
 compiler	Compiler	test/dev	crates/vize_atelier_ssr/src/l4/differential_tests.rs	18	l0	L0	stage	vize_l0	preferred	1
-compiler	Compiler	source	crates/vize_atelier_ssr/src/l4/emit.rs	30	l0	L0	stage	vize_l0	preferred	8
+compiler	Compiler	source	crates/vize_atelier_ssr/src/l4/emit.rs	30	l0	L0	stage	vize_l0	preferred	9
 compiler	Compiler	source	crates/vize_atelier_ssr/src/l4/emit.rs	30	l2	L2	stage	vize_l2	preferred	1
 compiler	Compiler	source	crates/vize_atelier_ssr/src/l4/emit.rs	30	l1_to_l2	L1->L2	stage	vize_l1_to_l2	preferred	3
 compiler	Compiler	source	crates/vize_atelier_ssr/src/l4/emit/attrs.rs	5	l0	L0	stage	vize_l0	preferred	4
