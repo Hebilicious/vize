@@ -80,6 +80,9 @@ pub(super) fn component_contract_markdown(
     }
 
     if !fields.is_empty() {
+        if let Some(header) = lines.first_mut() {
+            header.push_str(" &");
+        }
         lines.push("{".to_string());
         lines.extend(fields);
         lines.push("}".to_string());
@@ -200,11 +203,7 @@ fn model_contract(macros: &vize_croquis::macros::MacroTracker) -> Option<String>
         })
         .collect::<Vec<_>>();
 
-    if fields.len() == 1 {
-        fields.into_iter().next()
-    } else {
-        Some(format!("{{ {} }}", fields.join("; ")))
-    }
+    Some(format!("{{ {} }}", fields.join("; ")))
 }
 
 fn compact_type(source: &str) -> String {
