@@ -28,6 +28,8 @@ mod i18n_supplemental_extra;
 mod i18n_supplemental_extra2;
 mod i18n_supplemental_html;
 
+pub mod profile_export;
+
 #[cfg(not(target_arch = "wasm32"))]
 pub mod corsa_api_mode;
 #[cfg(not(target_arch = "wasm32"))]
