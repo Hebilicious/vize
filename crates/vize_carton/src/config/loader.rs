@@ -7,6 +7,11 @@
 
 mod checked;
 mod compiler_keys;
+mod formatter;
+pub use formatter::{
+    LoadedFormatterSnapshot, load_config_with_formatter_options_and_source,
+    try_load_formatter_snapshot,
+};
 mod discovery;
 #[cfg(test)]
 mod experimental_tests;

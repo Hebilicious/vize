@@ -181,7 +181,7 @@ and the [falsy-child fix and oracle review](./2026-09-27-jsx-falsy-and.md).
 Tracked in [#6827](https://github.com/ubugeeei-prod/vize/issues/6827) and [#6845](https://github.com/ubugeeei-prod/vize/issues/6845)–[#6851](https://github.com/ubugeeei-prod/vize/issues/6851).
 
 - One parse per file. Every product consumes the same artifacts. [Scoped Vite compiler settings](./2026-10-01-vite-scoped-compiler.md) records #7247 entry precedence, batch scopes, and cache identity.
-- **Formatter:** L1 only. A rewrite whose safety depends on L2 facts (for example component-dependent self-closing) is a linter autofix instead.
+- **Formatter:** L1 only. A rewrite whose safety depends on L2 facts (for example component-dependent self-closing) is a linter autofix instead. [Import sorting](./2026-10-01-formatter-import-sorting.md) records #7258 native/Vite+ controls and byte contracts.
 
   [Formatter fix-history output fixtures](./2026-09-27-formatter-fix-history.md) records [#6882](https://github.com/ubugeeei-prod/vize/issues/6882); public script and CSS byte fixtures retain the actual invalid-CSS error separately. Full-history audit and shared corpus registration remain pending.
   Formatter history asset and binary-reference bytes disable Git text conversion, including on CRLF checkouts. Binary references retain authored trailing whitespace and EOF spaces.
@@ -295,7 +295,7 @@ Vize follows language-toolchain practice, not compiler-only practice. It stays l
 
 ## CI tiers
 
-Tracked in [#6830](https://github.com/ubugeeei-prod/vize/issues/6830) and [#6861](https://github.com/ubugeeei-prod/vize/issues/6861)–[#6867](https://github.com/ubugeeei-prod/vize/issues/6867). [First-publish control repair](./2026-09-27-sdk-bootstrap-control.md) is tracked in [#6895](https://github.com/ubugeeei-prod/vize/issues/6895).
+Tracked in [#6830](https://github.com/ubugeeei-prod/vize/issues/6830) and [#6861](https://github.com/ubugeeei-prod/vize/issues/6861)–[#6867](https://github.com/ubugeeei-prod/vize/issues/6867). [First-publish control repair](./2026-09-27-sdk-bootstrap-control.md) is tracked in [#6895](https://github.com/ubugeeei-prod/vize/issues/6895). The [devalue security patch](./2026-10-02-devalue-security.md) records #7383's unchanged production audit gate and minimal serializer update.
 
 | Tier           | Runs              | Target                   | Content                                                                                                                                                                            |
 | -------------- | ----------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

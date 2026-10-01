@@ -7,6 +7,7 @@
 ///   sourceMap = true
 /// }
 module vize.Config
+import "SortImportsConfig.pkl"
 
 typealias CompilerMode = "module" | "function"
 typealias TemplateSyntax = "standard" | "strict" | "quirks"
@@ -194,12 +195,30 @@ class TypeCheckerConfig {
 }
 
 class FormatterConfig {
+  /// Oxfmt-compatible import sorting; false disables it.
+  sortImports: Boolean(this == false) | SortImportsConfig.SortImportsConfig? = null
+
   printWidth: Int? = null
   tabWidth: Int? = null
   useTabs: Boolean? = null
   semi: Boolean? = null
   singleQuote: Boolean? = null
   trailingComma: TrailingComma? = null
+  jsxSingleQuote: Boolean? = null
+  bracketSpacing: Boolean? = null
+  bracketSameLine: Boolean? = null
+  arrowParens: ("always"|"avoid")? = null
+  endOfLine: ("lf"|"crlf"|"cr"|"auto")? = null
+  quoteProps: ("as-needed"|"consistent"|"preserve")? = null
+  singleAttributePerLine: Boolean? = null
+  vueIndentScriptAndStyle: Boolean? = null
+  sortAttributes: Boolean? = null
+  attributeSortOrder: ("alphabetical"|"as-written")? = null
+  mergeBindAndNonBindAttrs: Boolean? = null
+  maxAttributesPerLine: Int? = null
+  attributeGroups: Listing<Listing<String>>? = null
+  normalizeDirectiveShorthands: Boolean? = null
+  sortBlocks: Boolean? = null
 }
 
 class LspConfig {
