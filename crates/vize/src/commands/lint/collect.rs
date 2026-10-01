@@ -330,13 +330,8 @@ fn resolve_entry_ignore_pattern(ignore: &config::ConfigEntryIgnore, config_dir: 
 }
 
 fn absolute_config_dir(config_dir: &Path) -> PathBuf {
-    if config_dir.is_absolute() {
-        return config_dir.to_path_buf();
-    }
-
-    std::env::current_dir()
-        .unwrap_or_else(|_| PathBuf::from("."))
-        .join(config_dir)
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    vize_l0::config::matcher::absolute_path(config_dir, &cwd)
 }
 
 mod node_modules_ignore;
