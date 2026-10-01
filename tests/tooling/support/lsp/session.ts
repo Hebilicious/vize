@@ -179,7 +179,16 @@ export class LspSession {
         if (index >= 0) {
           this.notifications.splice(index, 1);
         }
-        reject(new Error(`Timed out waiting for notification ${method}\n${this.stderr}`.trim()));
+        const recentNotifications = this.notificationBacklog.slice(-10).map((notification) => {
+          const params = notification.params as { uri?: string; version?: number } | undefined;
+          return { method: notification.method, uri: params?.uri, version: params?.version };
+        });
+        reject(
+          new Error(
+            `Timed out waiting for notification ${method}; recent notifications: ` +
+              `${JSON.stringify(recentNotifications)}\n${this.stderr.slice(-12000)}`.trim(),
+          ),
+        );
       }, timeoutMs);
 
       this.notifications.push({

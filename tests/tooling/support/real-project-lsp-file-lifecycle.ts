@@ -9,7 +9,6 @@ import {
   assertMissingModuleDiagnostic,
   assertRangeInDocument,
   diagnosticEvidence,
-  diagnosticPayload,
   hasMissingModuleDiagnostic,
   locations,
   replaceUniqueAnchor,
@@ -26,6 +25,7 @@ import type {
 import {
   normalizeLifecycleRepairDiagnostics,
   reservedPath,
+  waitForDiagnostics,
 } from "./real-project-lsp-file-lifecycle-utils.ts";
 
 type OracleDocument = { source: string; uri: string };
@@ -328,21 +328,4 @@ function changeDocument(session: OracleSession, uri: string, text: string, versi
     contentChanges: [{ text }],
     textDocument: { uri, version },
   });
-}
-
-async function waitForDiagnostics(
-  session: OracleSession,
-  uri: string,
-  version: number,
-  timeoutMs: number,
-  predicate?: (diagnostics: PublishDiagnosticsParams) => boolean,
-): Promise<PublishDiagnosticsParams> {
-  return (await session.waitForNotification(
-    "textDocument/publishDiagnostics",
-    (value) => {
-      const diagnostics = diagnosticPayload(value, uri, version);
-      return diagnostics != null && (predicate == null || predicate(diagnostics));
-    },
-    timeoutMs,
-  )) as PublishDiagnosticsParams;
 }

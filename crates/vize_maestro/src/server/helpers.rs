@@ -13,8 +13,6 @@ use tower_lsp::lsp_types::{
     MarkupContent, MarkupKind, NumberOrString, Position, TextDocumentContentChangeEvent, Url,
 };
 
-use crate::ide::DiagnosticService;
-
 use super::MaestroServer;
 use vize_l0::append;
 
@@ -58,7 +56,17 @@ impl MaestroServer {
         if !self.state.is_lsp_typecheck_enabled() {
             return;
         }
+        tracing::info!(
+            "starting importer diagnostics after edit {} version {}",
+            uri,
+            version
+        );
         self.publish_importer_diagnostics(uri, Some(version)).await;
+        tracing::info!(
+            "finished importer diagnostics after edit {} version {}",
+            uri,
+            version
+        );
     }
 
     /// Refresh open typed documents that import `uri`, abandoning the fan-out
@@ -83,7 +91,18 @@ impl MaestroServer {
         version: Option<i32>,
     ) -> Vec<Url> {
         let mut refreshed = Vec::new();
-        for importer in super::importers::open_typecheck_dependents(&self.state, uri) {
+        tracing::info!(
+            "finding open typecheck dependents for {} version {:?}",
+            uri,
+            version
+        );
+        let dependents = super::importers::open_typecheck_dependents(&self.state, uri);
+        tracing::info!(
+            "refreshing {} open typecheck dependents for {}",
+            dependents.len(),
+            uri
+        );
+        for importer in dependents {
             if self.state.documents.version(uri) != version {
                 tracing::debug!(
                     "abandoning superseded importer refresh for {}: pass version {:?}, current {:?}",
@@ -93,7 +112,9 @@ impl MaestroServer {
                 );
                 break;
             }
+            tracing::info!("refreshing importer {} for {}", importer, uri);
             self.publish_diagnostics(&importer).await;
+            tracing::info!("refreshed importer {} for {}", importer, uri);
             refreshed.push(importer);
         }
         refreshed
@@ -196,17 +217,14 @@ impl MaestroServer {
     pub(crate) fn get_lint_hover_at_position(
         &self,
         uri: &Url,
-        _content: &str,
         position: Position,
     ) -> Option<String> {
         if !self.state.is_lsp_lint_enabled() {
             return None;
         }
 
-        // Hover only surfaces `vize/lint` / `vize/musea` diagnostics at the
-        // cursor, so collect just that subset instead of re-running the entire
-        // pipeline (full SFC type-check + ecosystem passes) on every hover.
-        let diagnostics = DiagnosticService::collect_lint_only(&self.state, uri);
+        // Reuse the lint/musea diagnostics collected for this document version.
+        let diagnostics = self.state.lint_hover_diagnostics(uri);
 
         let lint_diags: Vec<_> = diagnostics
             .iter()

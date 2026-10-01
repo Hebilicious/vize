@@ -37,12 +37,16 @@ impl MaestroServer {
 
         drop(diagnostic_guard);
 
-        if let Some(diagnostics) = diagnostics.filter(|diagnostics| !diagnostics.is_empty())
+        if let Some(diagnostics) = diagnostics
             && self.state.documents.version(uri) == Some(expected)
         {
-            self.client
-                .publish_diagnostics(uri.clone(), diagnostics, None)
-                .await;
+            self.state
+                .cache_lint_hover_diagnostics(uri, expected, &diagnostics);
+            if !diagnostics.is_empty() {
+                self.client
+                    .publish_diagnostics(uri.clone(), diagnostics, None)
+                    .await;
+            }
         }
     }
 
@@ -100,6 +104,11 @@ impl MaestroServer {
         version: i32,
         diagnostics: Vec<Diagnostic>,
     ) {
+        tracing::info!(
+            "publishing collected diagnostics for {} version {}",
+            uri,
+            version
+        );
         if self.state.documents.version(uri) != Some(version) {
             tracing::debug!(
                 "skipping superseded diagnostics for {}: collected version {}, current {:?}",
@@ -109,6 +118,13 @@ impl MaestroServer {
             );
             return;
         }
+        self.state
+            .cache_lint_hover_diagnostics(uri, version, &diagnostics);
+        tracing::info!(
+            "cached collected diagnostics for {} version {}",
+            uri,
+            version
+        );
 
         // An importer refresh, save, or edit may satisfy a queued initial pass.
         // Retire that job only after collecting the complete current result;
@@ -117,10 +133,16 @@ impl MaestroServer {
         if let Some(scheduler) = &self.initial_diagnostics {
             scheduler.complete(uri, version);
         }
+        tracing::info!(
+            "sending collected diagnostics for {} version {}",
+            uri,
+            version
+        );
 
         self.client
             .publish_diagnostics(uri.clone(), diagnostics, Some(version))
             .await;
+        tracing::info!("sent collected diagnostics for {} version {}", uri, version);
 
         // Surface a one-shot UI notification when type checking is requested
         // but Corsa never came up. The hint diagnostic emitted by
