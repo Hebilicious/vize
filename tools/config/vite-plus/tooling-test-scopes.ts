@@ -22,6 +22,7 @@ export const mergeOnlyToolingTests = [
   "tests/tooling/differential-compiler-api-execution.test.ts",
   "tests/tooling/differential-formatter-api-execution.test.mjs",
   "tests/tooling/differential-linter-api-execution.test.ts",
+  "tests/tooling/differential-lsp-cli.test.ts",
   "tests/tooling/lsp-alias-barrel-definition.test.ts",
   "tests/tooling/lsp-aliased-dependency-revalidation.test.ts",
   "tests/tooling/lsp-authored-script-diagnostics.test.ts",
