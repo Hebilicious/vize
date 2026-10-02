@@ -6,14 +6,19 @@
 
 use alloc::vec::Vec;
 
+mod levels;
+use super::dom::{DomExpressionFacts, LiteralExpressions, build::DomBuilder};
+use levels::Levels;
+
 use super::{
     ControlKind, ControlRegion, DecisionTables, NativeAnalysis, NodeDecision, StaticLevel,
     policy::{BindingOwner, BindingRole, TargetPolicy},
 };
 use crate::placement::Placement;
-use vize_l0::{id::NodeId, side_table::SideTable};
+use vize_l0::{Span, id::NodeId, side_table::SideTable};
 use vize_l2::{
     artifact::Artifact,
+    file::FileArtifact,
     op::{BindingOp, Op},
     walk::{NodeEvent, NodeRef},
 };
@@ -28,12 +33,31 @@ pub fn build_decisions<'owner, 'arena>(
     artifact: &'owner Artifact<'arena>,
     policy: TargetPolicy,
 ) -> Result<NativeAnalysis<'owner, 'arena>, DecisionBuildError> {
+    build_with(artifact, policy, &LiteralExpressions, None)
+}
+
+/// Apply explicit native expression-binding semantics in the same DOM walk.
+pub fn build_dom_decisions<'owner, 'arena>(
+    artifact: &'owner Artifact<'arena>,
+    expressions: &impl DomExpressionFacts,
+) -> Result<NativeAnalysis<'owner, 'arena>, DecisionBuildError> {
+    build_with(artifact, TargetPolicy::Dom, expressions, None)
+}
+
+pub(in crate::decision) fn build_with<'owner, 'arena>(
+    artifact: &'owner Artifact<'arena>,
+    policy: TargetPolicy,
+    expressions: &impl DomExpressionFacts,
+    file: Option<&'owner FileArtifact<'arena>>,
+) -> Result<NativeAnalysis<'owner, 'arena>, DecisionBuildError> {
     let mut builder = Builder {
         policy,
         node_count: artifact.node_count(),
         frames: Vec::new(),
         nodes: SideTable::new(),
         controls: SideTable::new(),
+        dom: (policy == TargetPolicy::Dom)
+            .then(|| DomBuilder::new(expressions, artifact.root().ops.len(), file)),
     };
     let mut failure = None;
     artifact
@@ -46,9 +70,11 @@ pub fn build_decisions<'owner, 'arena>(
     if let Some(error) = failure {
         return Err(error);
     }
+    let dom = builder.dom.take().map(DomBuilder::finish);
     Ok(NativeAnalysis {
         artifact,
         tables: builder.finish()?,
+        dom,
     })
 }
 
@@ -56,6 +82,8 @@ pub fn build_decisions<'owner, 'arena>(
 /// Partial scratch tables are never returned as completed analysis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DecisionBuildError {
+    /// Script/template failure or interrupted admission is retained by the file.
+    IncompleteFile,
     /// The shared L2 walk exhausted its stage-local id space.
     NodeLimit,
     /// A node's enter/leave or attached owner violated the shared walk.
@@ -70,12 +98,13 @@ pub enum DecisionBuildError {
     DuplicateControl { node: NodeId },
 }
 
-struct Builder {
+struct Builder<'facts, 'owner, 'arena, F> {
     policy: TargetPolicy,
     node_count: u32,
     frames: Vec<Frame>,
     nodes: SideTable<NodeDecision>,
     controls: SideTable<ControlRegion>,
+    dom: Option<DomBuilder<'facts, 'owner, 'arena, F>>,
 }
 
 /// One open region op, released at its matching leave event.
@@ -88,7 +117,7 @@ struct Frame {
     dynamic_bindings: Vec<NodeId>,
 }
 
-impl Builder {
+impl<'owner, 'arena, F: DomExpressionFacts> Builder<'_, 'owner, 'arena, F> {
     fn finish(self) -> Result<DecisionTables, DecisionBuildError> {
         if let Some(frame) = self.frames.last() {
             return Err(DecisionBuildError::InvalidTraversal { node: frame.id });
@@ -106,16 +135,19 @@ impl Builder {
         })
     }
 
-    fn visit(&mut self, event: NodeEvent<'_, '_>) -> Result<(), DecisionBuildError> {
+    fn visit(&mut self, event: NodeEvent<'owner, 'arena>) -> Result<(), DecisionBuildError> {
         match event {
             NodeEvent::Enter {
-                id, node, parent, ..
+                id,
+                node,
+                parent,
+                owner_span,
             } => {
                 if parent != self.frames.last().map(|frame| frame.id) {
                     return Err(DecisionBuildError::InvalidTraversal { node: id });
                 }
                 match node {
-                    NodeRef::Op(op) => self.enter_op(id, op)?,
+                    NodeRef::Op(op) => self.enter_op(id, op, owner_span)?,
                     NodeRef::Binding(binding) => self.binding(id, binding)?,
                 }
             }
@@ -132,7 +164,12 @@ impl Builder {
         Ok(())
     }
 
-    fn enter_op(&mut self, id: NodeId, op: &Op<'_>) -> Result<(), DecisionBuildError> {
+    fn enter_op(
+        &mut self,
+        id: NodeId,
+        op: &'owner Op<'arena>,
+        owner_span: Option<Span>,
+    ) -> Result<(), DecisionBuildError> {
         let control = self.frames.last().and_then(|frame| frame.child_control);
         let (levels, owner, kind) = match op {
             Op::Element(_) => (Levels::STATIC, Some(BindingOwner::Element), None),
@@ -160,6 +197,9 @@ impl Builder {
         } else {
             control
         };
+        if let Some(dom) = &mut self.dom {
+            dom.enter(id, op, owner_span)?;
+        }
         self.frames.push(Frame {
             id,
             levels,
@@ -171,7 +211,11 @@ impl Builder {
         Ok(())
     }
 
-    fn binding(&mut self, id: NodeId, binding: &BindingOp<'_>) -> Result<(), DecisionBuildError> {
+    fn binding(
+        &mut self,
+        id: NodeId,
+        binding: &'owner BindingOp<'arena>,
+    ) -> Result<(), DecisionBuildError> {
         let frame = self
             .frames
             .last_mut()
@@ -179,6 +223,9 @@ impl Builder {
         let owner = frame
             .owner
             .ok_or(DecisionBuildError::InvalidTraversal { node: id })?;
+        if let Some(dom) = &mut self.dom {
+            dom.binding(id, binding);
+        }
         let role = match binding {
             BindingOp::On(_) => BindingRole::Event,
             BindingOp::VueCloak(_) => BindingRole::Cloak,
@@ -233,6 +280,9 @@ impl Builder {
         if frame.id != id {
             return Err(DecisionBuildError::InvalidTraversal { node: id });
         }
+        if let Some(dom) = &mut self.dom {
+            dom.leave(id)?;
+        }
         self.insert_node(
             id,
             NodeDecision {
@@ -277,56 +327,6 @@ impl Builder {
             return Err(DecisionBuildError::DuplicateControl { node: id });
         }
         Ok(())
-    }
-}
-
-#[derive(Clone, Copy)]
-struct Levels {
-    neutral: StaticLevel,
-    output: StaticLevel,
-}
-
-impl Levels {
-    const STATIC: Self = Self {
-        neutral: StaticLevel::Static,
-        output: StaticLevel::Static,
-    };
-    const DYNAMIC: Self = Self {
-        neutral: StaticLevel::Dynamic,
-        output: StaticLevel::Dynamic,
-    };
-    const DYNAMIC_TEXT: Self = Self {
-        neutral: StaticLevel::DynamicText,
-        output: StaticLevel::DynamicText,
-    };
-
-    fn join(self, other: Self) -> Self {
-        Self {
-            neutral: join(self.neutral, other.neutral),
-            output: join(self.output, other.output),
-        }
-    }
-
-    fn nested(self) -> Self {
-        Self {
-            neutral: nested(self.neutral),
-            output: nested(self.output),
-        }
-    }
-}
-
-fn join(left: StaticLevel, right: StaticLevel) -> StaticLevel {
-    match (left, right) {
-        (StaticLevel::Dynamic, _) | (_, StaticLevel::Dynamic) => StaticLevel::Dynamic,
-        (StaticLevel::DynamicText, _) | (_, StaticLevel::DynamicText) => StaticLevel::DynamicText,
-        (StaticLevel::Static, StaticLevel::Static) => StaticLevel::Static,
-    }
-}
-
-fn nested(level: StaticLevel) -> StaticLevel {
-    match level {
-        StaticLevel::DynamicText => StaticLevel::Dynamic,
-        StaticLevel::Static | StaticLevel::Dynamic => level,
     }
 }
 
