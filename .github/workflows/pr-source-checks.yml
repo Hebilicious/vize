@@ -4,11 +4,9 @@ on:
 
 permissions:
   contents: read
-
 env:
   CARGO_TERM_COLOR: always
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   wit-contracts:
     name: Guest contracts
@@ -58,7 +56,6 @@ jobs:
           BASE_SHA: ${{ steps.comparison.outputs.base }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: node tools/support/compat/github/report-legacy-fix-fixtures.mjs "$BASE_SHA" "$GITHUB_SHA"
-
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         if: ${{ steps.plan.outputs.rust == 'true' }}
         with:
@@ -207,6 +204,9 @@ jobs:
       - name: Test source-bound native JS setup modules and runtime
         if: ${{ needs.pr-source-plan.outputs.tooling == 'true' && matrix.index == 1 && (github.event_name == 'merge_group' || (github.event_name == 'pull_request' && needs.pr-source-plan.outputs.native-setup-capture == 'true')) }}
         uses: ./.github/actions/test-native-js-setup
+      - name: Capture original native Vapor modules and runtime
+        if: ${{ github.event_name == 'merge_group' && needs.pr-source-plan.outputs.tooling == 'true' && matrix.index == 1 }}
+        uses: ./.github/actions/test-native-vapor
       - name: Test selected PR tooling scripts
         if: ${{ github.event_name == 'pull_request' && needs.pr-source-plan.outputs.tooling == 'true' }}
         env:
