@@ -4718,6 +4718,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "vize_incremental"
+version = "0.430.0"
+dependencies = [
+ "salsa",
+ "toml",
+ "vize_croquis",
+ "vize_l0",
+ "vize_l1",
+ "vize_l1_to_l2",
+ "vize_l2",
+ "vize_relief",
+]
+
+[[package]]
 name = "vize_l0"
 version = "0.430.0"
 dependencies = [
@@ -4888,6 +4902,7 @@ dependencies = [
  "vize_croquis",
  "vize_croquis_cf",
  "vize_glyph",
+ "vize_incremental",
  "vize_l0",
  "vize_l1",
  "vize_l1_to_l2",
@@ -4896,7 +4911,6 @@ dependencies = [
  "vize_oxc_parser",
  "vize_patina",
  "vize_relief",
- "vize_resident",
 ]
 
 [[package]]
@@ -5000,20 +5014,6 @@ dependencies = [
  "thiserror 2.0.20",
  "vize_carton",
  "vize_l0",
-]
-
-[[package]]
-name = "vize_resident"
-version = "0.430.0"
-dependencies = [
- "salsa",
- "toml",
- "vize_croquis",
- "vize_l0",
- "vize_l1",
- "vize_l1_to_l2",
- "vize_l2",
- "vize_relief",
 ]
 
 [[package]]
