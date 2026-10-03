@@ -1,9 +1,9 @@
 //! Original root cursor and private ordinary HTML header/body construction.
 
-use super::{RootRegion, TemplatePolicy};
+use super::RootRegion;
 use crate::artifact::ComponentFactory;
 use crate::file::template::TemplateWalk;
-use crate::file::{Declaration, FileBuilder, FileIssueKind, ScopeId, ScriptUnitId, TemplateIssue};
+use crate::file::{FileBuilder, FileIssueKind, ScopeId, ScriptUnitId, TemplateIssue};
 use crate::lang::js::file::native::{
     NativeRouteState, NativeTemplateIssue, NativeTemplateIssueKind,
 };
@@ -11,16 +11,14 @@ use vize_l0::id::NodeId;
 use vize_l1::markup::{NativeChild, NativeRootText, NativeTemplateComponent};
 
 mod body;
+mod for_body;
+mod for_head;
+#[cfg(test)]
+mod for_tests;
 mod handler;
 mod interpolation;
-
-#[derive(Clone, Copy)]
-pub(crate) struct NativeVisibility;
-impl TemplatePolicy for NativeVisibility {
-    fn visible(self, _: &Declaration) -> bool {
-        false
-    }
-}
+mod visibility;
+pub(crate) use visibility::NativeVisibility;
 pub struct NativeTemplateWalk<'s, 'a> {
     selected: &'s NativeTemplateComponent<'a>,
     root: RootRegion<'s, 'a, NativeVisibility>,
@@ -38,6 +36,7 @@ impl<'s, 'a> NativeTemplateWalk<'s, 'a> {
         setup: Option<ScriptUnitId>,
     ) -> Result<Self, NativeTemplateIssue> {
         let span = selected.component().block().span();
+        let policy = NativeVisibility::checked(selected, &builder.facts, setup);
         let scope = if let Some(setup) = setup {
             let Some(unit) = builder.facts.units.iter().find(|unit| unit.id == setup) else {
                 return Err(NativeTemplateIssue {
@@ -56,7 +55,7 @@ impl<'s, 'a> NativeTemplateWalk<'s, 'a> {
             builder.canonical.region(),
             &mut builder.facts,
             scope,
-            NativeVisibility,
+            policy,
             builder.source,
         );
         Ok(Self {
@@ -108,7 +107,9 @@ impl<'s, 'a> NativeTemplateWalk<'s, 'a> {
         &mut self,
         receipt: &NativeRootText<'a>,
     ) -> Result<Option<NodeId>, NativeTemplateIssue> {
-        if !matches!(self.state, NativeRouteState::Walking) {
+        if !matches!(self.state, NativeRouteState::Walking)
+            || self.root.facts.template_walk.interruption().is_some()
+        {
             return self.reject(NativeTemplateIssueKind::Interrupted);
         }
         let Some(view) = receipt.admitted_for_root_at(self.selected, self.cursor) else {
@@ -169,7 +170,8 @@ impl<'s, 'a> NativeTemplateWalk<'s, 'a> {
             return Err(issue);
         }
         let span = match kind {
-            NativeTemplateIssueKind::Handler { span, .. } => span,
+            NativeTemplateIssueKind::Handler { span, .. }
+            | NativeTemplateIssueKind::For { span, .. } => span,
             _ => self.selected.component().block().span(),
         };
         let issue = NativeTemplateIssue { span, kind };

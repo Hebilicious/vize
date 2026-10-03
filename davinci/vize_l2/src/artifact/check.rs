@@ -62,6 +62,14 @@ fn check_node(
     owner: Option<Span>,
 ) -> Result<(), ArtifactError> {
     owned_span(parts.source, id, node.span(), owner)?;
+    if let NodeRef::Op(Op::OriginalFor(original)) = node
+        && original.id().node() != id
+    {
+        return Err(ArtifactError::InvalidOriginalForReference {
+            node: id,
+            original: original.id().node(),
+        });
+    }
     if let NodeRef::Binding(BindingOp::On(on)) = node
         && let Some(handler) = on.handler.and_then(crate::op::OnHandlerRef::body)
         && handler.node() != id
@@ -128,6 +136,9 @@ fn check_node(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod original_for;
 
 pub(super) fn expression(
     source: &str,
