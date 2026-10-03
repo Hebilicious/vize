@@ -19,6 +19,8 @@ use vize_l3::decision::{
     StaticLevel, dom::DomRootKind, native::build_native_dom_file_decisions, policy::TargetPolicy,
 };
 
+mod native_template_cases;
+
 fn check(condition: bool) -> Result<(), &'static str> {
     if condition {
         Ok(())
