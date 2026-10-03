@@ -18,6 +18,9 @@ use vize_l1_to_l2::native_file::lower_sfc_native;
 mod configuration;
 #[path = "native_vue_check/const_semantics.rs"]
 mod const_semantics;
+#[cfg(unix)]
+#[path = "native_vue_check/unused_history.rs"]
+mod unused_history;
 
 #[path = "native_vue_check/jsdoc_semantics.rs"]
 mod jsdoc_semantics;
