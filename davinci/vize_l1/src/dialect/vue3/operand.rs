@@ -1,7 +1,8 @@
 //! Conditional operand selection belongs to the Vue dialect.
 
 use super::VueDirectives;
-use crate::markup::{DirectiveNameError, DirectivePrefix, DirectiveSyntax};
+use crate::markup::{ArgSyntax, DirectiveNameError, DirectivePrefix, DirectiveSyntax};
+use vize_l0::Span;
 
 /// The actual complete conditional directive spelling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,4 +45,31 @@ pub(crate) fn for_head(raw: &str, offset: u32, source: &str) -> Result<bool, Dir
         && head.modifiers.start == head.modifiers.end
         && head.name.end == offset + raw.len() as u32
         && head.name.slice(source) == "for")
+}
+
+/// First event head family: explicit complete static names with no modifiers.
+pub(crate) fn static_event_head(
+    raw: &str,
+    offset: u32,
+    source: &str,
+) -> Result<Option<Span>, DirectiveNameError> {
+    let Some(head) = VueDirectives.decompose(raw, offset)? else {
+        return Ok(None);
+    };
+    let expected = match head.prefix {
+        DirectivePrefix::On => offset.checked_add(1),
+        DirectivePrefix::Full if head.name.slice(source) == "on" => head.name.end.checked_add(1),
+        _ => return Ok(None),
+    };
+    let Some(ArgSyntax::Static(argument)) = head.arg else {
+        return Ok(None);
+    };
+    if head.modifiers.start != head.modifiers.end
+        || Some(argument.start) != expected
+        || argument.end != offset + raw.len() as u32
+        || argument.start == argument.end
+    {
+        return Ok(None);
+    }
+    Ok(Some(argument))
 }
