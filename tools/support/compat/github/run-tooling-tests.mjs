@@ -22,8 +22,8 @@ export function toolingTestCommand(plan, available = toolingTestFiles(), shard =
     throw new Error("merge tooling plan must retain every test file");
   }
   // Each isolated runner remains serial because fixtures and reports are shared
-  // between test files inside a checkout. Only the already-selected PR files
-  // may be partitioned; the full merge suite is never partitioned here.
+  // between test files inside a checkout. Merge plans must contain the whole
+  // discovered suite before its files can be partitioned across checkouts.
   return ["--test", "--test-concurrency=1", ...selectToolingShard(plan, shard)];
 }
 
@@ -31,6 +31,10 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const planPath =
     process.argv[2] ?? process.env.VIZE_TOOLING_TEST_PLAN ?? "target/tooling-test-plan.json";
   const plan = JSON.parse(readFileSync(planPath, "utf8"));
+  const requiredTier = process.env.VIZE_TOOLING_TEST_TIER;
+  if (requiredTier && (!["pr", "merge"].includes(requiredTier) || plan.tier !== requiredTier)) {
+    throw new Error("tooling plan does not match the required execution tier");
+  }
   const args = toolingTestCommand(plan, toolingTestFiles(), process.env.VIZE_TOOLING_TEST_SHARD);
   if (args.length > 2) {
     // Selection defers known scenarios. An unclassified new requirement must
