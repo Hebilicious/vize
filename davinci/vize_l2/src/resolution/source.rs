@@ -12,6 +12,7 @@ pub(super) enum ReferenceSource<'a> {
     Expression(JsExpr<'a>),
     Program(&'a str),
     ProgramJsx(&'a str),
+    ForCollection { source: &'a str, prefix: u32 },
 }
 
 impl ReferenceSource<'_> {
@@ -22,12 +23,20 @@ impl ReferenceSource<'_> {
                 source.get(span.start as usize..span.end as usize)?;
                 Some(Span::new(span.start, span.end))
             }
+            Self::ForCollection { source, prefix } => {
+                let start = span.start.checked_sub(prefix)?;
+                let end = span.end.checked_sub(prefix)?;
+                source.get(start as usize..end as usize)?;
+                Some(Span::new(start, end))
+            }
         }
     }
     pub(super) fn length(self) -> u32 {
         match self {
             Self::Expression(expression) => expression.source.len() as u32,
-            Self::Program(source) | Self::ProgramJsx(source) => source.len() as u32,
+            Self::Program(source)
+            | Self::ProgramJsx(source)
+            | Self::ForCollection { source, .. } => source.len() as u32,
         }
     }
 
