@@ -6,6 +6,7 @@ use super::{
     TransformContext, Vec, transform_children,
 };
 
+mod implicit_slot;
 mod model;
 mod slots;
 mod structural_slots;
@@ -210,11 +211,21 @@ pub(super) fn transform_component<'a>(
     } else if !el.children.is_empty() {
         let has_named_slots = el.children.iter().any(structural_slots::is_slot);
         if has_named_slots {
+            let mut has_implicit_default = false;
             for child in &el.children {
                 if let Some(slot) = structural_slots::lower(ctx, child) {
                     has_dynamic_slot |= slot.dynamic();
                     slots.push(slot);
+                } else {
+                    has_implicit_default |= implicit_slot::is_meaningful(child);
                 }
+            }
+            if has_implicit_default
+                && !slots
+                    .iter()
+                    .any(|slot| slot.name.is_static && slot.name.content == "default")
+            {
+                slots.push(implicit_slot::lower(ctx, &el.children));
             }
         } else {
             let slot_block = transform_children(ctx, &el.children);
