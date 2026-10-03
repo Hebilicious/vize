@@ -14,6 +14,7 @@ pub(super) enum ReferenceSource<'a> {
     Program(&'a str),
     ProgramJsx(&'a str),
     ForCollection { source: &'a str, prefix: u32 },
+    Handler { text: &'a str, prefix: u32 },
 }
 
 impl ReferenceSource<'_> {
@@ -30,6 +31,12 @@ impl ReferenceSource<'_> {
                 source.get(start as usize..end as usize)?;
                 Some(Span::new(start, end))
             }
+            Self::Handler { text, prefix } => {
+                let start = span.start.checked_sub(prefix)?;
+                let end = span.end.checked_sub(prefix)?;
+                text.get(start as usize..end as usize)?;
+                Some(Span::new(start, end))
+            }
         }
     }
     pub(super) fn length(self) -> u32 {
@@ -38,6 +45,7 @@ impl ReferenceSource<'_> {
             Self::Program(source)
             | Self::ProgramJsx(source)
             | Self::ForCollection { source, .. } => source.len() as u32,
+            Self::Handler { text, .. } => text.len() as u32,
         }
     }
 
@@ -48,6 +56,8 @@ impl ReferenceSource<'_> {
 
 mod for_head;
 pub(crate) use for_head::ForReferenceSource;
+mod handler;
+pub(crate) use handler::HandlerReferenceSource;
 
 /// Internal capability over the actual whole Program, never an expression window.
 /// The genuine no-hole parser observation stays borrowed through the sole walk.
