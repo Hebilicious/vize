@@ -204,6 +204,9 @@ pub struct ParserReturn<'a> {
 
     /// Whether the file is [flow](https://flow.org).
     pub is_flow_language: bool,
+
+    // Private original lexer receipt, distinct from syntax diagnostics.
+    pub(crate) has_legacy_literals: bool,
 }
 
 /// Parse options
@@ -780,6 +783,7 @@ impl<'a, C: ParserConfig> ParserImpl<'a, C> {
             tokens,
             panicked,
             is_flow_language,
+            has_legacy_literals: self.lexer.has_legacy_literals,
         }
     }
 
@@ -851,6 +855,9 @@ impl<'a, C: ParserConfig> ParserImpl<'a, C> {
         let original_tokens =
             if self.lexer.config.tokens() { Some(self.lexer.take_tokens()) } else { None };
 
+        // A committed selective reparse must not discard the completed tail's
+        // original literal receipt when it rewinds an earlier statement.
+        let original_legacy_literals = self.lexer.has_legacy_literals;
         let checkpoints = std::mem::take(&mut self.state.potential_await_reparse);
         for (stmt_index, checkpoint) in checkpoints {
             // Rewind to the checkpoint
@@ -867,6 +874,7 @@ impl<'a, C: ParserConfig> ParserImpl<'a, C> {
             }
         }
 
+        self.lexer.has_legacy_literals |= original_legacy_literals;
         if let Some(original_tokens) = original_tokens {
             self.lexer.set_tokens(original_tokens);
         }

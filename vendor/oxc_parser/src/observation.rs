@@ -147,6 +147,14 @@ impl<'p, 'a> AdmittedProgram<'p, 'a> {
         self.observation.source_text
     }
 
+    /// Whether the original lexer decoded a legacy numeric literal or string
+    /// escape forbidden in a strict module. This does not certify semantics.
+    /// Syntax diagnostics and ordinary parser output remain unchanged.
+    #[must_use]
+    pub fn has_legacy_literals(&self) -> bool {
+        self.observation.parsed.has_legacy_literals
+    }
+
     /// Original requested profile, before any Unambiguous inference.
     #[must_use]
     pub fn source_type(&self) -> SourceType {
@@ -157,5 +165,57 @@ impl<'p, 'a> AdmittedProgram<'p, 'a> {
     #[must_use]
     pub fn options(&self) -> ParseOptions {
         self.observation.options
+    }
+}
+
+#[cfg(test)]
+mod legacy_literal_tests {
+    use super::*;
+    use oxc_allocator::Allocator;
+
+    #[test]
+    fn completed_tail_receipt_survives_committed_unambiguous_await_reparse() {
+        let arena = Allocator::default();
+        for literal in ["010", "'\\8'"] {
+            let source = format!("await /x/u; export {{}}; const value={literal};");
+            let parsed = Parser::new(&arena, &source, SourceType::unambiguous()).parse_observed();
+            let admitted = parsed.admitted().expect("completed original syntax");
+            assert!(admitted.has_legacy_literals(), "{literal}");
+            assert!(admitted.program().source_type.is_module());
+        }
+    }
+
+    #[test]
+    fn original_decoder_retains_legacy_facts_without_changing_syntax_admission() {
+        let arena = Allocator::default();
+        for literal in ["010", "08", "09.5", "'\\1'", "'\\8'", "'\\9'", "'\\00'"] {
+            let source = format!("const value={literal};");
+            let parsed = Parser::new(&arena, &source, SourceType::mjs()).parse_observed();
+            let admitted = parsed.admitted().expect("unchanged syntax admission");
+            assert!(admitted.has_legacy_literals(), "{literal}");
+            assert!(parsed.diagnostics().is_empty());
+            assert_eq!(admitted.source(), source);
+        }
+        for literal in [
+            "0",
+            "0o10",
+            "0x10",
+            "0b10",
+            "0.1",
+            "0e1",
+            "'雪'",
+            "'\\0'",
+            "'\\x01'",
+            "'\\u0001'",
+            "'\\\\1'",
+            "'\\🌸'",
+        ] {
+            let source = format!("const value={literal};");
+            let parsed = Parser::new(&arena, &source, SourceType::mjs()).parse_observed();
+            assert!(
+                !parsed.admitted().expect("actual admission").has_legacy_literals(),
+                "{literal}"
+            );
+        }
     }
 }
