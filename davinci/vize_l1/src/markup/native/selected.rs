@@ -64,7 +64,7 @@ impl<'a> NativeTemplateComponent<'a> {
             Lang::Ts => NativeTemplateGrammar::TypeScriptModule,
         };
         Ok(Some(Self {
-            component: NativeComponent::parse_in(allocator, template.block())?,
+            component: NativeComponent::parse_selected_in(allocator, template.block())?,
             index: template.container_index(),
             grammar,
             has_styles: descriptor.styles().len() != 0,

@@ -8,6 +8,9 @@
 
 use vize_l0::{Box, Vec};
 
+mod lint_tag;
+pub(crate) use lint_tag::{LintHeaderFact, LintTagFact};
+
 /// Whether a token's syntax is present in the source or a typed hole.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenStatus {
@@ -36,6 +39,10 @@ pub struct Token<'a> {
     pub status: TokenStatus,
     verbatim_opening: bool,
     raw_interpolation: bool,
+    lint_tag: Option<LintTagFact>,
+    lint_header_literal: bool,
+    lint_table_context: bool,
+    lint_recovery_context: bool,
 }
 
 // Keep public diagnostics and dumps independent of private construction facts.
@@ -60,6 +67,10 @@ impl<'a> Token<'a> {
             status: TokenStatus::Present,
             verbatim_opening: false,
             raw_interpolation: false,
+            lint_tag: None,
+            lint_header_literal: false,
+            lint_table_context: false,
+            lint_recovery_context: false,
         }
     }
 
@@ -71,6 +82,10 @@ impl<'a> Token<'a> {
             status: TokenStatus::Missing,
             verbatim_opening: false,
             raw_interpolation: false,
+            lint_tag: None,
+            lint_header_literal: false,
+            lint_table_context: false,
+            lint_recovery_context: false,
         }
     }
 
@@ -80,6 +95,19 @@ impl<'a> Token<'a> {
 
     pub(crate) fn mark_raw_interpolation(&mut self) {
         self.raw_interpolation = true;
+    }
+
+    pub(crate) fn mark_lint_tag(
+        &mut self,
+        fact: Option<LintTagFact>,
+        header_literal: bool,
+        table_context: bool,
+        recovery_context: bool,
+    ) {
+        self.lint_tag = fact;
+        self.lint_header_literal = header_literal;
+        self.lint_table_context = table_context;
+        self.lint_recovery_context = recovery_context;
     }
 
     pub fn is_missing(&self) -> bool {
@@ -161,6 +189,22 @@ pub struct OpenTag<'a> {
 }
 
 impl OpenTag<'_> {
+    pub(crate) fn lint_tag(&self) -> Option<LintTagFact> {
+        self.lt_name.lint_tag
+    }
+
+    pub(crate) fn lint_header_is_literal(&self) -> bool {
+        self.lt_name.lint_header_literal
+    }
+
+    pub(crate) fn lint_in_table_context(&self) -> bool {
+        self.lt_name.lint_table_context
+    }
+
+    pub(crate) fn lint_in_recovery_context(&self) -> bool {
+        self.lt_name.lint_recovery_context
+    }
+
     /// The native dialect's resolved lexical mode for this opening tag.
     /// Includes inherited mode after recovery; raw/compatibility construction
     /// defaults to false. This fact does not admit L2 control semantics.

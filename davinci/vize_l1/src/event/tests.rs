@@ -151,3 +151,62 @@ fn raw_interpolation_width_is_disjoint_from_quote_and_opening_aux() {
     assert_eq!(events.len(), 3);
     assert!(errors.is_empty());
 }
+
+#[test]
+fn selected_lint_tag_aux_never_changes_mode_quotes_width_or_event_layout() {
+    use crate::surface::{LintHeaderFact, LintTagFact};
+    let allocator = Allocator::new();
+    let (mut events, mut errors) = record(&allocator, "", true, false);
+    let mut recorder = Recorder {
+        events: &mut events,
+        errors: &mut errors,
+    };
+    for kind in [EventKind::OpenTagEnd, EventKind::SelfClosingTag] {
+        for fact in [
+            LintTagFact::Element,
+            LintTagFact::Component,
+            LintTagFact::Slot,
+            LintTagFact::Template,
+            LintTagFact::AmbiguousVerbatim,
+            LintTagFact::InheritedTemplate,
+        ] {
+            for verbatim in [false, true] {
+                for literal in [false, true] {
+                    for table_context in [false, true] {
+                        for recovery_context in [false, true] {
+                            recorder.opening_end_with_lint(
+                                kind,
+                                19,
+                                verbatim,
+                                LintHeaderFact {
+                                    kind: Some(fact),
+                                    literal,
+                                    table_context,
+                                    recovery_context,
+                                },
+                            );
+                            let event = recorder.events.last().unwrap();
+                            assert_eq!(event.kind, kind);
+                            assert_eq!((event.start, event.end), (19, 19));
+                            assert_eq!(event.is_verbatim_opening(), verbatim);
+                            assert_eq!(event.lint_tag().unwrap() as u8, fact as u8);
+                            assert_eq!(event.lint_header_is_literal(), literal);
+                            assert_eq!(event.lint_in_table_context(), table_context);
+                            assert_eq!(event.lint_in_recovery_context(), recovery_context);
+                        }
+                    }
+                }
+            }
+        }
+        recorder.opening_end(kind, 23, false);
+        let ordinary = recorder.events.last().unwrap();
+        assert_eq!(ordinary.aux, 0);
+        assert!(ordinary.lint_tag().is_none());
+        assert!(!ordinary.lint_header_is_literal());
+        assert!(!ordinary.lint_in_table_context());
+        assert!(!ordinary.lint_in_recovery_context());
+    }
+    assert_eq!(core::mem::size_of::<Event>(), 12);
+    assert_eq!(events.len(), 194);
+    assert!(errors.is_empty());
+}
