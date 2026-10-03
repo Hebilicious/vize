@@ -4,10 +4,13 @@
 
 use alloc::vec::Vec;
 
+mod error;
+pub use error::DecisionBuildError;
 mod levels;
 use super::dom::vue::policy::{FileReads, NoReads};
 use super::dom::{DomExpressionFacts, LiteralExpressions, build::DomBuilder};
 use super::ssr::build::SsrBuilder;
+use super::vapor::build::VaporBuilder;
 use levels::Levels;
 
 use super::{
@@ -58,6 +61,7 @@ pub(in crate::decision) fn build_with<'owner, 'arena>(
         nodes: SideTable::new(),
         controls: SideTable::new(),
         ssr: (policy == TargetPolicy::Ssr).then(SsrBuilder::new),
+        vapor: (policy == TargetPolicy::Vapor).then(VaporBuilder::new),
         dom: (policy == TargetPolicy::Dom)
             .then(|| DomBuilder::new(expressions, artifact.root().ops.len(), file, reads)),
     };
@@ -74,32 +78,14 @@ pub(in crate::decision) fn build_with<'owner, 'arena>(
     }
     let dom = builder.dom.take().map(DomBuilder::finish);
     let ssr = builder.ssr.take().map(SsrBuilder::finish);
+    let vapor = builder.vapor.take().map(VaporBuilder::finish);
     Ok(NativeAnalysis {
         artifact,
         tables: builder.finish()?,
         dom,
         ssr,
+        vapor,
     })
-}
-
-/// A canonical walk failed to yield complete, correctly nested decisions.
-/// Partial scratch tables are never returned as completed analysis.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DecisionBuildError {
-    /// Script/template failure or interrupted admission is retained by the file.
-    IncompleteFile,
-    /// The shared L2 walk exhausted its stage-local id space.
-    NodeLimit,
-    /// A node's enter/leave or attached owner violated the shared walk.
-    InvalidTraversal { node: NodeId },
-    /// The result does not account for the sealed owner's node count.
-    NodeCountMismatch { expected: u32, actual: usize },
-    /// A supplied key is outside the sealed owner's dense node range.
-    InvalidNode { node: NodeId },
-    /// A supplied node would replace a decision instead of adding one row.
-    DuplicateNode { node: NodeId },
-    /// A control owner appeared more than once in the shared walk.
-    DuplicateControl { node: NodeId },
 }
 
 struct Builder<'facts, 'owner, 'arena, F, R> {
@@ -110,6 +96,7 @@ struct Builder<'facts, 'owner, 'arena, F, R> {
     controls: SideTable<ControlRegion>,
     dom: Option<DomBuilder<'facts, 'owner, 'arena, F, R>>,
     ssr: Option<SsrBuilder<'owner, 'arena>>,
+    vapor: Option<VaporBuilder<'owner, 'arena>>,
 }
 
 /// One open region op, released at its matching leave event.
@@ -210,6 +197,9 @@ impl<'owner, 'arena, F: DomExpressionFacts, R: FileReads<'owner, 'arena>>
         if let Some(ssr) = &mut self.ssr {
             ssr.enter(id, op, self.frames.is_empty());
         }
+        if let Some(vapor) = &mut self.vapor {
+            vapor.enter(id, op, self.frames.is_empty());
+        }
         self.frames.push(Frame {
             id,
             levels,
@@ -238,6 +228,9 @@ impl<'owner, 'arena, F: DomExpressionFacts, R: FileReads<'owner, 'arena>>
         }
         if let Some(ssr) = &mut self.ssr {
             ssr.binding(id, binding, owner);
+        }
+        if let Some(vapor) = &mut self.vapor {
+            vapor.binding(id, binding);
         }
         let role = match binding {
             BindingOp::On(_) => BindingRole::Event,
@@ -298,6 +291,9 @@ impl<'owner, 'arena, F: DomExpressionFacts, R: FileReads<'owner, 'arena>>
         }
         if let Some(ssr) = &mut self.ssr {
             ssr.leave(id);
+        }
+        if let Some(vapor) = &mut self.vapor {
+            vapor.leave(id);
         }
         self.insert_node(
             id,
