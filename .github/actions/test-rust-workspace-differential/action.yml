@@ -40,6 +40,10 @@ runs:
     - name: Test native Program and Vue navigation responses
       uses: ./.github/actions/test-native-navigation
       env: { VIZE_TEST_REQUIRE_TSGO: "1" }
+    - name: Test fresh native SSR modules
+      if: ${{ github.event_name != 'merge_group' }}
+      env: { VIZE_TEST_REQUIRE_TSGO: "1" }
+      uses: ./.github/actions/test-native-ssr
     - name: Test Rust workspace
       if: ${{ inputs.workspace-already-tested != 'true' }}
       shell: bash
