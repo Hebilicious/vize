@@ -17,7 +17,7 @@ pub(super) fn initialize_lsp_client(client: &LspClient, project_root: &Path) -> 
     struct InitializeRequest;
 
     impl lsp_types::request::Request for InitializeRequest {
-        type Params = InitializeParams;
+        type Params = Value;
         type Result = serde_json::Value;
         const METHOD: &'static str = "initialize";
     }
@@ -50,7 +50,7 @@ fn initialize_lsp_params(
     project_root: &Path,
     root_uri: String,
     workspace_name: &str,
-) -> Result<InitializeParams, String> {
+) -> Result<Value, String> {
     let root_uri = Uri::from_str(root_uri.as_str())
         .map_err(|error| cstr!("Failed to build Corsa LSP root URI: {error}"))?;
     let capabilities = ClientCapabilities {
@@ -92,7 +92,7 @@ fn initialize_lsp_params(
         ..Default::default()
     };
     #[expect(deprecated, reason = "root_path for older servers")]
-    Ok(InitializeParams {
+    let params = InitializeParams {
         process_id: Some(std::process::id()),
         root_path: Some(project_root.to_string_lossy().into_owned()),
         root_uri: Some(root_uri.clone()),
@@ -111,7 +111,17 @@ fn initialize_lsp_params(
         })),
         work_done_progress_params: WorkDoneProgressParams::default(),
         ..Default::default()
-    })
+    };
+    let mut params = serde_json::to_value(params)
+        .map_err(|error| cstr!("Failed to encode Corsa LSP initialization: {error}"))?;
+    // TS7's pull converter reads this capability independently of push
+    // diagnostics. lsp-types 0.97 lacks the pull relatedInformation field.
+    let diagnostic = params
+        .pointer_mut("/capabilities/textDocument/diagnostic")
+        .and_then(Value::as_object_mut)
+        .ok_or_else(|| cstr!("Corsa LSP initialization lacks diagnostic capabilities"))?;
+    diagnostic.insert("relatedInformation".into(), Value::Bool(true));
+    Ok(params)
 }
 
 pub(super) fn request_lsp_document_diagnostics(
@@ -224,6 +234,14 @@ mod tests {
             json!({
                 "dynamicRegistration": true,
                 "relativePatternSupport": true,
+            })
+        );
+        assert_eq!(
+            params["capabilities"]["textDocument"]["diagnostic"],
+            json!({
+                "dynamicRegistration": false,
+                "relatedDocumentSupport": true,
+                "relatedInformation": true,
             })
         );
     }
