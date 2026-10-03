@@ -64,13 +64,18 @@
 //!
 //! See [full linter example](https://github.com/Boshen/oxc/blob/ab2ef4f89ba3ca50c68abb2ca43e36b7793f3673/crates/oxc_linter/examples/linter.rs#L38-L39)
 
+// This third-party fork retains upstream implementation style. Workspace
+// membership is for distribution and regression tests, not Vize style rules.
+#![allow(clippy::all, clippy::wildcard_imports)]
+
 use std::any::Any;
 
 pub mod config;
+
 mod context;
 mod cursor;
-mod error_handler;
 mod embedding;
+mod error_handler;
 mod modifiers;
 mod module_record;
 mod observation;
@@ -99,12 +104,6 @@ use oxc_span::{SourceType, Span};
 use oxc_syntax::module_record::ModuleRecord;
 
 pub use crate::lexer::{Kind, Token};
-pub use observation::{AdmittedProgram, ProgramObservation};
-pub use embedding::{
-    AdmittedExpression, AdmittedHandlerBody, AdmittedParameters, EmbeddingGoal, EmbeddingHole,
-    EmbeddingInput, EmbeddingInputError, EmbeddingObservation, ExpressionObservation,
-    HandlerBodyObservation, ParametersObservation,
-};
 use crate::{
     config::{
         LexerConfig, NoTokensParserConfig, ParserConfig, RuntimeParserConfig, TokensParserConfig,
@@ -116,6 +115,12 @@ use crate::{
     module_record::ModuleRecordBuilder,
     state::ParserState,
 };
+pub use embedding::{
+    AdmittedExpression, AdmittedHandlerBody, AdmittedParameters, EmbeddingGoal, EmbeddingHole,
+    EmbeddingInput, EmbeddingInputError, EmbeddingObservation, ExpressionObservation,
+    HandlerBodyObservation, ParametersObservation,
+};
+pub use observation::{AdmittedProgram, ProgramObservation};
 
 /// Maximum length of source which can be parsed (in bytes).
 /// ~4 GiB on 64-bit systems, ~2 GiB on 32-bit systems.
