@@ -122,8 +122,8 @@ jobs:
         if: ${{ needs.pr-source-plan.outputs.js == 'true' }}
         run: vp install --frozen-lockfile --prefer-offline
       - name: Test JS packages
-        if: ${{ needs.pr-source-plan.outputs.js == 'true' }}
-        run: vp run --workspace-root test:js
+        if: ${{ always() && needs.pr-source-plan.outputs.js == 'true' }}
+        uses: ./.github/actions/test-js-packages-with-history
       - name: Check Fresco native declarations and consumer types
         if: ${{ needs.pr-source-plan.outputs.js == 'true' }}
         run: vp run --filter './npm/fresco-native' check:generated && vp run --filter './npm/fresco-native' check:types
