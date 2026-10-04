@@ -5,7 +5,7 @@ use oxc_ast::ast::Expression;
 use vize_l0::id::NodeId;
 use vize_l2::{
     expr::JsExpr,
-    file::{DeclarationKind, InitializerKind, Namespace},
+    file::{DeclarationKind, Namespace},
     lang::js::NativeSelectedSetup,
     resolution::Usage,
 };
@@ -101,9 +101,7 @@ pub(super) fn classify<'owner, 'arena>(
             return Err(SsrUnsupported::SetupReadAccess);
         }
         let kind = match declaration.kind {
-            DeclarationKind::Const
-                if declaration.initializer == InitializerKind::PrimitiveLiteral =>
-            {
+            DeclarationKind::Const if declaration.initializer.is_primitive() => {
                 SsrSetupReadKind::SetupConst
             }
             DeclarationKind::Let | DeclarationKind::Var => SsrSetupReadKind::SetupLet,
