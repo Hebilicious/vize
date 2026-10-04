@@ -1,3 +1,15 @@
+## Rust native API migration
+
+The 0.431.0 minor release includes native Rust API additions. Complete
+`NativeSfcCompileOptions` struct literals need `scope_id: None` to retain the
+filename-derived scope identity, or `Some("data-v-...")` for an explicit identity.
+Callers using `..NativeSfcCompileOptions::default()` already receive `None`.
+Exhaustive matches on `NativeSfcCompileError` and the lowering enum
+`UnsupportedReason` must handle their new refusal variants.
+
+The native pipeline remains experimental and opt-in. This release does not
+claim that native product migration or the product fix-history gates are complete.
+
 ## Community lint improvements
 
 - `vue/prefer-props-shorthand` now reports and fixes same-name bindings on native
