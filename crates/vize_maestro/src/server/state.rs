@@ -9,6 +9,8 @@ mod art_template_context;
 mod config;
 mod features;
 mod lint_hover;
+#[cfg(feature = "experimental-source-navigation")]
+mod native_names;
 mod resident;
 mod virtual_docs;
 mod workspace_folders;
@@ -55,6 +57,11 @@ use crate::document::DocumentStore;
 use crate::virtual_code::{VirtualCodeGenerator, VirtualDocuments};
 
 pub use features::LspFeatureConfig;
+#[cfg(feature = "experimental-source-navigation")]
+pub(crate) use native_names::{
+    NativeLinkedNamesRoute, NativeLinkedNamesTicket, NativeNamesConfigurationError,
+    NativeNamesParserTicket, NativeNamesSettings,
+};
 
 #[cfg(feature = "native")]
 pub use batch_cache::BatchTypeCheckCache;
@@ -65,6 +72,8 @@ pub struct ServerState {
     pub documents: DocumentStore,
     #[cfg(feature = "experimental-source-navigation")]
     native_linked_editing: AtomicBool,
+    #[cfg(feature = "experimental-source-navigation")]
+    native_names: RwLock<native_names::Generations>,
     /// Memoized SFC descriptors, one parse per buffer revision (P5-6a).
     pub(crate) resident: resident::ResidentCache,
     /// Virtual code generator (reusable)
@@ -215,6 +224,8 @@ impl ServerState {
             experimental_patterned_template: AtomicBool::new(false),
             #[cfg(feature = "experimental-source-navigation")]
             native_linked_editing: AtomicBool::new(false),
+            #[cfg(feature = "experimental-source-navigation")]
+            native_names: RwLock::new(native_names::Generations::default()),
             linter_config: RwLock::new(LinterConfig::default()),
             linter_rule_options: RwLock::new(vize_l0::config::ConfigLintRuleOptions::default()),
             dialect_config: RwLock::new(None),
@@ -313,17 +324,6 @@ impl ServerState {
             Some(_) => VueDialect::Vue,
             None => vize_l0::dialect::standalone_html_dialect(None, content),
         }
-    }
-
-    /// Get the enabled LSP feature set.
-    #[inline]
-    pub(crate) fn lsp_features(&self) -> LspFeatureConfig {
-        *self.lsp_features.read()
-    }
-
-    #[inline]
-    pub(crate) fn legacy_vue2_enabled(&self) -> bool {
-        *self.type_checker_legacy_vue2.read() || self.lsp_features().legacy_vue2
     }
 
     /// Resolve Vue 3 Options API template bindings. Implied by legacy mode.
