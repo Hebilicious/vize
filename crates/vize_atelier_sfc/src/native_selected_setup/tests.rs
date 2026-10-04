@@ -11,6 +11,8 @@ macro_rules! require {
         if !$condition { return Err(cstr!($($message)+)); }
     };
 }
+mod original_for;
+
 fn text<'a>(value: &'a Value, key: &str) -> Result<&'a str, String> {
     value
         .get(key)
