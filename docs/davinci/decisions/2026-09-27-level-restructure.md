@@ -238,7 +238,7 @@ Tracked in [#6829](https://github.com/ubugeeei-prod/vize/issues/6829) and [#6855
 - The order is **TSRX → Solid → others** (Svelte, Angular/Analog).
 - Five independent axes: container, markup, profile, lang, framework. [The #6855 neutral-axis design](./2026-10-04-l1-neutral-axes.md) assigns module ownership, explicit compositions and syntax-only hooks; registry/providers and native product acceptance remain separate.
 - L2 keeps neutral core ops plus framework dialect ops.
-- L3 gets a neutral reactivity vocabulary (signal, derived, effect, ordering).
+- L3 gets a neutral reactivity vocabulary (signal, derived, effect, ordering). [The #6857 vocabulary review](./2026-10-04-l3-neutral-vocabulary.md) retains the demand split and assigns current flat kinds to a typed Vapor dialect; neutral/lattice/ordering contracts are design destinations.
 - L4 gets one target per framework runtime.
 
 ## Vue Fes Japan (2026-10-24)
