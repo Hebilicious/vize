@@ -10,6 +10,9 @@ use super::super::{Container, ContainerError};
 use crate::{embed::Lang, parse::SurfaceParseOptions};
 
 mod policy;
+mod template;
+pub use template::{NativeTemplateFrameNameRefusal, NativeTemplateFrameNames, TemplateView};
+use template::{TemplateNamePair, TemplateSelection};
 #[cfg(test)]
 mod style_tests;
 #[cfg(test)]
@@ -122,7 +125,7 @@ pub struct DescriptorObservation<'a> {
     issues: Vec<'a, DescriptorIssue>,
     ordinary: Option<Selection<'a>>,
     setup: Option<Selection<'a>>,
-    template: Option<Selection<'a>>,
+    template: Option<TemplateSelection<'a>>,
     styles: Vec<'a, StyleSelection<'a>>,
 }
 
@@ -204,7 +207,7 @@ impl<'o, 'a> AdmittedDescriptor<'o, 'a> {
         })
     }
     pub fn template(self) -> Option<TemplateView<'o, 'a>> {
-        self.owner.template.map(|selected| TemplateView {
+        self.owner.template.as_ref().map(|selected| TemplateView {
             owner: self.owner,
             selected,
         })
@@ -255,25 +258,6 @@ impl<'a> ScriptView<'_, 'a> {
     }
 }
 
-/// Checked original ordinary HTML template content.
-#[derive(Debug, Clone, Copy)]
-pub struct TemplateView<'o, 'a> {
-    owner: &'o DescriptorObservation<'a>,
-    selected: Selection<'a>,
-}
-
-impl<'a> TemplateView<'_, 'a> {
-    pub fn source(&self) -> &'a str {
-        self.owner.source()
-    }
-    pub fn container_index(&self) -> usize {
-        self.selected.index
-    }
-    pub fn block(&self) -> SourceBlock<'a> {
-        self.selected.block
-    }
-}
-
 /// Checked original style content and unchanged attributes, without CSS parsing.
 /// `lang`, `scoped` and `module` are raw source metadata, not resolved profiles.
 ///
@@ -321,8 +305,8 @@ pub(super) fn observe<'a>(
     let container = super::split_with(
         allocator,
         source,
-        |index, block, uncertain, self_closing| {
-            state.record(index, block, uncertain, self_closing);
+        |index, block, uncertain, self_closing, closing| {
+            state.record(index, block, uncertain, self_closing, closing);
         },
     );
     state.finish();
