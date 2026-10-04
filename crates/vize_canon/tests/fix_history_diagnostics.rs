@@ -3,15 +3,17 @@
 #![expect(clippy::expect_used, reason = "fixture assertions fail by panicking")]
 #![expect(clippy::disallowed_types, reason = "JSON fixtures use std strings")]
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use vize_canon::{BatchTypeChecker, BatchTypeCheckerTrait};
 
 mod support {
     pub(crate) mod fix_history_observation;
+    pub(crate) mod fix_history_paths;
 }
 use support::fix_history_observation as observation;
+use support::fix_history_paths::{link_vue, safe_relative};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -202,6 +204,17 @@ fn authored_unused_symbols_preserve_complete_original_diagnostics() {
     );
 }
 
+#[test]
+fn split_script_setup_preserves_complete_original_diagnostics() {
+    check_pack(
+        "split-script-original",
+        "split_script_setup_preserves_complete_original_diagnostics",
+        "b3c2933be5afbdb5f2df07da093f40bc7ce72187",
+        Some(3783),
+        &["complete-original-split-script"],
+    );
+}
+
 fn check_pack(
     name: &str,
     test: &str,
@@ -227,7 +240,8 @@ fn check_pack(
             "typed-import-meta"
             | "slot-outlet-key"
             | "options-api-any-instance"
-            | "authored-unused-symbols" => regression,
+            | "authored-unused-symbols"
+            | "split-script-original" => regression,
             _ => "9aaa1fe458a09e0d0c6604dc8835ccf7c737d943",
         }
     );
@@ -327,21 +341,4 @@ fn check_pack(
     if let Some(capture) = capture {
         capture.finish(name, test, &fixture_pack);
     }
-}
-
-fn safe_relative(input: &str) -> PathBuf {
-    let path = PathBuf::from(input);
-    assert!(
-        path.components()
-            .all(|part| matches!(part, std::path::Component::Normal(_)))
-    );
-    assert!(!path.as_os_str().is_empty());
-    path
-}
-
-fn link_vue(source: &Path, destination: &Path) {
-    #[cfg(unix)]
-    std::os::unix::fs::symlink(source, destination).expect("the real Vue package must link");
-    #[cfg(windows)]
-    std::os::windows::fs::symlink_dir(source, destination).expect("the real Vue package must link");
 }
