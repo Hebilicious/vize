@@ -98,6 +98,11 @@ export function prepare(read: Reader): Map<string, string> {
         : hashes.tests[1].includes(digest(read(exportTests)))),
     "unexpected moved profile exporter or wire law",
   );
+  if (read(exportFile).includes("mod assemble;"))
+    requireState(
+      digest(read(hashes.assembly[0])) === hashes.assembly[1],
+      "unexpected exact profile assembly body",
+    );
   requireState(
     read("davinci/vize_l0/src/profiler/snapshot.rs").includes("pub fn span_snapshot(&self)") &&
       read("davinci/vize_l0/src/profiler/snapshot.rs").includes("pub fn counter_snapshot(&self)"),
@@ -163,8 +168,12 @@ export function prepare(read: Reader): Map<string, string> {
   }
   const oldImports = `use crate::String;\n\nuse super::allocation::AllocationSnapshot;\nuse super::attribution::SpanAttribution;\nuse super::core::Profiler;\nuse super::metrics::Metrics;`;
   const newImports = `use vize_l0::String;\nuse vize_l0::profiler::{AllocationSnapshot, Metrics, Profiler, SpanAttribution};`;
-  change(exportFile, oldImports, newImports);
-  change(exportFile, "[`Profiler::export_report`]", "[`export_report`]");
+  // The complete reviewed owned-input facade and assembly were qualified above.
+  // Its additional CounterMetrics import and API link are not old move inputs.
+  if (!read(exportFile).includes("mod assemble;")) {
+    change(exportFile, oldImports, newImports);
+    change(exportFile, "[`Profiler::export_report`]", "[`export_report`]");
+  }
   const exporter = get(exportFile);
   if (old) {
     const start = exporter.indexOf("impl Profiler {\n"),
