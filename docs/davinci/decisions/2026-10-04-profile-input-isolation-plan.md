@@ -127,6 +127,42 @@ assembly mutation control refuses changed bytes before any replay writes.
 The Curator child is not implemented in this provider; its real allocator
 noninterference and whole output proof remain separate pending work.
 
+## Private genuine Curator consumer (hosted proof pending)
+
+The direct child consumes that provider from its real `ladder_profile` caller.
+It coalesces the original step/walk identities in one local `FxHashMap` with
+the existing `Metrics::record` and consumes the map once into owned inputs.
+No native collector is created, enabled, reset or disabled. The existing
+caller-supplied durations, key/attribution joins, unavailable allocation fields
+and empty counters remain exact. Report storage and JSON work can allocate;
+this source change does not claim allocation-free export or full L0 isolation.
+
+An authored standalone `profile_allocation_isolation` executable wraps the
+host-selected real System allocator with the existing generic L0 allocator.
+It opens a genuine native session and keeps a 65,536-byte allocation alive,
+then calls the real Curator report. Monotone measured allocation counters and
+the next exact 127-byte allocation must survive; the native span's complete
+public metrics and a continued real counter sample must also survive. Its
+complete three-span expected JSON covers repeated identities and walk/step
+tiebreaks. The original whole ten-span JSON fixture and every accepted timing,
+page, native nested-allocation and schema law remain byte-identical.
+
+The existing host-import and replay guards retain the previous exact Curator
+declaration and admit only the complete reviewed owned-input caller at the
+same physical path, coupled to its exact import companion. Wrong paths,
+unknown APIs, partial aggregation, fabricated allocation/counters and extra
+source remain rejected. No global profiler or clock internals, schema,
+instruction caps, dependencies, workflow or additional pipeline stage change.
+
+The initial frozen slices were unbuilt and unexecuted before publication.
+Source formatting and byte custody alone supplied no allocator/runtime proof;
+the later exact-source results and retained failures are recorded below. Root and retained-peer
+full source review precede publication; exact-source Actions must execute the
+four provider laws, actual isolated consumer law and preserved references.
+Only a passing genuine native Stack prefix may enter the protected queue;
+each current candidate's full suites, all104 probes × three and both actual
+parent ratchets must pass before literal signed merge. #6834 remains OPEN.
+
 ## First source Actions and exact replay correction
 
 Draft native Stack #7814 registers provider #7812 (`d337cdcd`) and genuine
@@ -175,6 +211,35 @@ read/assembly ordering and supplied telemetry stay exact; no CPU result or 10x
 claim follows. Native clocks, TLS/locks, arena/recursion, IO and full platform
 isolation remain unfinished, so #6834 remains open.
 
+## Genuine consumer delivery on current main (2026-10-05)
+
+The existing Curator #7813 is reconciled onto its actual provider delivery
+`66dfac15e7a9eed8ce9a11c4aef17ca4138ad106`, which contains literal signed main
+`4e4c8c977d7052edbb6a2b42808ddc6e7b59f3bf`. Retain the six original Stack
+implementation commits and authors. Only the canonical decision paragraph
+needed composition: keep the original consumer contract, the provider delivery
+clause and every incoming main decision at the unchanged 350-line cap.
+All original non-document provider/consumer source, whole snapshot and actual
+System session laws, original ten-span JSON and exact replay guards remain
+byte-identical to the qualified `b0389ca7909b04d4aea26b5def66e09bab0009a4`.
+
+Historical [Check 37201997587](https://github.com/ubugeeei-prod/vize/actions/runs/37201997587)
+qualified the previous complete source, not this successor. Fresh exact-head
+Actions must execute all four provider laws and the genuine isolated native
+allocation/counter session control along with the original timing/wire laws.
+Verify GitHub native Stack #7814 positions 1/2 and actual provider ancestry,
+then make only the fully qualified contiguous prefix Ready and use native
+`gh stack merge 7813 --yes --squash`. Each current protected candidate still
+requires full Rust/differential suites, all 104 instruction probes measured
+three times, unchanged parent ratchets and actual signed merges.
+
+This meaningful delivery record pairs with #6834 and carries the verified
+reporter account 71201308 as an explicit coauthor without history rewriting.
+The sole local duration aggregate, existing clock reads and telemetry wire
+contract remain exact; reports may allocate. No native-stage adoption, CPU or
+10x result, complete std/platform isolation or issue closure follows. Native
+Timer/TLS/locks and the other recorded platform boundaries remain unfinished.
+
 ## Provider qualification and actual squash custody
 
 Exact provider source `75f9f4e21324492f02fa13ab2ef73a75f85c80ff`
@@ -201,3 +266,30 @@ required. Inspect the actual protected squash footer as well as signature,
 full suites and unchanged 104-by-three parent ratchets before accepting merge.
 Large archive/executable bytes were not independently downloaded or rehashed.
 Full platform isolation, CPU/10x results and #6834 closure remain unfinished.
+
+## Genuine consumer qualification and actual squash custody
+
+Exact complete consumer source `75404b9ab0e2df2afe15eedd3734cf7826f98891`
+[Check 37271221546](https://github.com/ubugeeei-prod/vize/actions/runs/37271221546)
+is terminal successful across all required contexts and four Rust workers.
+Authenticated complete JUnit artifacts retain 15,992 executions with zero
+failures, errors or skips. The four whole provider laws each execute once,
+the actual isolated System allocation/counter session law executes once, and
+all 23 preserved timing, wire and page laws execute once. Original full JSON,
+read/aggregation ordering and actual allocation observations remain unchanged.
+
+The first native protected candidates `fccc7736` and `a3134621` omit the
+qualification merge-commit trailers from their actual squash messages.
+Dequeue the full prefix rather than accept an unattributed actual merge.
+The genuine consumer now retains provider regular qualification `9f2cfd04`
+as its ancestor and adds this meaningful regular execution/custody record
+with the verified reporter footer. Keep both prior delivery records, all six
+original implementation commits/authors and all source/law/replay bytes.
+
+Pair this record with #6834 and the central L0 decision. Fresh exact-head
+source qualification precedes highest contiguous native Stack re-entry; actual
+protected footer, signature, full suites and immutable 104-by-three parent
+ratchets remain acceptance conditions. No individual auto-merge, additional
+native/manual CPU campaign, allocation cap change or 10x/platform claim.
+The large archive/executable bytes were not independently downloaded or
+rehashed. Native Timer/TLS/locks and full platform isolation remain unfinished.
