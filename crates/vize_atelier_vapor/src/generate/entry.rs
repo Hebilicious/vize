@@ -10,8 +10,8 @@ use super::context::GenerateContext;
 use super::setup::generate_imports;
 use super::spans::{TEMPLATE_ESCAPES, VaporSourceSpans};
 use super::{
-    block_has_template_refs, collect_custom_directives, collect_root_if_templates,
-    directive_resolution_ident, generate_block,
+    block_has_template_refs, collect_custom_directives, collect_root_if_returns,
+    collect_root_if_templates, directive_resolution_ident, generate_block,
 };
 
 /// Vapor code generation result
@@ -125,6 +125,17 @@ pub(crate) fn generate_vapor_with_spans(
                 &ir.element_template_map,
                 &mut root_template_indices,
             );
+        }
+    }
+
+    // A component is the render's single root, as Vue's compiler decides it, when it is the root
+    // block's only return or a branch of a lone root `v-if`; only that one inherits the owner's attrs.
+    if let [root_id] = ir.block.returns.as_slice() {
+        ctx.root_components.insert(*root_id);
+        for op in ir.block.operation.iter() {
+            if let OperationNode::If(if_node) = op {
+                collect_root_if_returns(if_node, &mut ctx.root_components);
+            }
         }
     }
 
