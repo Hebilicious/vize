@@ -76,7 +76,20 @@ fn only_a_single_root_component_receives_the_owners_fallthrough_attrs() {
         assert_eq!(siblings.matches(", null, true)").count(), 0, "{siblings}");
         assert_eq!(siblings.matches(", null, false)").count(), 2, "{siblings}");
 
-        let branches = compile(r#"<Child v-if="ok" :a="a" /><Other v-else :b="b" />"#, retained);
+        let branches = compile(
+            r#"<Child v-if="ok" :a="a" /><Other v-else :b="b" />"#,
+            retained,
+        );
         assert_eq!(branches.matches(", null, true)").count(), 2, "{branches}");
+
+        let nested_branch = compile(
+            r#"<section><p /><Child v-if="ok" :a="a" /></section>"#,
+            retained,
+        );
+        assert_eq!(
+            nested_branch.matches(", null, true)").count(),
+            0,
+            "{nested_branch}"
+        );
     }
 }

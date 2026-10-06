@@ -132,8 +132,12 @@ pub(crate) fn generate_vapor_with_spans(
     // block's only return or a branch of a lone root `v-if`; only that one inherits the owner's attrs.
     if let [root_id] = ir.block.returns.as_slice() {
         ctx.root_components.insert(*root_id);
+        // The root block also holds the operations of nested elements, so only the `v-if` that is
+        // itself the single return is a root `v-if`.
         for op in ir.block.operation.iter() {
-            if let OperationNode::If(if_node) = op {
+            if let OperationNode::If(if_node) = op
+                && if_node.id == *root_id
+            {
                 collect_root_if_returns(if_node, &mut ctx.root_components);
             }
         }
