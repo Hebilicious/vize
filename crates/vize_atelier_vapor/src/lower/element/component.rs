@@ -6,6 +6,8 @@ use super::{
     TransformContext, Vec, transform_children,
 };
 
+use super::template::{is_runtime_only_attr, transform_template_ref};
+
 mod implicit_slot;
 mod model;
 mod slots;
@@ -89,7 +91,11 @@ pub(super) fn transform_component<'a>(
                 if dir.name == "bind" {
                     if let Some(ref arg) = dir.arg {
                         if let ExpressionNode::Simple(key_exp) = arg {
-                            if key_exp.is_static && key_exp.content == "key" {
+                            // A key, or a template ref registered after the component is created.
+                            if key_exp.is_static
+                                && (key_exp.content == "key"
+                                    || is_runtime_only_attr(key_exp.content))
+                            {
                                 continue;
                             }
                             if kind == ComponentKind::Dynamic
@@ -157,7 +163,7 @@ pub(super) fn transform_component<'a>(
                 }
             }
             PropNode::Attribute(attr) => {
-                if attr.name == "key" {
+                if attr.name == "key" || is_runtime_only_attr(attr.name) {
                     continue;
                 }
                 // `<component is="a">` names its component statically; it is
@@ -249,6 +255,8 @@ pub(super) fn transform_component<'a>(
     block
         .operation
         .push(OperationNode::CreateComponent(create_component));
+    // `ref` on a component registers the instance, as on an element, instead of becoming a prop.
+    transform_template_ref(ctx, el, element_id, block);
     for prop in &el.props {
         if let PropNode::Directive(dir) = prop
             && !matches!(
