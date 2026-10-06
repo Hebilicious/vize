@@ -146,7 +146,7 @@ pub(crate) fn transform_element<'a>(
             transform_text_children(ctx, &el.children, element_id, block);
 
             // Register template (no deferred children to process)
-            ctx.add_template(element_id, template);
+            ctx.add_element_template(element_id, template, el);
         }
         ElementType::Component => {
             let mut props = Vec::new_in(&ctx.allocator);
