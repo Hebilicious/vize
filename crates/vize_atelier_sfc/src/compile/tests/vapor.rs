@@ -150,3 +150,37 @@ const msg = ref("hi")
         "component must hydrate first: {app_code}"
     );
 }
+
+// A template ref named after a `ref` binding must fill that binding: the runtime resolves a
+// string ref against `setupState` only in development, so the setter hands over the binding
+// itself with its name as the ref key, while a `useTemplateRef` binding reads that key.
+#[test]
+fn test_script_setup_sfc_vapor_template_ref_fills_ref_binding() {
+    let source = r#"<script setup lang="ts">
+import { shallowRef, useTemplateRef } from 'vue'
+
+const field = shallowRef<HTMLInputElement | null>(null)
+const label = useTemplateRef<HTMLLabelElement>('label')
+</script>
+
+<template>
+  <label ref="label"><input ref="field" /></label>
+</template>"#;
+
+    let descriptor = parse_sfc(source, SfcParseOptions::default()).expect("Failed to parse SFC");
+    let opts = SfcCompileOptions {
+        vapor: true,
+        script: ScriptCompileOptions {
+            is_ts: true,
+            ..Default::default()
+        },
+        template: TemplateCompileOptions {
+            is_ts: true,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let result = compile_sfc(&descriptor, opts).expect("Failed to compile SFC");
+
+    insta::assert_snapshot!(result.code.as_str());
+}
