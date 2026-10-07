@@ -1,8 +1,9 @@
 ---
 source: crates/vize_atelier_sfc/src/compile/tests/define_props_regressions.rs
+assertion_line: 327
 expression: result.code.as_str()
 ---
-import { defineVaporComponent as _defineVaporComponent, getCurrentInstance as _getCurrentInstance, proxyRefs as _proxyRefs } from 'vue'
+import { defineVaporComponent as _defineVaporComponent, getCurrentInstance as _getCurrentInstance, isRef as _isRef, proxyRefs as _proxyRefs } from 'vue'
 import { createFor as _createFor, template as _template } from 'vue';
 
 const t0 = _template("<li></li>")
