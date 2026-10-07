@@ -144,15 +144,16 @@ impl<'a> GenerateContext<'a> {
                 .filter(|scope| scope.for_depth >= loops)
             {
                 slots -= 1;
-                if scope
+                if let Some(index) = scope
                     .names
                     .iter()
-                    .any(|slot_name| name == slot_name.as_str())
+                    .position(|slot_name| name == slot_name.as_str())
                 {
                     return Some(if scope.whole {
                         scope.slot_props_var.clone()
                     } else {
-                        cstr!("{}.{}", scope.slot_props_var, name)
+                        let path = scope.paths.get(index).map_or("", |path| path.as_str());
+                        cstr!("{}{}", scope.slot_props_var, path)
                     });
                 }
                 continue;
