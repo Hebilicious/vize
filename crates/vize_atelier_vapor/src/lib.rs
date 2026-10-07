@@ -12,6 +12,7 @@ pub mod compile;
 pub mod generate;
 pub mod generators;
 pub mod ir;
+pub(crate) mod keyed_blocks;
 #[doc(hidden)]
 pub mod l3;
 pub mod lower;
@@ -38,6 +39,8 @@ mod tests_generated_identity;
 mod tests_implicit_default_slot;
 #[cfg(test)]
 mod tests_insertion_state;
+#[cfg(test)]
+mod tests_keyed_blocks;
 #[cfg(test)]
 mod tests_setup_components;
 #[cfg(test)]

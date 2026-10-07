@@ -238,6 +238,7 @@ fn compile_vapor_inner_with_stack<'a, C: CaptureSink>(
     }
 
     // The explicitly selected legacy route retains its complete transforms.
+    crate::keyed_blocks::key_outside_for(allocator, &mut root);
     let binding_metadata = options.binding_metadata.clone();
     let transform_opts = TransformOptions {
         prefix_identifiers: options.prefix_identifiers,
