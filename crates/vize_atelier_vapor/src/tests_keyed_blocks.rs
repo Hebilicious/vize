@@ -58,11 +58,22 @@ fn a_keyed_component_is_a_block_keyed_by_its_key() {
 fn keys_that_already_key_something_are_left_alone() {
     for source in [
         r#"<ul><li v-for="item in items" :key="item.id">{{ item.name }}</li></ul>"#,
-        r#"<div><p v-if="shown" :key="version">Shown</p></div>"#,
         r#"<div><p key="fixed">Fixed</p></div>"#,
         r#"<div v-once><p :key="version">Once</p></div>"#,
     ] {
         let code = compile(source, true);
         assert!(!code.contains("__vize_keyed"), "{source}\n{code}");
+    }
+}
+
+#[test]
+fn a_keyed_branch_keys_its_node_and_keeps_its_else() {
+    let source = r#"<div><p v-if="busy" :key="message">{{ message }}</p><p v-else>Idle</p></div>"#;
+    for retained in [false, true] {
+        let code = compile(source, retained);
+        assert!(code.contains("_createIf(() => (_ctx.busy)"), "{code}");
+        assert!(code.contains("_createFor(() => ([_ctx.message])"), "{code}");
+        assert!(code.contains("(__vize_keyed) => (_ctx.message))"), "{code}");
+        assert!(code.contains("Idle"), "{code}");
     }
 }
