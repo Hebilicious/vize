@@ -1,8 +1,9 @@
 ---
 source: crates/vize_atelier_sfc/src/compile/tests.rs
+assertion_line: 2919
 expression: result.code.as_str()
 ---
-import { defineVaporComponent as _defineVaporComponent, getCurrentInstance as _getCurrentInstance, proxyRefs as _proxyRefs } from 'vue'
+import { defineVaporComponent as _defineVaporComponent, getCurrentInstance as _getCurrentInstance, isRef as _isRef, proxyRefs as _proxyRefs } from 'vue'
 import { createComponentWithFallback as _createComponentWithFallback, setInsertionState as _setInsertionState, createIf as _createIf, template as _template } from 'vue';
 
 const t0 = _template("<group></group>", true)

@@ -77,9 +77,23 @@ pub(super) fn emit_render_return(
         if is_vapor && !template.render_fn.is_empty() {
             let needs_template_ref_setter = template.render_fn.contains("_createTemplateRefSetter");
             if needs_template_ref_setter {
+                // The render names each template ref by a string, which the runtime resolves
+                // against `setupState` only in development, so a `ref` or `shallowRef` binding of
+                // that name would never fill in production. Resolve the name to the binding here
+                // and keep it as the ref key, as Vue's inline output passes `ref` and `ref_key`;
+                // a `useTemplateRef` binding still reads its element from that key.
+                output.extend_from_slice(b"const __templateRefSetter = _createTemplateRefSetter()\n");
                 output.extend_from_slice(b"const ");
                 output.extend_from_slice(VAPOR_TEMPLATE_REF_SETTER.as_bytes());
-                output.extend_from_slice(b" = _createTemplateRefSetter()\n");
+                if is_ts {
+                    output.extend_from_slice(
+                        b" = (el: any, ref: any, refFor?: boolean, refKey?: string) => typeof ref === 'string' && _isRef((__returned__ as Record<string, unknown>)[ref]) ? __templateRefSetter(el, (__returned__ as Record<string, unknown>)[ref], refFor, ref) : __templateRefSetter(el, ref, refFor, refKey)\n",
+                    );
+                } else {
+                    output.extend_from_slice(
+                        b" = (el, ref, refFor, refKey) => typeof ref === 'string' && _isRef(__returned__[ref]) ? __templateRefSetter(el, __returned__[ref], refFor, ref) : __templateRefSetter(el, ref, refFor, refKey)\n",
+                    );
+                }
             }
             output.extend_from_slice(b"const __returned__ = { ");
             let mut binding_index = 0usize;

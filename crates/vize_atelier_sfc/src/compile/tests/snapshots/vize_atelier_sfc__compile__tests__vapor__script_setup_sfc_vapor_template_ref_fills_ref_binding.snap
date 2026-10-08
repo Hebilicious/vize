@@ -1,0 +1,42 @@
+---
+source: crates/vize_atelier_sfc/src/compile/tests/vapor.rs
+assertion_line: 185
+expression: result.code.as_str()
+---
+import { defineVaporComponent as _defineVaporComponent, getCurrentInstance as _getCurrentInstance, isRef as _isRef, proxyRefs as _proxyRefs } from 'vue'
+import { child as _child, createTemplateRefSetter as _createTemplateRefSetter, template as _template } from 'vue';
+
+const t0 = _template("<label><input></label>", true)
+
+function render(_ctx, $props, $emit, $attrs, $slots) {
+  const _setRef = _ctx.vaporTemplateRefSetter || _createTemplateRefSetter()
+  const n1 = t0()
+  const n0 = _child(n1)
+  _setRef(n1, "label")
+  _setRef(n0, "field")
+  return n1
+}
+const __vaporRender = render
+
+import { shallowRef, useTemplateRef } from 'vue'
+
+
+export default /*@__PURE__*/_defineVaporComponent({
+  __name: 'anonymous',
+  render: __vaporRender,
+  setup(__props, { emit: __emit, attrs: __attrs, slots: __slots }) {
+
+const field = shallowRef<HTMLInputElement | null>(null)
+const label = useTemplateRef<HTMLLabelElement>('label')
+
+const __templateRefSetter = _createTemplateRefSetter()
+const vaporTemplateRefSetter = (el: any, ref: any, refFor?: boolean, refKey?: string) => typeof ref === 'string' && _isRef((__returned__ as Record<string, unknown>)[ref]) ? __templateRefSetter(el, (__returned__ as Record<string, unknown>)[ref], refFor, ref) : __templateRefSetter(el, ref, refFor, refKey)
+const __returned__ = { vaporTemplateRefSetter, field, shallowRef, useTemplateRef, label }
+Object.defineProperty(__returned__, '__isScriptSetup', { enumerable: false, value: true })
+const __instance = _getCurrentInstance()
+const __ctx = _proxyRefs(__returned__)
+if (__instance) __instance.setupState = __ctx
+return __vaporRender(__ctx, __props, __emit, __attrs, __slots)
+}
+
+})
