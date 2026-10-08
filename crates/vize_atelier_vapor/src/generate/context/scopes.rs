@@ -3,7 +3,7 @@
 use vize_carton::{String, cstr};
 
 use super::GenerateContext;
-use crate::generate::destructure::parse_destructure_names;
+use crate::generate::destructure::parse_destructure_bindings;
 
 impl GenerateContext<'_> {
     /// Push a slot scope for scoped slots. Returns the slot props variable name.
@@ -18,6 +18,7 @@ impl GenerateContext<'_> {
         {
             self.slot_scopes.push(SlotScope {
                 names: std::vec![String::from(pattern)],
+                paths: std::vec![String::default()],
                 slot_props_var: String::from(pattern),
                 for_depth: self.for_scopes.len(),
                 whole: true,
@@ -26,8 +27,13 @@ impl GenerateContext<'_> {
         }
         let slot_props_var = cstr!("_slotProps{}", self.slot_scope_count);
         self.slot_scope_count += 1;
+        let (names, paths) = parse_destructure_bindings(destructure_pattern)
+            .into_iter()
+            .map(|binding| (binding.local, binding.path))
+            .unzip();
         self.slot_scopes.push(SlotScope {
-            names: parse_destructure_names(destructure_pattern),
+            names,
+            paths,
             slot_props_var: slot_props_var.clone(),
             for_depth: self.for_scopes.len(),
             whole: false,
@@ -59,6 +65,9 @@ pub(crate) struct ForScope {
 pub(crate) struct SlotScope {
     /// Destructured variable names (e.g., ["item", "index"] from "{ item, index }")
     pub(crate) names: std::vec::Vec<String>,
+    /// Where each name reads from in the props object, in `names` order: `.trigger` for `{ trigger }`, `.props` for
+    /// the renamed `{ props: trigger }`, `.a.b` for the nested `{ a: { b } }`.
+    pub(crate) paths: std::vec::Vec<String>,
     /// Slot props variable (e.g., "_slotProps0")
     pub(crate) slot_props_var: String,
     /// Loop scopes already active when this slot scope opened: it is nested
