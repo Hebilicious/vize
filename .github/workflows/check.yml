@@ -20,8 +20,7 @@ concurrency:
   # A push to main must not cancel an exact-SHA full validation used by release.
   group: check-v3-${{ github.workflow }}-${{ (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && format('full-{0}', github.sha) || (github.event.pull_request.number || github.ref) }}
   cancel-in-progress: true
-permissions:
-  contents: read
+permissions: { contents: read }
 env:
   CARGO_TERM_COLOR: always
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -55,6 +54,10 @@ jobs:
     uses: ./.github/workflows/level-instruction-counts.yml
   level-dependency-direction:
     uses: ./.github/workflows/level-dependencies.yml
+  release-integration-catalog:
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
+    permissions: { contents: read, pull-requests: read }
+    uses: ./.github/workflows/release-integration-catalog.yml
   nix-flake:
     runs-on: blacksmith-32vcpu-ubuntu-2404
     timeout-minutes: 60
@@ -82,9 +85,7 @@ jobs:
   check-js:
     runs-on: blacksmith-32vcpu-ubuntu-2404
     timeout-minutes: 15
-    permissions:
-      contents: read
-      actions: read
+    permissions: { contents: read, actions: read }
     env:
       NODE_OPTIONS: "--disable-warning=DEP0040 --disable-warning=DEP0169"
     steps:
@@ -121,8 +122,7 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && (startsWith(github.ref, 'refs/heads/release/v') || startsWith(github.ref, 'refs/tags/v')) }}
     runs-on: blacksmith-32vcpu-ubuntu-2404
     timeout-minutes: 25
-    permissions:
-      contents: read
+    permissions: { contents: read }
     # Keep this list in sync with crates published by tools/moon/cmd/publish_crates.
     strategy:
       fail-fast: false
@@ -212,7 +212,6 @@ jobs:
         run: vp install --frozen-lockfile --prefer-offline
       - name: Check package engine matrix
         run: node --test tests/tooling/node-engine-matrix.test.ts tests/tooling/package-manifests.test.ts tests/tooling/dependency-security-compat.test.mjs
-
   check-vize-apps:
     runs-on: blacksmith-32vcpu-ubuntu-2404
     timeout-minutes: 20
@@ -646,6 +645,7 @@ jobs:
       - pr-source-checks
       - instruction-counts
       - level-dependency-direction
+      - release-integration-catalog
     permissions:
       contents: read
     steps:
