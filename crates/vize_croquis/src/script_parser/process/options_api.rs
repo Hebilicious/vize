@@ -1,11 +1,15 @@
+mod bindings;
 mod emits;
 mod inherit_attrs;
 mod inheritance;
+mod template_casing;
 
 use super::class_component::{class_from_export, collect_class_component_metadata};
+use bindings::collect_object_bindings;
 use emits::collect_options_api_emits_from_options as collect_emits;
 use inherit_attrs::option_bool_property;
 use inheritance::{collect_extends_bindings, collect_mixins_bindings};
+use template_casing::{authored_casing_options, collect_direct_component_names};
 
 use oxc_ast::ast::{
     Argument, ArrayExpression, ArrayExpressionElement, BindingPattern, CallExpression,
@@ -51,6 +55,12 @@ pub(in crate::script_parser) fn collect_options_api_component_metadata(
             continue;
         }
 
+        // Registration casing follows authored object shape; the identity
+        // resolver below deliberately also follows aliases and TS wrappers.
+        if let Some(options) = authored_casing_options(&export.declaration) {
+            collect_direct_component_names(result, options);
+        }
+
         let Some(options) =
             component_options_from_export(&export.declaration, &component_option_bindings)
         else {
@@ -76,30 +86,6 @@ pub(in crate::script_parser) fn collect_options_api_component_metadata(
 
     if legacy_vue2 {
         add_nuxt2_template_globals(result);
-    }
-}
-
-fn collect_object_bindings<'a>(
-    program: &'a Program<'a>,
-    object_bindings: &mut FxHashMap<&'a str, &'a ObjectExpression<'a>>,
-) {
-    for statement in program.body.iter() {
-        let Statement::VariableDeclaration(declaration) = statement else {
-            continue;
-        };
-
-        for declarator in declaration.declarations.iter() {
-            let BindingPattern::BindingIdentifier(id) = &declarator.id else {
-                continue;
-            };
-            let Some(init) = declarator.init.as_ref() else {
-                continue;
-            };
-            let Some(object) = object_expression_from_expression(init) else {
-                continue;
-            };
-            object_bindings.insert(id.name.as_str(), object);
-        }
     }
 }
 

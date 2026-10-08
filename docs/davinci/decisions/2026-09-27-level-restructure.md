@@ -66,7 +66,7 @@ Tracked in [#6833](https://github.com/ubugeeei-prod/vize/issues/6833) and [#6834
   - the stage feed → curator
   - the repro page → the CLI
   - `legacy_plan` → test support
-- The accepted trade-off is that `vize_l0` becomes large. It stays readable through its modules.
+- The accepted trade-off is that `vize_l0` becomes large. It stays readable through its modules. The [registered template casing correction](./2026-10-08-registered-template-casing.md), paired with #8142, records actual public-linter excess diagnostics on unregistered scripted/scriptless tags against the pinned ESLint registered-only default. Collect authored module/direct-components names in the existing script walk and reuse existing semantic analysis, preserving component identity and whole authored source/fix-byte controls. Fresh native/package/instruction/protected and installed-public qualification, regex/ignore transport and public API compatibility checks remain mandatory; broad n8n accuracy stays unfinished.
 
 ## Dependency direction
 

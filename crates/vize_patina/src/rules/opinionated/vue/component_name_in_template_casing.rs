@@ -6,8 +6,8 @@
 //!
 //! ### Invalid (default: PascalCase)
 //! ```vue
-//! <my-component />
-//! <myComponent />
+//! <script setup>import MyComponent from "./MyComponent.vue";</script>
+//! <template><my-component /><myComponent /></template>
 //! ```
 //!
 //! ### Valid
@@ -20,9 +20,10 @@
 use crate::context::LintContext;
 use crate::diagnostic::{LintDiagnostic, Severity};
 use crate::rule::{Rule, RuleCategory, RuleMeta};
-use vize_croquis::builtins::is_builtin_component;
-use vize_croquis::naming::{is_kebab_case_loose, is_pascal_case};
-use vize_l0::{is_html_tag, is_svg_tag};
+use vize_croquis::Croquis;
+use vize_croquis::croquis::TemplateComponentRegistrations;
+use vize_croquis::naming::{is_kebab_case_loose, is_pascal_case, to_pascal_case};
+use vize_l0::{is_html_tag, is_math_ml_tag, is_svg_tag};
 use vize_relief::ElementNode;
 
 mod fix;
@@ -48,11 +49,32 @@ pub enum ComponentCasing {
 /// Component name in template casing rule
 pub struct ComponentNameInTemplateCasing {
     pub casing: ComponentCasing,
+    pub registered_components_only: bool,
+    pub globals: Vec<vize_l0::String>,
 }
 
 impl ComponentNameInTemplateCasing {
     pub const fn new(casing: ComponentCasing) -> Self {
-        Self { casing }
+        Self {
+            casing,
+            registered_components_only: true,
+            globals: Vec::new(),
+        }
+    }
+
+    /// Check every custom tag, including standalone template blocks.
+    pub fn with_registered_components_only(mut self, value: bool) -> Self {
+        self.registered_components_only = value;
+        self
+    }
+
+    /// Additional explicitly registered global component names.
+    pub fn with_globals(mut self, globals: Vec<vize_l0::String>) -> Self {
+        self.globals = globals
+            .into_iter()
+            .map(|name| to_pascal_case(&name))
+            .collect();
+        self
     }
 }
 
@@ -68,7 +90,7 @@ impl Rule for ComponentNameInTemplateCasing {
     }
 
     fn enter_element<'a>(&self, ctx: &mut LintContext<'a>, element: &ElementNode<'a>) {
-        check_element(ctx, element, self.casing, false);
+        check_element(ctx, element, self, false);
     }
 }
 
@@ -82,12 +104,18 @@ impl Rule for ComponentNameInTemplateCasing {
 /// `vue/component-name-in-template-casing` warning storm without loosening
 /// the rule for non-Nuxt presets.
 pub(crate) struct ComponentNameInTemplateCasingNuxt {
-    casing: ComponentCasing,
+    policy: ComponentNameInTemplateCasing,
 }
 
 impl ComponentNameInTemplateCasingNuxt {
     pub(crate) const fn new(casing: ComponentCasing) -> Self {
-        Self { casing }
+        Self {
+            policy: ComponentNameInTemplateCasing::new(casing),
+        }
+    }
+
+    pub(crate) fn with_policy(policy: ComponentNameInTemplateCasing) -> Self {
+        Self { policy }
     }
 }
 
@@ -103,14 +131,14 @@ impl Rule for ComponentNameInTemplateCasingNuxt {
     }
 
     fn enter_element<'a>(&self, ctx: &mut LintContext<'a>, element: &ElementNode<'a>) {
-        check_element(ctx, element, self.casing, true);
+        check_element(ctx, element, &self.policy, true);
     }
 }
 
 fn check_element<'a>(
     ctx: &mut LintContext<'a>,
     element: &ElementNode<'a>,
-    casing: ComponentCasing,
+    policy: &ComponentNameInTemplateCasing,
     allow_vuetify_tags: bool,
 ) {
     let tag = element.tag;
@@ -124,7 +152,8 @@ fn check_element<'a>(
     if tag.bytes().all(|b| !b.is_ascii_uppercase()) {
         if is_html_tag(tag)
             || is_svg_tag(tag)
-            || is_builtin_component(tag)
+            || is_math_ml_tag(tag)
+            || matches!(tag, "slot" | "component")
             || is_nuxt_builtin_component(tag)
             || (allow_vuetify_tags && is_vuetify_tag(tag))
         {
@@ -134,20 +163,36 @@ fn check_element<'a>(
         let tag_lower = tag.to_lowercase();
         if is_html_tag(&tag_lower)
             || is_svg_tag(tag)
-            || is_builtin_component(tag)
-            || is_builtin_component(&tag_lower)
+            || is_math_ml_tag(tag)
+            || matches!(tag_lower.as_str(), "slot" | "component")
             || is_nuxt_builtin_component(tag)
         {
             return;
         }
     }
 
+    let casing = policy.casing;
     let valid = match casing {
         ComponentCasing::PascalCase => is_pascal_case(tag),
         ComponentCasing::KebabCase => is_kebab_case_loose(tag),
     };
     if valid {
         return;
+    }
+    if policy.registered_components_only {
+        let name = to_pascal_case(tag);
+        if !policy
+            .globals
+            .iter()
+            .any(|global| global.as_str() == name.as_str())
+            && !ctx.analysis().is_some_and(|analysis: &Croquis| {
+                let registrations: &TemplateComponentRegistrations =
+                    &analysis.template_component_registrations;
+                registrations.contains(&name, analysis.bindings.is_script_setup)
+            })
+        {
+            return;
+        }
     }
     let (message, help) = match casing {
         ComponentCasing::PascalCase => (
@@ -210,103 +255,4 @@ fn is_vuetify_tag(tag: &str) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{
-        ComponentCasing, ComponentNameInTemplateCasing, ComponentNameInTemplateCasingNuxt,
-    };
-    use crate::linter::Linter;
-    use crate::rule::RuleRegistry;
-
-    fn create_linter() -> Linter {
-        let mut registry = RuleRegistry::new();
-        registry.register(Box::new(ComponentNameInTemplateCasing::default()));
-        Linter::with_registry(registry)
-    }
-
-    #[test]
-    fn test_valid_pascal_case() {
-        let linter = create_linter();
-        let result = linter.lint_template(r#"<MyComponent />"#, "test.vue");
-        assert_eq!(result.warning_count, 0);
-    }
-
-    #[test]
-    fn test_invalid_kebab_case() {
-        let linter = create_linter();
-        let result = linter.lint_template(r#"<my-component />"#, "test.vue");
-        assert_eq!(result.warning_count, 1);
-    }
-
-    #[test]
-    fn test_configured_kebab_case_allows_kebab_tags() {
-        let mut registry = RuleRegistry::new();
-        registry.register(Box::new(ComponentNameInTemplateCasing::new(
-            ComponentCasing::KebabCase,
-        )));
-        let linter = Linter::with_registry(registry);
-        let result = linter.lint_template(r#"<my-component />"#, "test.vue");
-        assert_eq!(result.warning_count, 0);
-    }
-
-    #[test]
-    fn test_configured_kebab_case_reports_pascal_tags() {
-        let mut registry = RuleRegistry::new();
-        registry.register(Box::new(ComponentNameInTemplateCasing::new(
-            ComponentCasing::KebabCase,
-        )));
-        let linter = Linter::with_registry(registry);
-        let result = linter.lint_template(r#"<MyComponent />"#, "test.vue");
-        assert_eq!(result.warning_count, 1);
-    }
-
-    #[test]
-    fn test_valid_html_element() {
-        let linter = create_linter();
-        let result = linter.lint_template(r#"<div></div>"#, "test.vue");
-        assert_eq!(result.warning_count, 0);
-    }
-
-    #[test]
-    fn test_valid_vue_built_in() {
-        let linter = create_linter();
-        let result = linter.lint_template(r#"<slot />"#, "test.vue");
-        assert_eq!(result.warning_count, 0);
-    }
-
-    #[test]
-    fn test_valid_nuxt_child_builtin() {
-        let linter = create_linter();
-        let result = linter.lint_template(r#"<nuxt-child id="index" />"#, "test.vue");
-        assert_eq!(result.warning_count, 0);
-    }
-
-    fn create_nuxt_linter() -> Linter {
-        let mut registry = RuleRegistry::new();
-        registry.register(Box::new(ComponentNameInTemplateCasingNuxt::default()));
-        Linter::with_registry(registry)
-    }
-
-    #[test]
-    fn test_nuxt_preset_allows_vuetify_tags() {
-        let linter = create_nuxt_linter();
-        let result = linter.lint_template(
-            r#"<v-dialog><v-btn /><v-icon /><v-spacer /></v-dialog>"#,
-            "test.vue",
-        );
-        assert_eq!(result.warning_count, 0);
-    }
-
-    #[test]
-    fn test_default_still_flags_vuetify_tags() {
-        let linter = create_linter();
-        let result = linter.lint_template(r#"<v-btn />"#, "test.vue");
-        assert_eq!(result.warning_count, 1);
-    }
-
-    #[test]
-    fn test_nuxt_preset_still_flags_other_kebab() {
-        let linter = create_nuxt_linter();
-        let result = linter.lint_template(r#"<my-component />"#, "test.vue");
-        assert_eq!(result.warning_count, 1);
-    }
-}
+mod tests;

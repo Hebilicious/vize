@@ -40,6 +40,9 @@ vp run lint
 The component is written in kebab-case and camelCase under the PascalCase convention.
 
 ```vue
+<script setup>
+import MyComponent from "./MyComponent.vue";
+</script>
 <template>
   <my-component />
   <myComponent />
@@ -51,6 +54,9 @@ The component is written in kebab-case and camelCase under the PascalCase conven
 MyComponent uses PascalCase; native slot syntax remains lowercase.
 
 ```vue
+<script setup>
+import MyComponent from "./MyComponent.vue";
+</script>
 <template>
   <MyComponent />
   <RouterView />
@@ -60,4 +66,4 @@ MyComponent uses PascalCase; native slot syntax remains lowercase.
 
 Good avoids this rule's finding under the configuration above; other rules may still report diagnostics.
 
-[Implementation](https://github.com/ubugeeei-prod/vize/blob/main/crates/vize_patina/src/rules/opinionated/vue/component_name_in_template_casing.rs#L30) · [All rules](../all.md)
+[Implementation](https://github.com/ubugeeei-prod/vize/blob/main/crates/vize_patina/src/rules/opinionated/vue/component_name_in_template_casing.rs#L31) · [All rules](../all.md)

@@ -1,9 +1,10 @@
+mod casing;
+
 use super::{
-    ComponentNameInTemplateCasingOptions, ConfigLintRuleOptions, CustomEventNameCasing,
-    CustomEventNameCasingOptions, HtmlSelfClosingHtmlOptions, HtmlSelfClosingOptions,
+    ConfigLintRuleOptions, HtmlSelfClosingHtmlOptions, HtmlSelfClosingOptions,
     HtmlSelfClosingStyle, HyphenationStyle, LintRuleOptions, MuseaDesignToken,
     NoMutatingPropsOptions, RestrictedGlobal, RestrictedMember, SfcElementOrderGroup,
-    SfcElementOrderOptions, TemplateComponentNameCasing,
+    SfcElementOrderOptions,
 };
 
 #[test]
@@ -69,35 +70,6 @@ fn deserializes_restricted_members() {
         ]
     );
     assert!(options.no_restricted_globals.is_none());
-}
-
-#[test]
-fn deserializes_casing_options() {
-    let json = r#"{
-        "vue/component-name-in-template-casing": { "casing": "kebab-case" },
-        "script/custom-event-name-casing": { "casing": "camelCase" }
-    }"#;
-    let options = serde_json::from_str::<ConfigLintRuleOptions>(json).unwrap();
-    assert_eq!(
-        options.component_name_in_template_casing,
-        Some(ComponentNameInTemplateCasingOptions {
-            casing: TemplateComponentNameCasing::KebabCase
-        })
-    );
-    assert_eq!(
-        options.custom_event_name_casing,
-        Some(CustomEventNameCasingOptions {
-            casing: CustomEventNameCasing::CamelCase
-        })
-    );
-    assert_eq!(
-        options.component_name_in_template_casing(),
-        Some(TemplateComponentNameCasing::KebabCase)
-    );
-    assert_eq!(
-        options.custom_event_name_casing(),
-        Some(CustomEventNameCasing::CamelCase)
-    );
 }
 
 #[test]
