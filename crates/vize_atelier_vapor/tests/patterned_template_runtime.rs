@@ -26,6 +26,7 @@ use vize_carton::Allocator;
 
 mod patterned_template_runtime {
     mod evaluation;
+    mod failure_evidence;
 }
 
 fn compile(backend: &str, source: &str) -> String {
@@ -123,11 +124,13 @@ fn validate_runtime_output(
     let signal: Option<i32> = None;
     let evidence = |reason: &str| {
         format!(
-            "{backend}: {reason}\nstatus: {}\nexit_code: {:?}\nsignal: {signal:?}\nstdout:\n{}\nstderr:\n{}\nsource:\n{source}\ncases:\n{cases}\ncode:\n{code}",
+            "{backend}: {reason}\nstatus: {}\nexit_code: {:?}\nsignal: {signal:?}\nstdout:\n{}\nstdout_bytes: {:?}\nstderr:\n{}\nstderr_bytes: {:?}\nsource:\n{source}\ncases:\n{cases}\ncode:\n{code}",
             output.status,
             output.status.code(),
             String::from_utf8_lossy(&output.stdout),
+            output.stdout,
             String::from_utf8_lossy(&output.stderr),
+            output.stderr,
         )
     };
     if !output.status.success() {
@@ -161,7 +164,7 @@ fn runtime_failure_preserves_silent_child_status_and_original_case() {
     assert_eq!(
         report,
         format!(
-            "vdom: runtime child failed\nstatus: {}\nexit_code: Some(13)\nsignal: None\nstdout:\npartial stdout\nstderr:\n\nsource:\nauthored source\ncases:\n[{{\"context\":{{\"items\":[\"original\"]}}}}]\ncode:\nrender code",
+            "vdom: runtime child failed\nstatus: {}\nexit_code: Some(13)\nsignal: None\nstdout:\npartial stdout\nstdout_bytes: [112, 97, 114, 116, 105, 97, 108, 32, 115, 116, 100, 111, 117, 116]\nstderr:\n\nstderr_bytes: []\nsource:\nauthored source\ncases:\n[{{\"context\":{{\"items\":[\"original\"]}}}}]\ncode:\nrender code",
             output.status,
         )
     );
@@ -186,7 +189,7 @@ fn runtime_failure_preserves_real_child_signal_and_both_streams() {
     assert_eq!(
         report,
         format!(
-            "vapor: runtime child failed\nstatus: {}\nexit_code: None\nsignal: Some(15)\nstdout:\nbefore signal\nstderr:\nsignal stderr\nsource:\nsource\ncases:\n[{{}}]\ncode:\ncode",
+            "vapor: runtime child failed\nstatus: {}\nexit_code: None\nsignal: Some(15)\nstdout:\nbefore signal\nstdout_bytes: [98, 101, 102, 111, 114, 101, 32, 115, 105, 103, 110, 97, 108]\nstderr:\nsignal stderr\nstderr_bytes: [115, 105, 103, 110, 97, 108, 32, 115, 116, 100, 101, 114, 114]\nsource:\nsource\ncases:\n[{{}}]\ncode:\ncode",
             output.status,
         )
     );
@@ -214,8 +217,9 @@ fn runtime_protocol_failures_preserve_complete_successful_child_output() {
         assert_eq!(
             report,
             format!(
-                "ssr: {reason}\nstatus: {}\nexit_code: Some(0)\nsignal: None\nstdout:\n{stdout}\nstderr:\n\nsource:\nsource\ncases:\n[{{}}]\ncode:\ncode",
+                "ssr: {reason}\nstatus: {}\nexit_code: Some(0)\nsignal: None\nstdout:\n{stdout}\nstdout_bytes: {:?}\nstderr:\n\nstderr_bytes: []\nsource:\nsource\ncases:\n[{{}}]\ncode:\ncode",
                 output.status,
+                stdout.as_bytes(),
             )
         );
     }
