@@ -30,6 +30,21 @@ assert.equal(
   hash(currentOriginalRun),
   "397a7119bdeab7cecdb7e1f7c5ed62b8df1232005fcd3d538ac6f20bf761fb13",
 );
+export const currentRequiredRun = readFileSync(
+  new URL("../../../tests/_fixtures/tooling/native-current-recipe-8253.sh", import.meta.url),
+  "utf8",
+);
+assert.equal(
+  hash(currentRequiredRun),
+  "b2bd7c08e90ca1625044d09cbe221c22f8a8344be8c4347854acb73a66dfc05f",
+);
+assert.equal(
+  currentRequiredRun,
+  currentOriginalRun.replace(
+    " --test lsp_bare_script_symbols_cli --config",
+    " --test lsp_bare_script_symbols_cli --test check_tsconfig_bom_cli --config",
+  ),
+);
 
 export function git(root, ...args) {
   const r = spawnSync("git", args, {

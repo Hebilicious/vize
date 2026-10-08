@@ -15,4 +15,13 @@ recipe selection; it grants no hosted compiler or release acceptance.
 actual main `b41811e3b33676f68a0843a693c9ed4898f2e86a`, including the nine declared
 CLI targets and every downstream command/flag. Its SHA256 is
 `397a7119bdeab7cecdb7e1f7c5ed62b8df1232005fcd3d538ac6f20bf761fb13`.
-The wrapper's ordinary branch must retain these full bytes.
+The original full bytes and digest remain immutable controls.
+
+`native-current-recipe-8253.sh` independently authors the complete ten-target
+successor by adding only `--test check_tsconfig_bom_cli` after the last existing
+target. All original nine targets and downstream bytes remain unchanged; the
+fixture law verifies this complete additive relation. Its SHA256 is
+`b2bd7c08e90ca1625044d09cbe221c22f8a8344be8c4347854acb73a66dfc05f`.
+The current wrapper must execute the complete successor once, and a version-only
+source that deletes its new target is rejected. Neither fixture is derived from
+an executing producer's response or grants hosted native acceptance.
