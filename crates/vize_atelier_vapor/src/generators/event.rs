@@ -101,9 +101,37 @@ pub fn capitalize_event_name(event: &str) -> String {
     }
 }
 
+/// The prop key a component listener for a static `event` binds: Vue's
+/// `toHandlerKey(camelize(event))`, so `@close-preset` and `@closePreset` both
+/// reach `emit("closePreset")`. An empty name keeps the bare `on` key.
+pub fn component_handler_key(event: &str) -> String {
+    let mut key = String::from("on");
+    let mut chars = event.chars().peekable();
+    let mut first = true;
+    while let Some(c) = chars.next() {
+        // `camelize` drops a `-` before a word character and uppercases that character.
+        let c = match chars.peek() {
+            Some(&next) if c == '-' && (next.is_ascii_alphanumeric() || next == '_') => {
+                chars.next();
+                next.to_ascii_uppercase()
+            }
+            _ => c,
+        };
+        if first {
+            key.extend(c.to_uppercase());
+            first = false;
+        } else {
+            key.push(c);
+        }
+    }
+    key
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{apply_modifiers, capitalize_event_name, generate_event_options};
+    use super::{
+        apply_modifiers, capitalize_event_name, component_handler_key, generate_event_options,
+    };
     use crate::ir::EventModifiers;
     use vize_carton::Allocator;
 
@@ -119,6 +147,23 @@ mod tests {
     fn test_capitalize_event_name() {
         assert_eq!(capitalize_event_name("click"), "onClick");
         assert_eq!(capitalize_event_name("keydown"), "onKeydown");
+    }
+
+    #[test]
+    fn component_handler_keys_match_vue_to_handler_key_of_camelize() {
+        assert_eq!(component_handler_key("click"), "onClick");
+        assert_eq!(component_handler_key("close-preset"), "onClosePreset");
+        assert_eq!(component_handler_key("closePreset"), "onClosePreset");
+        assert_eq!(
+            component_handler_key("update:modelValue"),
+            "onUpdate:modelValue"
+        );
+        assert_eq!(
+            component_handler_key("update:selected-preset-id"),
+            "onUpdate:selectedPresetId"
+        );
+        assert_eq!(component_handler_key("trailing-"), "onTrailing-");
+        assert_eq!(component_handler_key(""), "on");
     }
 
     #[test]

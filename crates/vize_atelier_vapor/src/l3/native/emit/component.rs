@@ -2,7 +2,7 @@
 //! before their owner, as in the retained lane; props keep authored order.
 
 use vize_atelier_core::{SimpleExpressionNode, SourceLocation};
-use vize_carton::{Box, String, Vec};
+use vize_carton::{Box, Vec};
 
 use super::super::{Binding, BindingKind, Content, Expr, Node, Prop};
 use super::{Emitter, take};
@@ -163,13 +163,8 @@ impl<'a> Emitter<'a, '_> {
                 node.is_handler_key = prop.handler;
                 Box::new_in(node, &self.allocator)
             } else if prop.handler {
-                // The retained lane's handler key: `on` + capitalized name.
-                let mut key = String::from("on");
-                let mut chars = prop.key.chars();
-                if let Some(first) = chars.next() {
-                    key.push(first.to_ascii_uppercase());
-                    key.push_str(chars.as_str());
-                }
+                // The retained lane's handler key, as the other lane builds it.
+                let key = crate::generators::event::component_handler_key(prop.key);
                 let mut node = SimpleExpressionNode::new(
                     self.allocator.alloc_str(&key),
                     true,
