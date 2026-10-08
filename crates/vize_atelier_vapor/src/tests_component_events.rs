@@ -42,3 +42,22 @@ fn kebab_case_component_listeners_bind_camelized_handler_keys() {
         assert!(!code.contains("onUpdate:selected-preset-id"), "{code}");
     }
 }
+
+#[test]
+fn component_template_refs_register_instead_of_passing_a_ref_prop() {
+    for source in [
+        r#"<Child ref="panel" :level="level" />"#,
+        r#"<div><Child ref="panel" :level="level" /><b /></div>"#,
+        r#"<div><Child :ref="setPanel" :level="level" /></div>"#,
+    ] {
+        for retained in [false, true] {
+            let code = compile(source, retained);
+            assert!(!code.contains("ref: "), "ref passed as a prop:\n{code}");
+            assert!(
+                code.contains("TemplateRef") || code.contains("_setRef("),
+                "{code}"
+            );
+            assert!(code.contains("level: "), "{code}");
+        }
+    }
+}
