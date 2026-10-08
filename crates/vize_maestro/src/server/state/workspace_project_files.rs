@@ -11,12 +11,17 @@ use vize_l0::FxHashMap;
 
 use super::{ServerState, global_components::is_excluded_directory};
 
+mod paths;
+mod symbols;
+
 #[derive(Default)]
 pub(super) struct Inventory {
     generation: AtomicU64,
     paths: RwLock<Option<CachedPaths>>,
     retired: RwLock<Vec<PathBuf>>,
     scan: Mutex<()>,
+    #[cfg(test)]
+    symbol_worker_failure: std::sync::atomic::AtomicBool,
     #[cfg(test)]
     read_pause: RwLock<Option<(oneshot::Sender<()>, oneshot::Receiver<()>)>>,
 }
