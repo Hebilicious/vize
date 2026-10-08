@@ -58,8 +58,10 @@ pub(crate) fn set_prop_call(
         line
     };
 
-    let (helper, line) = if (*key == "class" || *key == "style") && is_svg {
-        ("setAttr", call("_setAttr", Some(&named), ""))
+    let (helper, line) = if *key == "class" && is_svg {
+        // `setClass` normalizes arrays/objects; its `isSVG` flag writes the
+        // attribute instead of `className`, which SVG elements reject.
+        ("setClass", call("_setClass", None, ", true"))
     } else if *key == "class" {
         ("setClass", call("_setClass", None, ""))
     } else if *key == "style" {
