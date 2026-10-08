@@ -55,13 +55,13 @@ fn with_whole_expression<T>(
     // The bare parser accepts a prefix (`save; count++` as `save`). Require
     // one whole expression. The newline also terminates authored line comments.
     let wrapped = cstr!("({content}\n)");
-    let expr = Parser::new(
-        &allocator,
-        &wrapped,
-        SourceType::default().with_module(true),
-    )
-    .parse_expression()
-    .ok()?;
+    let javascript = SourceType::default().with_module(true);
+    // A `<script lang="ts">` template expression may annotate its parameters,
+    // such as `(event: KeyboardEvent) => ...`, which only TypeScript parses.
+    let expr = Parser::new(&allocator, &wrapped, javascript)
+        .parse_expression()
+        .or_else(|_| Parser::new(&allocator, &wrapped, javascript.with_typescript(true)).parse_expression())
+        .ok()?;
     (expr.span().end as usize == wrapped.len()).then(|| decide(expr.get_inner_expression()))
 }
 
