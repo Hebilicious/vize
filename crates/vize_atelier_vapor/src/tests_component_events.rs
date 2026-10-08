@@ -61,3 +61,35 @@ fn component_template_refs_register_instead_of_passing_a_ref_prop() {
         }
     }
 }
+
+#[test]
+fn only_a_single_root_component_receives_the_owners_fallthrough_attrs() {
+    for retained in [false, true] {
+        let root = compile(r#"<Child :a="a" />"#, retained);
+        assert_eq!(root.matches(", null, true)").count(), 1, "{root}");
+
+        let nested = compile(r#"<section><Child :a="a" /></section>"#, retained);
+        assert_eq!(nested.matches(", null, true)").count(), 0, "{nested}");
+        assert_eq!(nested.matches(", null, false)").count(), 1, "{nested}");
+
+        let siblings = compile(r#"<Child :a="a" /><Other :b="b" />"#, retained);
+        assert_eq!(siblings.matches(", null, true)").count(), 0, "{siblings}");
+        assert_eq!(siblings.matches(", null, false)").count(), 2, "{siblings}");
+
+        let branches = compile(
+            r#"<Child v-if="ok" :a="a" /><Other v-else :b="b" />"#,
+            retained,
+        );
+        assert_eq!(branches.matches(", null, true)").count(), 2, "{branches}");
+
+        let nested_branch = compile(
+            r#"<section><p /><Child v-if="ok" :a="a" /></section>"#,
+            retained,
+        );
+        assert_eq!(
+            nested_branch.matches(", null, true)").count(),
+            0,
+            "{nested_branch}"
+        );
+    }
+}

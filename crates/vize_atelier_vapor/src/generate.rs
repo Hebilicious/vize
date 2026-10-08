@@ -323,5 +323,25 @@ fn collect_root_if_templates_guarded(
     }
 }
 
+/// Collect the single returns of each branch of a root `v-if` chain.
+fn collect_root_if_returns(if_node: &crate::ir::IfIRNode<'_>, roots: &mut FxHashSet<usize>) {
+    ensure_sufficient_stack(|| {
+        if let [id] = if_node.positive.returns.as_slice() {
+            roots.insert(*id);
+        }
+        match &if_node.negative {
+            Some(crate::ir::NegativeBranch::Block(block)) => {
+                if let [id] = block.returns.as_slice() {
+                    roots.insert(*id);
+                }
+            }
+            Some(crate::ir::NegativeBranch::If(nested_if)) => {
+                collect_root_if_returns(nested_if, roots)
+            }
+            None => {}
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests;
