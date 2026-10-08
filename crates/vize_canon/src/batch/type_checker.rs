@@ -12,6 +12,7 @@ mod declarations;
 mod diagnostic_paths;
 mod generic_private_names;
 mod incremental;
+mod installed_sources;
 mod metrics;
 mod paths;
 #[path = "type_checker/registered.rs"]
@@ -76,43 +77,11 @@ pub struct BatchTypeChecker {
     server_count: Option<usize>,
     /// Source membership carried across incremental checks.
     incremental_paths: IncrementalPaths,
+    // Dropped after the executor, so live sessions cannot outlast their files.
+    owned_storage: Option<tempfile::TempDir>,
 }
 
 impl BatchTypeChecker {
-    /// Create a new batch type checker.
-    pub fn new(project_root: &Path) -> CorsaResult<Self> {
-        Self::with_options(project_root, BatchTypeCheckerOptions::default())
-    }
-
-    /// Create a new batch type checker with explicit options.
-    pub fn with_options(
-        project_root: &Path,
-        options: BatchTypeCheckerOptions,
-    ) -> CorsaResult<Self> {
-        Self::with_options_and_corsa_path(project_root, options, None)
-    }
-
-    /// Create a new batch type checker with options and an optional Corsa path.
-    pub fn with_options_and_corsa_path(
-        project_root: &Path,
-        options: BatchTypeCheckerOptions,
-        corsa_path: Option<&Path>,
-    ) -> CorsaResult<Self> {
-        let project = VirtualProject::new(project_root)?;
-        let mut project = project;
-        project.set_tsconfig_path(options.tsconfig_path);
-        project.set_virtual_ts_options(options.virtual_ts_options);
-        let executor = CorsaExecutor::with_corsa_path(project.project_root(), corsa_path)?;
-
-        Ok(Self {
-            project,
-            executor,
-            scanned: false,
-            server_count: None,
-            incremental_paths: IncrementalPaths::new(),
-        })
-    }
-
     /// Set the number of parallel Corsa CLI processes the project check is
     /// partitioned across. `None` (the default) auto-tunes from the machine
     /// width and the number of registered Vue files.
@@ -212,6 +181,7 @@ impl BatchTypeChecker {
     /// and virtual-TS generation CPU-bound instead of serializing every file on
     /// the batch checker.
     pub fn scan_paths(&mut self, paths: &[PathBuf]) -> CorsaResult<()> {
+        self.scope_initial_installed_sources(paths)?;
         let previous_sources = self.project.registered_original_paths_sorted();
         self.project.set_declaration_roots(paths);
         self.project.register_paths(paths)?;
@@ -231,6 +201,7 @@ impl BatchTypeChecker {
     /// Scan the project for source files.
     pub fn scan_project(&mut self) -> CorsaResult<()> {
         let paths = collect_project_paths(&self.project, self.project.source_file_policy())?;
+        self.scope_initial_installed_sources(&paths)?;
         self.project.set_declaration_roots(&paths);
         self.project.register_paths(&paths)?;
         self.project.register_package_route_targets()?;
