@@ -71,11 +71,12 @@ function git(root, ...args) {
 }
 const object = (root, revision, path) => git(root, "show", `${revision}:${path}`);
 const tree = (root, revision) => git(root, "rev-parse", `${revision}^{tree}`).trim();
-function marker(body, key) {
+function marker(body, key, optional = false) {
   const prefix = `<!-- ${key}: `;
   const values = body
     .split("\n")
     .filter((line) => line.startsWith(prefix) && line.endsWith(" -->"));
+  if (optional && values.length === 0) return null;
   assert.equal(values.length, 1, `Missing/ambiguous ${key}`);
   return values[0].slice(prefix.length, -4);
 }
@@ -118,7 +119,7 @@ export function verifyVersionCut(root, cut, source, old, next) {
   return entries;
 }
 
-export function selectSourceRecipe({ root, env, event, permission, pin, parse }) {
+function sourceContext(root, env, event) {
   const source = sha(env.SOURCE_SHA),
     workflow = sha(env.GITHUB_WORKFLOW_SHA);
   assert.equal(git(root, "rev-parse", "HEAD").trim(), source);
@@ -130,22 +131,20 @@ export function selectSourceRecipe({ root, env, event, permission, pin, parse })
   );
   const pr = event.pull_request;
   assert.equal(pr?.head?.sha, source);
-  const ordinary = {
-    schema: 1,
-    mode: "current-inline",
-    source,
-    sourceTree: tree(root, source),
-    workflow,
-    recipe: null,
-  };
-  if (!pr.head.ref.startsWith("release/v") && !pr.body?.includes("<!-- vize-release-pin:"))
-    return ordinary;
+  return { source, workflow, pr };
+}
+
+function releaseIdentity(root, env, pr, permission, pending = false) {
+  const source = sha(env.SOURCE_SHA);
   assert.equal(env.GITHUB_REPOSITORY, REPO);
   for (const side of [pr.head, pr.base]) assert.equal(side.repo.full_name, REPO);
   assert.equal(pr.base.ref, "main");
+  assert.equal(pr.head.sha, source);
   assert.equal(pr.state, "open");
   assert.equal(pr.draft, true);
   assert.equal(pr.merged, false);
+  assert.ok(Number.isSafeInteger(pr.number) && pr.number > 0);
+  assert.match(pr.user?.login ?? "", /^[A-Za-z0-9-]+$/u);
   assert.ok(
     ["maintain", "admin"].includes(permission?.role_name),
     "Release author requires maintain/admin permission",
@@ -156,11 +155,50 @@ export function selectSourceRecipe({ root, env, event, permission, pin, parse })
   const old = marker(pr.body, "vize-release-base-version");
   const next = version(object(root, source, "Cargo.toml"));
   assert.equal(pr.head.ref, `release/v${next}`);
-  const integration = Number(marker(pr.body, "vize-release-integration"));
-  assert.ok(Number.isSafeInteger(integration) && integration > 0 && integration !== pr.number);
+  const value = marker(pr.body, "vize-release-integration", pending);
+  const integration = value === null ? null : Number(value);
+  if (integration !== null)
+    assert.ok(Number.isSafeInteger(integration) && integration > 0 && integration !== pr.number);
   assert.equal(git(root, "rev-list", "--parents", "-n", "1", source).trim(), `${source} ${cut}`);
   assert.equal(env.MAIN_SOURCE_SHA, cut);
   git(root, "merge-base", "--is-ancestor", cut, sha(env.MAIN_HEAD_SHA));
+  return { source, cut, old, next, integration, number: pr.number, author: pr.user.login };
+}
+
+/** Load the finite handshake from the authentic workflow object, never checkout bytes. */
+export async function sourcePreparationModule(root, workflow) {
+  const bytes = object(
+    root,
+    sha(workflow),
+    "tools/benchmarks/scripts/typechecker-native-source-preparation.mjs",
+  );
+  return import(`data:text/javascript;base64,${Buffer.from(bytes).toString("base64")}`);
+}
+
+export async function awaitReleasePreparation(options, preparationModule) {
+  const module = preparationModule ?? (await import("./typechecker-native-source-preparation.mjs"));
+  return module.awaitReleasePreparation({
+    ...options,
+    sourceContext,
+    releaseIdentity,
+    sha,
+    selectSourceRecipe,
+  });
+}
+
+export function selectSourceRecipe({ root, env, event, permission, pin, parse }) {
+  const { source, workflow, pr } = sourceContext(root, env, event);
+  const ordinary = {
+    schema: 1,
+    mode: "current-inline",
+    source,
+    sourceTree: tree(root, source),
+    workflow,
+    recipe: null,
+  };
+  if (!pr.head.ref.startsWith("release/v") && !pr.body?.includes("<!-- vize-release-pin:"))
+    return ordinary;
+  const { cut, old, next, integration } = releaseIdentity(root, env, pr, permission);
   assert.equal(git(root, "rev-list", "--parents", "-n", "1", sha(pin)).trim(), `${pin} ${source}`);
   assert.equal(tree(root, pin), tree(root, source));
   const expectedPin = `Vize immutable release cut\n\nSource-PR: #${pr.number}\nSource-head: ${source}\nSource-cut: ${cut}\nTag: v${next}\nBase-version: ${old}\nIntegration-PR: #${integration}`;
@@ -225,40 +263,63 @@ async function main() {
     object(root, workflow, metadataPath),
   );
   const event = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
-  let permission, pin;
+  let selected;
   if (
     event.pull_request?.head.ref.startsWith("release/v") ||
     event.pull_request?.body?.includes("<!-- vize-release-pin:")
   ) {
     const author = event.pull_request.user.login;
     assert.match(author, /^[A-Za-z0-9-]+$/u);
-    const response = await fetch(
-      `https://api.github.com/repos/${REPO}/collaborators/${author}/permission`,
-      {
+    const api = async (path) => {
+      const response = await fetch(`https://api.github.com/repos/${REPO}/${path}`, {
         headers: { Authorization: `Bearer ${env.GH_TOKEN}`, Accept: "application/vnd.github+json" },
         signal: AbortSignal.timeout(30_000),
+      });
+      assert.equal(response.status, 200, `Release authority could not be authenticated: ${path}`);
+      return response.json();
+    };
+    const permission = await api(`collaborators/${author}/permission`);
+    const pinRef = `refs/heads/release-pin/v${version(object(root, env.SOURCE_SHA, "Cargo.toml"))}`;
+    const sourceRef = `refs/heads/${event.pull_request.head.ref}`;
+    const remote = (ref) => {
+      const rows = git(root, "ls-remote", "--refs", "origin", ref)
+        .trim()
+        .split("\n")
+        .filter(Boolean);
+      if (rows.length === 0) return null;
+      assert.equal(rows.length, 1, "Ambiguous immutable release ref");
+      const [oid, name] = rows[0].split("\t");
+      assert.equal(name, ref);
+      return sha(oid);
+    };
+    selected = await awaitReleasePreparation(
+      {
+        root,
+        env,
+        event,
+        permission,
+        parse,
+        observe: async () => ({
+          pullRequest: await api(`pulls/${event.pull_request.number}`),
+          source: remote(sourceRef),
+          pin: remote(pinRef),
+        }),
+        loadPin: async (pin) => {
+          git(root, "fetch", "--no-tags", "--no-write-fetch-head", "origin", pin);
+          assert.equal(remote(pinRef), pin, "Immutable pin changed during fetch");
+          assert.equal(
+            remote(sourceRef),
+            env.SOURCE_SHA,
+            "Immutable source branch changed during fetch",
+          );
+          return pin;
+        },
       },
+      await sourcePreparationModule(root, workflow),
     );
-    assert.equal(response.status, 200, "Release maintainer permission could not be authenticated");
-    permission = await response.json();
-    git(
-      root,
-      "fetch",
-      "--no-tags",
-      "origin",
-      `refs/heads/release-pin/v${version(object(root, env.SOURCE_SHA, "Cargo.toml"))}`,
-    );
-    pin = git(root, "rev-parse", "FETCH_HEAD").trim();
-    const remote = git(
-      root,
-      "ls-remote",
-      "--heads",
-      "origin",
-      `refs/heads/${event.pull_request.head.ref}`,
-    ).split(/\s+/u)[0];
-    assert.equal(remote, env.SOURCE_SHA, "Immutable source branch changed");
+  } else {
+    selected = selectSourceRecipe({ root, env, event, parse });
   }
-  const selected = selectSourceRecipe({ root, env, event, permission, pin, parse });
   if (selected.recipe !== null) {
     for (const [key, value] of Object.entries(selected.executionEnvironment)) {
       assert.equal(typeof value, "string", `Unrecognized original environment ${key}`);
