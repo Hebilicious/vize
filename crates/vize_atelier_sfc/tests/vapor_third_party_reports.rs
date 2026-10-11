@@ -18,3 +18,19 @@ fn reported_svg_branches_and_dynamic_class_style_match_locked_vue() {
         include_str!("../../../tests/_fixtures/differential/compiler/vapor-svg-8624/controls.json"),
     );
 }
+
+#[test]
+fn reported_renamed_and_nested_slot_props_match_locked_vue() {
+    report::compare(
+        include_str!(
+            "../../../tests/_fixtures/differential/compiler/vapor-slot-destructure-8626/App.vue.txt"
+        ),
+        &serde_json::from_str::<String>(include_str!(
+            "../../../tests/_fixtures/differential/compiler/vapor-slot-destructure-8626/Child.vue.json"
+        ))
+        .expect("whole original SlotOwner source"),
+        include_str!(
+            "../../../tests/_fixtures/differential/compiler/vapor-slot-destructure-8626/controls.json"
+        ),
+    );
+}
