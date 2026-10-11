@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { observeReversedCssOrder } from "./reversed-css-order.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -335,33 +336,14 @@ try {
             // An explicit diagnostic counterexample moves the same complete
             // global sheet after scoped sheets, without editing any CSS rule.
             // This is separate from the production-order positive observation.
-            packet.reversedCssOrder = await page.evaluate(async () => {
-              const globals = [...document.head.querySelectorAll("style[data-vite-dev-id]")].filter(
-                (node) =>
-                  (node.getAttribute("data-vite-dev-id") ?? "").includes("/assets/styles/main.css"),
-              );
-              if (!globals.length) throw Error("original global stylesheet missing");
-              for (const node of globals) document.head.append(node);
-              // The complete injected global sheet moves; original HTTP links
-              // and every rule stay intact. Let style invalidation settle before
-              // reading both computed properties in the same observation.
-              await new Promise(requestAnimationFrame);
-              await new Promise(requestAnimationFrame);
-              return {
-                html: document.documentElement.outerHTML,
-                headings: [...document.querySelectorAll("h2")].map((heading) => ({
-                  html: heading.outerHTML,
-                  fontSize: getComputedStyle(heading).fontSize,
-                  lineHeight: getComputedStyle(heading).lineHeight,
-                })),
-                sheets: [...document.styleSheets].map((sheet) => ({
-                  href: sheet.href,
-                  owner: sheet.ownerNode.outerHTML,
-                  rules: [...sheet.cssRules].map((rule) => rule.cssText),
-                })),
-              };
-            });
+            packet.reversedCssOrder = await page.evaluate(observeReversedCssOrder);
             write(`${producer}.json`, packet);
+            for (const transition of packet.reversedCssOrder.transitionEvidence)
+              assert.equal(
+                transition.status,
+                "finished",
+                "the original finite transition must complete",
+              );
             for (const heading of packet.reversedCssOrder.headings) {
               assert.equal(heading.fontSize, expected.negativeControls.reversedCssOrder.fontSize);
               assert.equal(
