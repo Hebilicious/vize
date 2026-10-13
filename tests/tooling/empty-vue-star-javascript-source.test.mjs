@@ -1,7 +1,12 @@
-import { runMisskeyRegistryOriginalTest } from "../../tools/support/compat/github/misskey-registry-source.mjs";
-
-// Complete actual source custody precedes the unchanged literal BD source laws.
-await runMisskeyRegistryOriginalTest(
-  new URL("../../", import.meta.url),
-  "tests/tooling/empty-vue-star-javascript-source.test.mjs",
-);
+import assert from "node:assert/strict";
+import path from "node:path";
+import { test } from "node:test";
+import { runRetainedComponentReadStarLaws } from "../../tools/support/compat/github/empty-vue-star-component-read-source.mjs";
+const result = await runRetainedComponentReadStarLaws(path.resolve(import.meta.dirname, "../.."));
+void test("complete current component-read counterpart precedes all nine unchanged original Star source laws", () => {
+  assert.equal(result.closureBodies, 415);
+  assert.equal(result.sourceOnly, true);
+  assert.equal(result.nativeCredit, false);
+  assert.equal(result.original400Credit, false);
+  assert.equal(result.performanceCredit, false);
+});
