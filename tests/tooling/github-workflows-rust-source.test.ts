@@ -103,9 +103,36 @@ test("PR and merge-group source checks are included in the required report", () 
     differentialWorkflow.jobs["differential"].steps?.map((step) => step.run ?? "").join("\n") ?? "",
     /write-coverage-summary\.rs/,
   );
-  assert.match(rustCommands("pr-rust-build"), /cargo nextest archive @packages@/);
+  // PR shards build the affected tests from the warm read-only clone beside
+  // Clippy; only the merge queue moves a receipt-bound archive.
+  assert.doesNotMatch(rustCommands("pr-rust-build"), /nextest archive/);
   assert.match(rustCommands("pr-rust-build"), /cargo test @packages@ --profile ci --doc/);
+  assert.match(
+    rustCommands("pr-rust-shard"),
+    /cargo nextest run @packages@ --cargo-profile ci --profile "\$NEXTEST_PROFILE" --partition "hash:\$SHARD\/4" --no-tests=pass/,
+  );
   assert.match(rustCommands("pr-rust-shard"), /cargo nextest run --archive-file/);
+  assert.deepEqual(rustWorkflow.jobs?.["pr-rust-shard"]?.needs, ["merge-rust-source"]);
+  const seedWorkflow = parse(readRepoFile(".github", "workflows", "rust-pr-target-seed.yml")) as {
+    on?: { push?: { branches?: string[] }; schedule?: unknown[]; pull_request?: unknown };
+    jobs?: Record<string, Job>;
+  };
+  // Only trusted default-branch and scheduled runs may write the stable disk.
+  assert.deepEqual(seedWorkflow.on?.push?.branches, ["main"]);
+  assert.ok(seedWorkflow.on?.schedule?.length);
+  assert.deepEqual(Object.keys(seedWorkflow.on ?? {}).sort(), ["push", "schedule"]);
+  const seed = seedWorkflow.jobs?.["rust-pr-target-seed"];
+  const seedCommands = (seed?.steps ?? []).map((step) => step.run ?? "").join("\n");
+  assert.equal(
+    seed?.steps?.find((step) => step.uses === "./.github/actions/setup-rust-sticky-cache")?.with
+      ?.key,
+    "nextest-ci",
+  );
+  for (const command of [
+    "cargo clippy @packages@ --profile ci -- -D warnings -D clippy::wildcard_imports",
+    "cargo test @packages@ --profile ci --no-run",
+  ])
+    assert.ok(seedCommands.includes(command), `the PR Rust seed must run ${command}`);
   const rustSteps = rustWorkflow.jobs?.["merge-rust-source"]?.steps ?? [];
   const pklIndex = rustSteps.findIndex((step) => step.name === "Install Pkl CLI");
   const buildIndex = rustSteps.findIndex((step) => step.name === "Build Rust workspace tests");
