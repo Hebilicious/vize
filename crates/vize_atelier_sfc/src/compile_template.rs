@@ -143,8 +143,7 @@ pub(crate) fn compile_template_block_with_capture(
             inline: false,
             is_ts,
             custom_renderer: options.custom_renderer,
-            // A Vapor SFC still falls back to the plain server render here.
-            vapor: false,
+            vapor: options.vapor,
             ssr_css_vars: options.ssr_css_vars.clone(),
             dialect: options.dialect,
             binding_metadata: bindings.cloned(),
