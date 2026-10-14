@@ -71,7 +71,7 @@ pub fn server_capabilities(features: LspFeatureConfig) -> ServerCapabilities {
         code_action_provider: (features.code_actions
             && (features.lint || (cfg!(feature = "native") && features.typecheck)))
             .then_some(CodeActionProviderCapability::Options(CodeActionOptions {
-                code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
+                code_action_kinds: Some(code_action_kinds(features)),
                 work_done_progress_options: WorkDoneProgressOptions::default(),
                 resolve_provider: Some(false),
             })),
@@ -234,7 +234,8 @@ pub fn server_capabilities(features: LspFeatureConfig) -> ServerCapabilities {
         .then_some(CallHierarchyServerCapability::Simple(true)),
         // Features not yet implemented
         execute_command_provider: None,
-        moniker_provider: None,
+        // Monikers name the target go-to-definition resolves.
+        moniker_provider: features.definition.then_some(OneOf::Left(true)),
         experimental: features.auto_insert.then(|| {
             serde_json::json!({
                 "autoInsertionProvider": {
@@ -252,6 +253,23 @@ pub fn server_capabilities(features: LspFeatureConfig) -> ServerCapabilities {
         // Default for other fields
         ..Default::default()
     }
+}
+
+/// Quick fixes always; TypeScript import source actions only where the native
+/// checker answers them.
+fn code_action_kinds(features: LspFeatureConfig) -> Vec<CodeActionKind> {
+    let mut kinds = vec![CodeActionKind::QUICKFIX];
+    #[cfg(feature = "native")]
+    if features.typecheck {
+        kinds.extend(
+            crate::ide::NATIVE_SOURCE_KINDS
+                .into_iter()
+                .map(|kind| CodeActionKind::from(kind.to_owned())),
+        );
+    }
+    #[cfg(not(feature = "native"))]
+    let _ = features;
+    kinds
 }
 
 fn workspace_file_operations(

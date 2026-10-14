@@ -18,8 +18,12 @@ mod corsa_support;
 mod expression_regions;
 #[cfg(feature = "native")]
 mod native_code_actions;
+#[cfg(feature = "native")]
+pub(crate) use corsa_support::normalize_physical_path;
 #[cfg(all(test, feature = "native"))]
 pub(crate) use corsa_support::{canonical_request_path, request_file_uri};
+#[cfg(feature = "native")]
+pub(crate) use native_code_actions::NATIVE_SOURCE_KINDS;
 pub mod cursor_context;
 pub mod declaration;
 pub mod definition;
@@ -34,6 +38,7 @@ pub mod inlay_hint;
 pub mod jsx;
 pub mod linked_editing;
 pub(crate) mod markup;
+pub(crate) mod moniker;
 pub(crate) mod musea;
 pub(crate) mod pug;
 pub mod references;
