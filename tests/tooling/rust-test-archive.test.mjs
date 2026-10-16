@@ -111,8 +111,12 @@ void test("Rust tier gate rejects failed, cancelled, absent, and skipped require
   assert.equal(requireRustTier("pull_request", "true", needs).exitCode, 0);
   for (const [event, jobs] of [
     ["pull_request", ["pr-rust-build", "pr-rust-shard"]],
-    ["merge_group", ["merge-rust-source", "merge-rust-differential", "pr-rust-shard"]],
-  ])
+    [
+      "merge_group",
+      ["merge-rust-source", "merge-rust-differential", "pr-rust-build", "pr-rust-shard"],
+    ],
+  ]) {
+    assert.equal(requireRustTier(event, "true", needs).exitCode, 0);
     for (const job of jobs) {
       for (const result of ["failure", "cancelled", "skipped", "unknown"]) {
         assert.equal(requireRustTier(event, "true", { ...needs, [job]: { result } }).exitCode, 1);
@@ -122,17 +126,25 @@ void test("Rust tier gate rejects failed, cancelled, absent, and skipped require
       assert.throws(() => requireRustTier(event, "true", absent), {
         message: `Missing Rust tier job: ${job}`,
       });
+      for (const result of [undefined, null, {}]) {
+        assert.throws(() => requireRustTier(event, "true", { ...needs, [job]: result }), {
+          message: `Job ${job} reported no result in the needs context`,
+        });
+      }
     }
+  }
   assert.equal(
     requireRustTier("merge_group", "true", { ...needs, "merge-rust-source": { result: "skipped" } })
       .exitCode,
     1,
   );
-  assert.equal(requireRustTier("pull_request", "false", needs).exitCode, 0);
-  assert.throws(() => requireRustTier("merge_group", "false", needs), {
-    message: "Merge queue must select the complete Rust workspace",
-  });
-  assert.throws(() => requireRustTier("pull_request", "", needs), {
-    message: "Missing Rust source plan",
-  });
+  for (const event of ["pull_request", "merge_group"])
+    for (const plan of ["false", "", undefined, null, false, true, {}, "TRUE"])
+      assert.throws(() => requireRustTier(event, plan, needs), {
+        message: "Rust source checks must run for every pull request and merge group",
+      });
+  for (const event of ["push", "schedule", "workflow_dispatch", "workflow_call", "", null])
+    assert.throws(() => requireRustTier(event, "true", needs), {
+      message: "Unexpected Rust tier event",
+    });
 });
