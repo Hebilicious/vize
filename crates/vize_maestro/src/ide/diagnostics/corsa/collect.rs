@@ -304,6 +304,18 @@ impl DiagnosticService {
     }
 }
 
+/// A skipped `extends` keeps typed services running with the rest of the
+/// chain, but stays visible next to them like `tsc`'s TS6053.
+pub(in crate::ide::diagnostics) fn configuration_disclosures(
+    state: &ServerState,
+) -> Vec<Diagnostic> {
+    state
+        .unresolved_tsconfig_extends()
+        .iter()
+        .map(|unresolved| project_configuration_error(&unresolved.configuration_message()))
+        .collect()
+}
+
 fn project_configuration_error(message: &str) -> Diagnostic {
     Diagnostic {
         range: Range::default(),
