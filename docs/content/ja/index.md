@@ -40,6 +40,21 @@ features:
     link: ja/guide/musea.md
 ---
 
+## ツールチェーンの構成
+
+どのツールも Vue ファイルを一度だけ解析し、その結果を共有します。1 つずつ導入できます。
+
+| ツール                   | 置き換え・併用の対象         | コマンド                      | ガイド                                      |
+| ------------------------ | ---------------------------- | ----------------------------- | ------------------------------------------- |
+| コンパイラー             | `@vitejs/plugin-vue`         | `vp dev`、`vp build`          | [Vite プラグイン](./guide/vite-plugin.md)   |
+| リンター                 | `eslint-plugin-vue`          | `vize lint`                   | [ルール](./rules/index.md)                  |
+| フォーマッター           | `.vue` 向けの Prettier       | `vize fmt`                    | [フォーマット](./guide/formatter.md)        |
+| 型チェッカー             | `vue-tsc`                    | `vize check`                  | [型チェック](./guide/type-checking.md)      |
+| 言語サーバー             | Vue - Official               | `vize lsp`                    | [言語サーバー](./guide/language-server.md)  |
+| Vapor コンパイラー       | —                            | `vue.compiler.vapor`          | [Vapor モード](./guide/vapor.md)            |
+| コンポーネントギャラリー | Storybook                    | `vize musea`                  | [Musea](./guide/musea.md)                   |
+| アプリの健全性レポート   | —                            | `vize doctor`                 | [Doctor](./guide/doctor.md)                 |
+
 ## アプリに Vize を追加する
 
 まず[はじめる](./getting-started.md)の手順で導入し、[移行ガイド](./guide/migration.md)に沿って

@@ -128,6 +128,33 @@ lint・フォーマット・型チェックは既存のツールを使い続け�
 対応するルールのない独自 ESLint 設定は残し、型診断とフォーマットの差分を確認してから CI を変更します。
 フォーマットはファイルを書き換えるため、先に `vp run fmt:check` で確認してください。
 
+<span id="without-vite-plus"></span>
+
+## Vite+ を使わない場合: コマンドを 1 つずつ置き換える
+
+Vize の各コマンドは単独で動くため、スクリプトを 1 つだけ置き換えて、残りはそのまま使えます。
+
+| 現在のコマンド                             | 置き換え先                                 | 先に読むページ                                                   |
+| ------------------------------------------ | ------------------------------------------ | ---------------------------------------------------------------- |
+| `vue-tsc --noEmit`                         | `vize check`                               | [vue-tsc から移行する](./type-checking.md#vue-tsc-から移行する)  |
+| `eslint-plugin-vue` を使う `eslint`        | `vize lint src`                            | [ESLint ルールの対応表](../rules/migration.md)                   |
+| `.vue` ファイルへの `prettier --write`     | `vize fmt --preset prettier --write src`   | [Prettier から移行する](./formatter.md#prettier-から移行する)                            |
+| Vue - Official の診断                      | `vize lsp`                                 | [言語サーバー](./language-server.md)                             |
+
+```json
+{
+  "scripts": {
+    "typecheck": "vize check",
+    "lint:vue": "vize lint src",
+    "format:vue": "vize fmt --preset prettier --write src"
+  }
+}
+```
+
+Vize がまだ実装していないルールには ESLint を使い続けるか、[Oxlint プラグイン](./oxlint.md)で Vize の
+ルールを Oxlint の中で実行してください。同じコミットで新旧のコマンドを並べて実行し、結果を比べてから
+古いコマンドを削除してください。
+
 ## 単独設定を Vite+ に移す
 
 `vize.config.*` とトップレベルの `vize:` のネイティブ設定を、既存の Vite 設定の

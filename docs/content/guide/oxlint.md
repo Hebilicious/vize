@@ -4,7 +4,7 @@ title: Oxlint Plugin
 
 # Oxlint Plugin
 
-`oxlint-plugin-vize` lets Oxlint execute Vize Patina diagnostics through Oxlint's JS plugin system.
+`oxlint-plugin-vize` lets Oxlint run Vize's Vue lint rules through Oxlint's JS plugin system.
 Use it when you want Oxlint's Rust-native JS and TS rules together with Vize's Vue-aware
 diagnostics in one run.
 
@@ -123,7 +123,7 @@ and use its Vite+ configuration:
 import { defineConfig } from "@vizejs/vite-plugin/vite-plus";
 
 export default defineConfig({
-  lint: { vize: { preset: "happy-path" } },
+  vue: { linter: { preset: "happy-path" } },
 });
 ```
 
@@ -223,8 +223,8 @@ Settings are passed through `settings.vize`:
 - `all` is accepted as a settings alias for `incremental`; use `configs.all` or
   `createVizeLintConfig({ preset: "all" })` when you also want every rule emitted.
 - `helpLevel` accepts `"full"`, `"short"`, or `"none"`.
-- `typeAware: true` enables Corsa-backed `vize/type/*` rules during shared Patina passes.
-- `corsaPath` selects the Corsa or `tsgo` executable for type-aware linting.
+- `typeAware: true` enables the `vize/type/*` rules, which use TypeScript's native compiler (Corsa).
+- `corsaPath` selects that native TypeScript executable for type-aware linting.
 - `showHelp` and `settings.patina` are still accepted for backward compatibility.
 
 For an explicit subset, share the rule map with the native batch so rule options are preserved:
@@ -265,11 +265,6 @@ continue to use Oxlint's reporting policy.
   positions.
 - Type-aware rule exports are experimental. Use a `*WithTypeAware` config and set
   `settings.vize.typeAware: true` when you want the shared full-file pass to run those rules eagerly.
-
-The source-built n8n fixture replay checks all 1,369 licensed SFCs, 51 configured Vize rules/options,
-and six per-file rule overrides through the native bridge and `oxlint-vize`. This includes 19 scriptless
-inputs; it does not establish direct SDK callback coverage for them. The two n8n-local plugins
-and its complete workspace configuration remain outside that qualification.
 
 ## Local Development
 

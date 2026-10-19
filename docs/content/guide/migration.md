@@ -128,6 +128,33 @@ Keep custom ESLint rules that have no equivalent, compare type diagnostics, and
 review the formatter diff before changing CI. Formatting writes files;
 `vp run fmt:check` checks first without writing.
 
+<span id="without-vite-plus"></span>
+
+## Without Vite+: swap one command at a time
+
+Each Vize command works on its own, so you can replace one script and keep the rest:
+
+| You run today                              | Replace with                               | Read first                                                       |
+| ------------------------------------------ | ------------------------------------------ | ---------------------------------------------------------------- |
+| `vue-tsc --noEmit`                         | `vize check`                               | [Coming from vue-tsc](./type-checking.md#coming-from-vue-tsc)    |
+| `eslint` with `eslint-plugin-vue`          | `vize lint src`                            | [ESLint rule migration map](../rules/migration.md)               |
+| `prettier --write` on `.vue` files         | `vize fmt --preset prettier --write src`   | [Coming from Prettier](./formatter.md#coming-from-prettier)      |
+| Vue - Official diagnostics                 | `vize lsp`                                 | [Language Server](./language-server.md)                          |
+
+```json
+{
+  "scripts": {
+    "typecheck": "vize check",
+    "lint:vue": "vize lint src",
+    "format:vue": "vize fmt --preset prettier --write src"
+  }
+}
+```
+
+Keep ESLint for rules Vize does not implement yet, or run Vize's rules inside Oxlint with the
+[Oxlint plugin](./oxlint.md). Run the old and new command side by side on the same commit and
+compare the results before you remove the old one.
+
 ## Migrate standalone config into Vite+
 
 Move native settings from `vize.config.*` or top-level `vize:` to `vue:` in your

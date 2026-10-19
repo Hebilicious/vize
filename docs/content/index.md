@@ -40,6 +40,21 @@ features:
     link: guide/musea.md
 ---
 
+## What's in the toolchain
+
+Every tool parses a Vue file once and shares the result. Adopt them one at a time.
+
+| Tool              | Alternative to               | Command                       | Guide                                       |
+| ----------------- | ---------------------------- | ----------------------------- | ------------------------------------------- |
+| Compiler          | `@vitejs/plugin-vue`         | `vp dev`, `vp build`          | [Vite plugin](./guide/vite-plugin.md)       |
+| Linter            | `eslint-plugin-vue`          | `vize lint`                   | [Rules](./rules/index.md)                   |
+| Formatter         | Prettier for `.vue`          | `vize fmt`                    | [Formatting](./guide/formatter.md)          |
+| Type checker      | `vue-tsc`                    | `vize check`                  | [Type Checking](./guide/type-checking.md)   |
+| Language server   | Vue - Official               | `vize lsp`                    | [Language Server](./guide/language-server.md) |
+| Vapor compiler    | —                            | `vue.compiler.vapor`          | [Vapor Mode](./guide/vapor.md)              |
+| Component gallery | Storybook                    | `vize musea`                  | [Musea](./guide/musea.md)                   |
+| App health report | —                            | `vize doctor`                 | [Doctor](./guide/doctor.md)                 |
+
 ## Add Vize to your app
 
 Start with [Getting Started](./getting-started.md), then use the
