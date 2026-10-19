@@ -84,6 +84,11 @@ pub(super) fn is_for_item_segment_skip_prop(prop: &PropNode<'_>, skip_is_prop: b
     )
 }
 
+/// A bare `<template v-for>` around one key-less component renders it directly.
+pub(super) fn unwrap_template_sole_component<'a>(el: &'a ElementNode<'a>) -> &'a ElementNode<'a> {
+    crate::steps::v_for::template_item_component(el).unwrap_or(el)
+}
+
 pub(super) fn unwrap_template_single_element<'a>(
     el: &'a ElementNode<'a>,
 ) -> Option<&'a ElementNode<'a>> {

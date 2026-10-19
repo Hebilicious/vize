@@ -4,6 +4,8 @@ mod control_flow;
 mod events;
 pub(crate) use events::{is_on, listener_prop};
 mod props;
+mod slot_roots;
+pub(crate) use slot_roots::{Layout as SlotLayout, finish_slot, finish_slot_fallback};
 mod slots;
 
 pub use control_flow::{ForIRNode, IfIRNode, KeyIRNode, NegativeBranch};
@@ -326,10 +328,13 @@ pub struct CreateComponentIRNode<'a> {
 /// Slot outlet operation
 #[derive(Debug)]
 pub struct SlotOutletIRNode<'a> {
+    /// Runtime forwarding and shared-fallback boundary flags, derived from slot roots.
+    pub flags: u8,
     pub id: usize,
     pub name: Box<'a, SimpleExpressionNode<'a>>,
     pub props: Vec<'a, IRProp<'a>>,
-    pub fallback: Option<BlockIRNode<'a>>,
+    /// Boxed so the outlet does not set the size of every `OperationNode`.
+    pub fallback: Option<Box<'a, BlockIRNode<'a>>>,
     /// Parent element the outlet is inserted into, when it is not a block root.
     pub parent: Option<usize>,
     /// Insertion position within `parent`.

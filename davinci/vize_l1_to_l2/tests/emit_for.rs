@@ -253,3 +253,54 @@ fn template_v_for_nested_if_root_keeps_runtime_directive_wrappers() {
         r#"<template v-for="item in items"><div><span v-show="item.ok"></span><span v-ripple></span></div></template>"#,
     );
 }
+
+fn legacy(source: &str) -> String {
+    let allocator = Allocator::new();
+    let (_, errors, result) = vize_atelier_dom::compile_template_legacy_with_options(
+        &allocator,
+        source,
+        vize_atelier_dom::DomCompilerOptions::default(),
+    );
+    assert!(
+        errors.is_empty(),
+        "legacy lane errors for {source:?}: {errors:?}"
+    );
+    format!("{}\n{}", result.preamble, result.code)
+}
+
+/// Vue 3.5 keys a sole component directly; both lanes (the corpus oracle too) agree.
+#[test]
+fn single_component_template_loops_match_direct_component_items() {
+    assert_eq!(
+        legacy(r#"<template v-for="o in xs" :key="o.id"><Comp :a="o" /></template>"#),
+        "const { resolveComponent: _resolveComponent, openBlock: _openBlock, createBlock: _createBlock, createElementBlock: _createElementBlock, Fragment: _Fragment, renderList: _renderList } = Vue
+
+function render(_ctx, _cache, $props, $setup, $data, $options) {
+  const _component_Comp = _resolveComponent(\"Comp\")
+  
+  return (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(xs, (o) => {
+    return (_openBlock(), _createBlock(_component_Comp, {
+      key: o.id,
+      a: o
+    }, null, 8 /* PROPS */, [\"a\"]))
+  }), 128 /* KEYED_FRAGMENT */))
+}"
+    );
+    for (template, direct) in [
+        (
+            r#"<template v-for="item in list" :key="item.id"><Foo /></template>"#,
+            r#"<Foo v-for="item in list" :key="item.id" />"#,
+        ),
+        (
+            r#"<template v-for="item in list"><Foo /></template>"#,
+            r#"<Foo v-for="item in list" />"#,
+        ),
+        (
+            r#"<template v-for="item in list" :key="item.id"><Foo><slot>{{ item }}</slot></Foo></template>"#,
+            r#"<Foo v-for="item in list" :key="item.id"><slot>{{ item }}</slot></Foo>"#,
+        ),
+    ] {
+        assert_eq!(assembled(template), assembled(direct), "{template}");
+        assert_eq!(legacy(template), legacy(direct), "legacy {template}");
+    }
+}

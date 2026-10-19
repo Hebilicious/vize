@@ -115,12 +115,14 @@ impl<'a> Emitter<'a, '_> {
         let (name, dynamic) = (*name, *dynamic);
         let props = take(self.allocator, props);
         let children = take(self.allocator, children);
-        let fallback = (!children.is_empty()).then(|| self.block(&children));
+        let fallback =
+            (!children.is_empty()).then(|| Box::new_in(self.block(&children), &self.allocator));
         let props = self.props(&props, false);
         let name = self.expression(name, !dynamic);
         block
             .operation
             .push(OperationNode::SlotOutlet(SlotOutletIRNode {
+                flags: 0,
                 id,
                 name,
                 props,
@@ -143,6 +145,7 @@ impl<'a> Emitter<'a, '_> {
         });
         let name_span = self.slot_name_anchor(carrier, name.text);
         IRSlot {
+            nonstable: false,
             name: self.spanned(name, !dynamic, name_span),
             fn_exp: (!params.is_empty()).then(|| self.expression(Expr::plain(params), false)),
             block,
