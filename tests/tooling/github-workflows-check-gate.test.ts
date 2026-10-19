@@ -5,6 +5,10 @@ import { parse } from "yaml";
 import { aggregateNeedsResults } from "../../tools/support/compat/github/require-needs-success.ts";
 import { sourceInventoryLanes } from "../../tools/support/compat/davinci/source-inventories.ts";
 import { checkWorkflowJobSources, readRepoFile, root } from "./support/github-workflows.ts";
+const FULL_ONLY =
+  "${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}";
+const ALWAYS_FULL_ONLY =
+  "${{ always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}";
 const CORE = ["fmt-rust", "check-js", "security-audit", "node-engine-compat", "check-vize-apps"];
 const PR_JOBS = [
   "iteration-plan",
@@ -29,21 +33,16 @@ const FULL_SUITE_JOBS = [
   "branch-coverage",
   "playground-test",
 ];
-type Job = {
-  if?: string;
+type Step = Partial<Record<"name" | "if" | "run" | "uses", string>> & {
+  "continue-on-error"?: boolean;
+  env?: Record<string, string>;
+  with?: Record<string, string>;
+};
+type Job = Partial<Record<"if" | "uses", string>> & {
   needs?: string[] | string;
   outputs?: Record<string, string>;
-  steps?: Array<{
-    name?: string;
-    "continue-on-error"?: boolean;
-    if?: string;
-    run?: string;
-    env?: Record<string, string>;
-    uses?: string;
-    with?: Record<string, string>;
-  }>;
+  steps?: Step[];
   "timeout-minutes"?: number | string;
-  uses?: string;
 };
 const workflow = parse(checkWorkflowJobSources()) as {
   on?: Record<string, unknown>;
@@ -90,16 +89,13 @@ test("source gates cover iteration events while full qualification runs on sched
       job === "source-coverage"
         ? "${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !(inputs.release-qualification && (startsWith(github.ref, 'refs/heads/release/v') || startsWith(github.ref, 'refs/tags/v')))) }}"
         : job === "clippy-and-test" || job === "test-js-packages"
-          ? "${{ always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}"
+          ? ALWAYS_FULL_ONLY
           : job === "test-scripts"
             ? "${{ !cancelled() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}"
-            : "${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}",
+            : FULL_ONLY,
     );
   }
-  assert.equal(
-    workflow.jobs?.["nix-flake"]?.if,
-    "${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}",
-  );
+  assert.equal(workflow.jobs?.["nix-flake"]?.if, FULL_ONLY);
   assert.equal(
     workflow.jobs?.["semver-checks"]?.if,
     "${{ github.event_name == 'workflow_dispatch' && (startsWith(github.ref, 'refs/heads/release/v') || startsWith(github.ref, 'refs/tags/v')) }}",
@@ -145,16 +141,10 @@ test("source gates cover iteration events while full qualification runs on sched
     checkSteps.find((step) => step.name === "Check fast JS/TS")?.if,
     "${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' || github.event_name == 'push' }}",
   );
-  assert.equal(
-    checkSteps.find((step) => step.name === "Check JS/TS")?.if,
-    "${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}",
-  );
+  assert.equal(checkSteps.find((step) => step.name === "Check JS/TS")?.if, FULL_ONLY);
   const inventory = checkSteps.find((step) => step.name === "Check Davinci source inventories");
   assert.ok(inventory);
-  assert.equal(
-    inventory.if,
-    "${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}",
-  );
+  assert.equal(inventory.if, FULL_ONLY);
   assert.equal(inventory.uses, "./.github/actions/check-level-inventories");
   const inventoryAction = parse(
     readRepoFile(".github", "actions", "check-level-inventories", "action.yml"),
@@ -198,12 +188,32 @@ test("source gates cover iteration events while full qualification runs on sched
   assert.equal(appAction.runs.using, "composite");
   const appSteps = appAction.runs.steps;
   assert.ok(appSteps.some((step) => /cargo build --profile ci -p vize/.test(step.run ?? "")));
-  const configExports = appSteps.findIndex((step) => step.run?.includes("(cd npm/cli && vp pack)"));
+  const configExports = appSteps.findIndex((step) => step.name === "Build public Vue config APIs");
+  const configBuild = appSteps[configExports]?.run;
+  assert.equal(configBuild, "(cd npm/cli && vp pack) && (cd npm/builder/vite && vp pack)");
+  assert.doesNotMatch(
+    configBuild,
+    /vp run|rust-script|generate:rule-types|build:native|cargo build/,
+  );
+  assert.match(
+    readRepoFile("examples", "vite-musea", "vite.config.ts"),
+    /from ["']@vizejs\/vite-plugin\/vite-plus["']/,
+    "the app config must exercise the public consumer API",
+  );
   assert.ok(
     configExports >= 0 &&
-      configExports < appSteps.findIndex((step) => step.name === "Check Vize app fixtures"),
-    "workspace config imports need built public JS exports before the source CLI checks apps",
+      configExports < appSteps.findIndex((step) => step.name === "Check Vize app fixtures") &&
+      configExports <
+        appSteps.findIndex(
+          (step) => step.name === "Lint authored source with the opinionated preset",
+        ),
+    "both source lint and app checks must use the genuine built CLI and Vite config APIs",
   );
+  const appCommands = appSteps.map((step) => step.run ?? "").join("\n");
+  assert.equal([...appCommands.matchAll(/cargo build --profile ci -p vize/g)].length, 1);
+  assert.match(appCommands, /tests\/differential\/build-receipt\.ts/);
+  assert.match(appCommands, /sudo install -m 0755 target\/ci\/vize/);
+  assert.doesNotMatch(appCommands, /build:native|build:runtime|build:all/);
   assert.match(
     readRepoFile(".github", "actions", "test-full-tooling", "action.yml"),
     /vp run --workspace-root test:scripts/,
@@ -280,10 +290,7 @@ test("report CLI propagates required check and planner failures", () => {
 test("full JS qualification retains independent native builds and strictly gates all full events", () => {
   const full = workflow.jobs?.["full-js-report"];
   assert.ok(full);
-  assert.equal(
-    full.if,
-    "${{ always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}",
-  );
+  assert.equal(full.if, ALWAYS_FULL_ONLY);
   const fullJobs = ["full-qualification", "check-js", "instruction-counts"];
   assert.deepEqual(full.needs, fullJobs);
   const callee = parse(readRepoFile(".github", "workflows", "full-qualification.yml")) as {

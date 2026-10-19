@@ -1,5 +1,6 @@
-//! Complete legacy API CLI execution and receipt custody.
+//! Execute every legacy instance API case and retain its complete current and historical receipt.
 
+use super::vite_config;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{fs, process::Command};
@@ -37,14 +38,14 @@ pub(super) fn run_cli_cases(manifest: &Value, sources: &[Value], expected_count:
         }}}),
         "empty incremental registry plus exactly the two explicitly selected rules",
     );
-    let argv: Vec<_> = manifest["argv"]
+    let historical_argv: Vec<_> = manifest["argv"]
         .as_array()
         .unwrap()
         .iter()
         .map(|arg| arg.as_str().unwrap())
         .collect();
     assert_eq!(
-        argv,
+        historical_argv,
         [
             "lint",
             "Component.vue",
@@ -56,6 +57,10 @@ pub(super) fn run_cli_cases(manifest: &Value, sources: &[Value], expected_count:
             "full"
         ]
     );
+    let mut argv = historical_argv.clone();
+    argv[3] = "vite.config.mjs";
+    let carrier = vite_config::source(config);
+    let carrier_bytes = carrier.as_bytes();
 
     let project = tempfile::tempdir().unwrap();
     let mut failures = Vec::new();
@@ -65,10 +70,10 @@ pub(super) fn run_cli_cases(manifest: &Value, sources: &[Value], expected_count:
         let source = provider["source"].as_str().unwrap().as_bytes();
         let directory = project.path().join(format!("{index:02}-{id}"));
         let source_path = directory.join("Component.vue");
-        let config_path = directory.join("vize.config.json");
+        let config_path = directory.join("vite.config.mjs");
         let setup = fs::create_dir(&directory)
             .and_then(|()| fs::write(&source_path, source))
-            .and_then(|()| fs::write(&config_path, config));
+            .and_then(|()| fs::write(&config_path, carrier_bytes));
         let output = setup.and_then(|()| {
             Command::new(env!("CARGO_BIN_EXE_vize"))
                 .current_dir(&directory)
@@ -92,10 +97,14 @@ pub(super) fn run_cli_cases(manifest: &Value, sources: &[Value], expected_count:
                 "program": env!("CARGO_BIN_EXE_vize"),
                 "actualCwd": directory,
                 "argv": argv,
+                "historicalArgv": historical_argv,
                 "sourceSha256": case["sourceSha256"],
                 "sourceBytes": source,
-                "configSha256": manifest["configSha256"],
-                "configBytes": config,
+                "configSha256": digest(carrier_bytes),
+                "configBytes": carrier_bytes,
+                "originalConfigSha256": manifest["configSha256"],
+                "originalConfigBytes": config,
+                "configIdentity": {"historical": "vize.config.json", "current": "vite.config.mjs"},
                 "status": output.as_ref().ok().and_then(|result| result.status.code()),
                 "statusText": output.as_ref().ok().map(|result| format!("{}", result.status)),
                 "stdoutBytes": output.as_ref().ok().map(|result| &result.stdout),
@@ -114,7 +123,7 @@ pub(super) fn run_cli_cases(manifest: &Value, sources: &[Value], expected_count:
         if source_after.as_deref().ok() != Some(source) {
             failures.push(format!("{id}: source bytes changed or could not be read"));
         }
-        if config_after.as_deref().ok() != Some(config) {
+        if config_after.as_deref().ok() != Some(carrier_bytes) {
             failures.push(format!(
                 "{id}: selected config bytes changed or could not be read"
             ));

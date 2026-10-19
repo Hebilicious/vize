@@ -20,8 +20,8 @@ Vue 2 の destroyed / beforeDestroy を検出し、Vue 3 のライフサイク�
 import { defineConfig } from "@vizejs/vite-plugin/vite-plus";
 
 export default defineConfig({
-  lint: {
-    vize: {
+  vue: {
+    linter: {
       "preset": "incremental",
       "rules": {
         "script/no-deprecated-destroyed-lifecycle": "error"

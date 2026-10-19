@@ -1,3 +1,4 @@
+import { writeVueConfigFixture } from "./support/vue-config-fixture.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createRequire } from "node:module";
@@ -129,13 +130,12 @@ test("vize lsp maps textDocument/implementation from authored TSX interfaces", a
   const sourceDir = path.join(workspaceDir, "src");
   fs.mkdirSync(sourceDir, { recursive: true });
   writeVueShim(sourceDir);
-  fs.writeFileSync(
-    path.join(workspaceDir, "vize.config.json"),
+  writeVueConfigFixture(
+    workspaceDir,
     JSON.stringify({
       lsp: { lint: false, typecheck: true },
       typeChecker: { corsaPath, jsxTypecheck: true },
     }),
-    "utf8",
   );
   fs.writeFileSync(
     path.join(workspaceDir, "tsconfig.json"),

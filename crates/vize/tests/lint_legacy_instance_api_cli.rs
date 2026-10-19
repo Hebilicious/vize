@@ -18,6 +18,9 @@ use std::{collections::BTreeSet, fs};
 
 #[path = "support/legacy_instance_cli.rs"]
 mod legacy_instance_cli;
+#[path = "support/vite_config.rs"]
+mod vite_config;
+
 use legacy_instance_cli::{digest, run_cli_cases};
 
 const FIXTURES: &str = concat!(

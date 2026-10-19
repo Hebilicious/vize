@@ -20,8 +20,8 @@ nextTick() の完了を await、then、またはコールバックで扱いま�
 import { defineConfig } from "@vizejs/vite-plugin/vite-plus";
 
 export default defineConfig({
-  lint: {
-    vize: {
+  vue: {
+    linter: {
       "preset": "incremental",
       "rules": {
         "script/valid-next-tick": "warn"

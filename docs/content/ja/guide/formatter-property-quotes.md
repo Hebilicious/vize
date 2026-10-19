@@ -5,19 +5,17 @@
 スクリプトのオブジェクトキーに引用符を付ける条件を選びます。
 元のキーに引用符があったかを保ちたい場合は preserve、オブジェクトの構造に合わせてそろえたい場合はほかのモードを使います。
 
-設定の置き場所を選ぶ前に、[CLI・エディターとの設定共有と、リリースごとの対応範囲](./configuration.md)を確認してください。
+共通の設定は `vite.config.*` の `vue.formatter` に置きます。CLI とエディターは同じ設定を読み込みます。[CLI・エディターとの設定共有](./configuration.md)を確認してください。
 
 ## プロパティの引用符を設定する
 
-既存の Vite+ 設定で `fmt.vize.quoteProps` を指定し、スクリプトのオブジェクトキーの引用符を選びます。
+既存の Vite+ 設定で `vue.formatter.quoteProps` を指定し、スクリプトのオブジェクトキーの引用符を選びます。
 
 ```ts
 import { defineConfig } from "@vizejs/vite-plugin/vite-plus";
 
-export default defineConfig({
-  fmt: {
-    vize: { quoteProps: "preserve" },
-  },
+export default defineConfig({}).withVue({
+  formatter: { quoteProps: "preserve" },
 });
 ```
 
@@ -34,4 +32,4 @@ export default defineConfig({
 引用符の文字自体は、引き続き `singleQuote` で選びます。
 `quoteProps` はどのキーに引用符を付けるかを指定するもので、元の引用符の文字を保つ設定ではありません。
 
-CLI・エディターとの設定共有や、必要に応じて使う専用設定については、[設定ガイド](./configuration.md)でリリースごとの対応範囲を確認してください。
+CLI とエディターは `vite.config.*` の `vue.formatter` を共有します。設定の探索方法と、廃止された専用設定ファイルからの移行については、[設定ガイド](./configuration.md)を参照してください。

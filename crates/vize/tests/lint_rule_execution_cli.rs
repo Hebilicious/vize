@@ -2,6 +2,8 @@
 #![expect(clippy::disallowed_macros, reason = "fixtures use std strings")]
 #![expect(clippy::disallowed_types, reason = "fixtures use std strings")]
 
+#[path = "support/vite_config.rs"]
+mod vite_config;
 use std::{collections::BTreeSet, fs, path::Path, process::Command};
 
 fn write_project_file(root: &Path, path: &str, content: &str) {
@@ -51,8 +53,9 @@ fn configured_rules_reach_every_lint_execution_family() {
     let project_root = tempfile::tempdir().unwrap();
     write_project_file(
         project_root.path(),
-        "vize.config.json",
-        r#"{
+        "vite.config.mjs",
+        &vite_config::source(
+            r#"{
   "linter": {
     "preset": "incremental",
     "rules": {
@@ -64,6 +67,7 @@ fn configured_rules_reach_every_lint_execution_family() {
     }
   }
 }"#,
+        ),
     );
     write_project_file(
         project_root.path(),
@@ -97,7 +101,7 @@ await nextTick()
         .args([
             "lint",
             "--config",
-            "vize.config.json",
+            "vite.config.mjs",
             "--format",
             "json",
             "--max-warnings",
@@ -169,8 +173,8 @@ fn binding_values_keep_same_name_shorthand_and_reject_authored_empty_values() {
     let project_root = tempfile::tempdir().unwrap();
     write_project_file(
         project_root.path(),
-        "vize.config.json",
-        r#"{"linter":{"preset":"incremental","rules":{"vue/valid-v-bind":"error"}}}"#,
+        "vite.config.mjs",
+        r#"export default { vue: { linter: { preset: "incremental", rules: { "vue/valid-v-bind": "error" } } } };"#,
     );
     for (attribute, invalid) in [
         (r#":label="""#, true),
@@ -191,7 +195,7 @@ fn binding_values_keep_same_name_shorthand_and_reject_authored_empty_values() {
             .args([
                 "lint",
                 "--config",
-                "vize.config.json",
+                "vite.config.mjs",
                 "--format",
                 "json",
                 "--help-level",
