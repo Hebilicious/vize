@@ -2,7 +2,7 @@
 
 use super::{
     BlockIRNode, Box, ElementNode, ExpressionNode, IRProp, OperationNode, PropNode,
-    SimpleExpressionNode, SlotOutletIRNode, SourceLocation, String, TransformContext, Vec,
+    SimpleExpressionNode, SlotOutletIRNode, SourceLocation, TransformContext, Vec,
     transform_children,
 };
 use crate::ir::{SlotLayout, finish_slot_fallback};
@@ -183,9 +183,9 @@ pub(in crate::lower) fn transform_slot<'a>(
     block: &mut BlockIRNode<'a>,
 ) {
     let (props, scope, name) = get_slot_outlet_props_and_scope(ctx, el);
-    let (once, error, _) = scope.finish();
-    if let Some(error) = error {
-        ctx.push_diagnostic(String::from(error));
+    let (once, warning, _) = scope.finish();
+    if let Some(warning) = warning {
+        ctx.push_warning(warning);
     }
     if once {
         ctx.enter_non_reactive_scope();

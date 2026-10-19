@@ -32,6 +32,8 @@ pub(crate) struct TransformContext<'a> {
     /// Component slot bodies being lowered; their outlet fallbacks own boundaries.
     pub(crate) slot_content_depth: usize,
     pub(crate) diagnostics: std::vec::Vec<String>,
+    /// Recoverable notices, such as an ignored `v-memo`.
+    pub(crate) warnings: std::vec::Vec<String>,
     /// `Some` when a source map is requested.
     pub(crate) template_spans: Option<TemplateSpans>,
 }
@@ -54,6 +56,7 @@ impl<'a> TransformContext<'a> {
             structural_slot_spans: false,
             slot_content_depth: 0,
             diagnostics: std::vec::Vec::new(),
+            warnings: std::vec::Vec::new(),
             template_spans: None,
         }
     }
@@ -159,7 +162,7 @@ impl<'a> TransformContext<'a> {
         });
     }
 
-    pub(crate) fn push_diagnostic(&mut self, message: impl Into<String>) {
-        self.diagnostics.push(message.into());
+    pub(crate) fn push_warning(&mut self, message: impl Into<String>) {
+        self.warnings.push(message.into());
     }
 }
