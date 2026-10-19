@@ -43,8 +43,9 @@ pub use type_checker::{
 };
 pub use virtual_project::{
     BatchTopologyMetrics, CONTENT_MAPPER_GENERATED_DIAGNOSTIC_CODE,
-    CONTENT_MAPPER_SFC_PARSE_ERROR_CODE, CONTENT_MAPPER_VIRTUAL_EXTENSION, ContentMapperDiagnostic,
-    ContentMapperDiagnosticDirective, ContentMapperDiagnosticDirectives,
+    CONTENT_MAPPER_SFC_PARSE_ERROR_CODE, CONTENT_MAPPER_VIRTUAL_EXTENSION,
+    CompilerConfigurationAttempt, CompilerConfigurationSnapshot, ConfigurationObservations,
+    ContentMapperDiagnostic, ContentMapperDiagnosticDirective, ContentMapperDiagnosticDirectives,
     ContentMapperProjectConfiguration, ContentMapperSemanticLink, ContentMapperSpan,
     ContentMapperTransform, ContentMapperTransformOptions, ContentMapperUnusedExpectDiagnostic,
     JsxDocumentVirtualTs, OriginalPosition, PACKAGE_REACHABILITY_BUDGET_REVISION,

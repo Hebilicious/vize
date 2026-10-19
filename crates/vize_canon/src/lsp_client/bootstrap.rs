@@ -22,7 +22,10 @@ pub(super) fn resolve_corsa_executable(
     };
 
     match vize_carton::corsa_resolver::resolve_corsa_executable(request) {
-        Ok(path) => Ok(path.to_string_lossy().into()),
+        Ok(path) => {
+            tracing::info!(executable = %path.display(), "resolved native TypeScript runtime");
+            Ok(path.to_string_lossy().into())
+        }
         // Preserve the historical lenient fallback: spawning a bare `corsa`
         // still lets `PATH` changes made after resolution take effect.
         Err(CorsaResolveError::NotFound) => Ok("corsa".into()),
@@ -113,6 +116,7 @@ impl CorsaProjectClient {
             external_document_uris: Default::default(),
             temp_dir,
             editor_lsp,
+            shared_editor_transport_requested: shared_editor_transport,
             shared_editor_transport: project_session_attached_to_editor,
             project_session_attached_to_editor,
             original_diagnosing_session: None,

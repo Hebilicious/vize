@@ -1,6 +1,7 @@
 //! Filesystem identity for self-invalidating package-route caches.
 
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use vize_carton::FxHashMap;
 
@@ -21,6 +22,15 @@ enum InputKind {
     Directory,
     Symlink,
     Other,
+}
+
+/// Local counters for one opt-in validation; never shared across calls.
+#[derive(Default)]
+pub(crate) struct InputStampReadStats {
+    pub(crate) reads: usize,
+    pub(crate) bytes: u64,
+    pub(crate) read_time: Duration,
+    pub(crate) digest_time: Duration,
 }
 
 #[derive(Default)]
@@ -63,6 +73,36 @@ impl InputStampCache {
     }
 }
 
+/// Fresh physical snapshots shared only within one configuration validation.
+/// Every retained expected revision is compared; no expected stamp seeds this map.
+#[cfg(feature = "native")]
+#[derive(Default)]
+pub(crate) struct InputStampValidation {
+    current: FxHashMap<(PathBuf, bool), InputStamp>,
+}
+
+#[cfg(feature = "native")]
+impl InputStampValidation {
+    pub(crate) fn is_current(
+        &mut self,
+        expected: &InputStamp,
+        stats: Option<&mut InputStampReadStats>,
+    ) -> bool {
+        let (path, source_content) = expected.observation_identity();
+        let current = self
+            .current
+            .entry((path.to_path_buf(), source_content))
+            .or_insert_with(|| {
+                InputStamp::capture_input_observed(path.to_path_buf(), None, source_content, stats)
+            });
+        expected == &*current
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.current.len()
+    }
+}
+
 impl InputStamp {
     pub(crate) fn capture(path: impl Into<PathBuf>) -> Self {
         Self::capture_input(path.into(), None, false)
@@ -70,12 +110,20 @@ impl InputStamp {
 
     /// Keep the bytes registered in the semantic project as the authority.
     /// Re-reading disk here could acknowledge an edit the project never saw.
-    #[cfg(any(feature = "native", test))]
     pub(crate) fn capture_source(path: impl Into<PathBuf>, content: &[u8]) -> Self {
         Self::capture_input(path.into(), Some(content), true)
     }
 
     fn capture_input(path: PathBuf, content: Option<&[u8]>, source_content: bool) -> Self {
+        Self::capture_input_observed(path, content, source_content, None)
+    }
+
+    fn capture_input_observed(
+        path: PathBuf,
+        content: Option<&[u8]>,
+        source_content: bool,
+        stats: Option<&mut InputStampReadStats>,
+    ) -> Self {
         let metadata = std::fs::symlink_metadata(&path).ok();
         let modified = metadata
             .as_ref()
@@ -101,7 +149,7 @@ impl InputStamp {
             ((matches!(kind, Some(InputKind::File))
                 && !super::graph_inputs::is_large_lockfile(&path))
                 || (source_content && matches!(kind, Some(InputKind::Symlink))))
-            .then(|| std::fs::read(&path).ok().map(|content| digest(&content)))
+            .then(|| read_digest(&path, stats))
             .flatten()
         });
         let symlink_target = matches!(kind, Some(InputKind::Symlink))
@@ -118,8 +166,17 @@ impl InputStamp {
         }
     }
 
+    pub(crate) fn path(&self) -> &Path {
+        &self.path
+    }
+
     pub(crate) fn is_current(&self) -> bool {
         *self == Self::capture_input(self.path.clone(), None, self.source_content)
+    }
+
+    #[cfg(feature = "native")]
+    pub(crate) fn observation_identity(&self) -> (&Path, bool) {
+        (&self.path, self.source_content)
     }
 
     pub(crate) fn is_current_with_cache(&self, cache: &mut InputStampCache) -> bool {
@@ -162,6 +219,24 @@ pub(crate) fn canonicalize_changed_path(path: &Path) -> PathBuf {
     vize_carton::path::normalize_windows_verbatim_path(path.to_path_buf())
 }
 
+fn read_digest(path: &Path, stats: Option<&mut InputStampReadStats>) -> Option<u64> {
+    let Some(stats) = stats else {
+        return std::fs::read(path).ok().map(|content| digest(&content));
+    };
+    let started = Instant::now();
+    let content = std::fs::read(path);
+    stats.read_time += started.elapsed();
+    stats.reads += 1;
+    let content = content.ok()?;
+    stats.bytes += content.len() as u64;
+    let started = Instant::now();
+    let result = digest(&content);
+    stats.digest_time += started.elapsed();
+    Some(result)
+}
+
+// Private, process-local change detection, never a persisted/public artifact key.
+// Hash the complete byte slice with the established standard-library hasher.
 fn digest(content: &[u8]) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::hash::DefaultHasher::new();
@@ -200,6 +275,8 @@ pub(super) fn manifest_path(root: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::{InputStamp, InputStampCache};
+    #[cfg(feature = "native")]
+    use super::{InputStampReadStats, InputStampValidation};
 
     #[test]
     fn stamp_cache_captures_each_path_once_per_epoch() {
@@ -232,6 +309,42 @@ mod tests {
         assert_eq!(cache.captures(), 1);
     }
 
+    #[test]
+    fn same_size_and_mtime_edits_still_change_full_content_stamps() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("config.json");
+        let mut content = vec![b' '; 8193];
+        std::fs::write(&path, &content).unwrap();
+        let physical = InputStamp::capture(&path);
+        let source = InputStamp::capture_source(&path, &content);
+        let original = std::fs::metadata(&path).unwrap();
+        #[cfg(feature = "native")]
+        let observed = crate::ConfigurationObservations::capture(std::slice::from_ref(&path));
+        #[cfg(feature = "native")]
+        assert!(observed.changed_paths().is_empty());
+        assert!(physical.is_current());
+        assert!(source.is_current());
+
+        // Preserve metadata and the complete prefix; only the final byte changes.
+        *content.last_mut().unwrap() = b'!';
+        std::fs::write(&path, &content).unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_times(std::fs::FileTimes::new().set_modified(original.modified().unwrap()))
+            .unwrap();
+        let modified = std::fs::metadata(&path).unwrap();
+        assert_eq!(modified.len(), original.len());
+        assert_eq!(modified.modified().unwrap(), original.modified().unwrap());
+        assert!(!physical.is_current());
+        assert!(!source.is_current());
+        #[cfg(feature = "native")]
+        assert_eq!(observed.changed_paths(), vec![path.clone()]);
+        assert!(InputStamp::capture(&path).is_current());
+        assert!(InputStamp::capture_source(&path, &content).is_current());
+    }
+
     #[cfg(unix)]
     #[test]
     fn source_stamps_track_symlink_content_and_target_without_becoming_always_dirty() {
@@ -251,5 +364,38 @@ mod tests {
         std::os::unix::fs::symlink(&other, &link).unwrap();
         assert!(!stamp.is_current());
         assert!(InputStamp::capture_source(&link, content).is_current());
+    }
+
+    #[cfg(feature = "native")]
+    #[test]
+    fn validation_compares_every_consumed_revision_to_fresh_bytes_in_both_orders() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("source.ts");
+        std::fs::write(&path, b"omega").unwrap();
+        let stale = InputStamp::capture_source(&path, b"alpha");
+        let current = InputStamp::capture_source(&path, b"omega");
+        for (stamps, expected) in [
+            ([&stale, &current], [false, true]),
+            ([&current, &stale], [true, false]),
+        ] {
+            let mut validation = InputStampValidation::default();
+            let mut stats = InputStampReadStats::default();
+            let actual = stamps.map(|stamp| validation.is_current(stamp, Some(&mut stats)));
+            assert_eq!(actual, expected);
+            assert_eq!(validation.len(), 1);
+            assert_eq!(stats.reads, 1);
+            assert_eq!(stats.bytes, 5);
+        }
+    }
+
+    #[cfg(feature = "native")]
+    #[test]
+    fn validation_does_not_reuse_absence_across_calls() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("absent.json");
+        let observed = crate::ConfigurationObservations::capture(std::slice::from_ref(&path));
+        assert!(observed.changed_paths().is_empty());
+        std::fs::write(&path, b"{}").unwrap();
+        assert_eq!(observed.changed_paths(), vec![path]);
     }
 }
