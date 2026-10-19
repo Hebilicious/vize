@@ -8,7 +8,7 @@
 // 3. Skip publish entirely when the exact version is already visible.
 // 4. Treat a non-zero `vsce publish` exit as success if the version becomes
 //    visible immediately after the attempted publish.
-import { collectOutput, println, run, runMain, sleepSeconds, writeStderr } from "../command_io.ts";
+import { collectOutput, println, run, runMain, sleepSeconds } from "../command_io.ts";
 import { cliArgs, moonTrim, nonEmptyEnv, resolvePath } from "../command_runtime.ts";
 import {
   envIntAtLeast,
@@ -104,6 +104,9 @@ export async function publishVscodeExtension(args: readonly string[]): Promise<n
     publishArgs.push("--pre-release");
   }
   const exitCode = await run(dlxBin, vsceDlxArgs(dlxBin, "publish", publishArgs));
+  // A successful publish is final; the Marketplace can take 5+ min to list it.
+  if (exitCode === 0) return 0;
+  // A failed exit may still have published, so only then wait for the listing.
   if (
     await waitForExtensionVisibility(
       dlxBin,
@@ -113,18 +116,10 @@ export async function publishVscodeExtension(args: readonly string[]): Promise<n
       resolutionDelaySeconds,
     )
   ) {
-    if (exitCode !== 0) {
-      println(
-        `${extensionInfo.extensionId} ${extensionInfo.version} was published despite a non-zero vsce publish exit.`,
-      );
-    }
-    return 0;
-  }
-  if (exitCode === 0) {
-    writeStderr(
-      `VS Code Marketplace did not expose ${extensionInfo.extensionId} ${extensionInfo.version} before the visibility deadline.\n`,
+    println(
+      `${extensionInfo.extensionId} ${extensionInfo.version} was published despite a non-zero vsce publish exit.`,
     );
-    return 1;
+    return 0;
   }
   return exitCode;
 }
