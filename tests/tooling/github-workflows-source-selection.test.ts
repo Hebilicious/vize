@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parse } from "yaml";
+import { planNativeRuntime } from "../../tools/support/compat/github/plan-native-runtime.ts";
 import { RUST_TEST_COHORT_IDS } from "../../tools/support/compat/github/rust-test-cohorts.ts";
 import { readRepoFile, requireDailySourceContracts } from "./support/github-workflows.ts";
 
@@ -14,6 +15,8 @@ type Step = {
   "continue-on-error"?: boolean;
 };
 type Job = {
+  uses?: string;
+  "timeout-minutes"?: number;
   name?: string;
   permissions?: Record<string, string>;
   if?: string;
@@ -361,4 +364,137 @@ test("unchanged queue gate hydrates the same pinned fixture for all five full Ru
     'node "$GITHUB_ACTION_PATH/hydrate-pinned-fixture.ts" "$GITHUB_WORKSPACE" "$FIXTURE_PATH"',
   );
   assert.equal(action.runs.steps[0]!["continue-on-error"], undefined);
+});
+
+test("existing source CLI producer qualifies every formatter semantic case with strict custody", () => {
+  const continuation = "tests/tooling/formatter-continuation-prefix-width.test.mjs";
+  const buildRun =
+    "cargo build --locked --profile ci -p vize\nnode tests/differential/build-receipt.ts\n";
+  const dependenciesRun =
+    "node tools/support/github/vp-install.ts --filter vize-workspace --filter './npm/native...' --filter './npm/ui...' --filter './tests...'";
+  const lspName = "Test actual source LSP feature and project responses";
+  const replayName = "Replay complete formatter CLI stock semantics with the source CLI";
+  const uploadName = "Preserve complete source formatter semantic observations";
+  type Action = { runs: { steps: Step[] } };
+  const action = parse(readRepoFile(".github/actions/test-native-lsp/action.yml")) as Action;
+  const check = parse(readRepoFile(".github", "workflows", "check.yml")) as typeof source;
+  const requireReplay = (flow: typeof source, producer: typeof action, outer: typeof check) => {
+    const job = flow.jobs["pr-native-runtime"];
+    const steps = job.steps ?? [];
+    const deps = steps.find((step) => step.name === "Install native runtime oracle dependencies");
+    const lsp = steps.find((step) => step.name === lspName);
+    const replay = steps.find((step) => step.name === replayName);
+    const upload = steps.find((step) => step.name === uploadName);
+    assert.ok(deps && lsp && replay && upload);
+    assert.equal(deps.run, dependenciesRun);
+    assert.equal(lsp.uses, "./.github/actions/test-native-lsp");
+    assert.equal(lsp.if, "${{ matrix.lane == 'lsp' }}");
+    assert.equal(lsp["continue-on-error"], undefined);
+    assert.equal(producer.runs.steps[0].if, undefined);
+    assert.equal(producer.runs.steps[0]["continue-on-error"], undefined);
+    assert.equal(job.if, undefined);
+    assert.equal(producer.runs.steps[0].run, buildRun);
+    assert.ok(steps.indexOf(deps) < steps.indexOf(lsp));
+    assert.ok(steps.indexOf(lsp) < steps.indexOf(replay));
+    assert.ok(steps.indexOf(replay) < steps.indexOf(upload));
+    assert.equal(replay.if, "${{ success() && matrix.lane == 'lsp' }}");
+    const recipe = replay.run ?? "";
+    // These closed commands have no quoted arguments; never normalize shell literals.
+    assert.doesNotMatch(recipe, /^[ \t]*#.*\\\r?$/m);
+    assert.doesNotMatch(recipe.replace(/^[ \t]*#.*$/gm, ""), /['"`]/);
+    assert.deepEqual(
+      recipe
+        .replace(/\\\r?\n/g, "")
+        .split(/\r?\n/)
+        .filter((line) => /[^ \t]/.test(line) && !/^[ \t]*#/.test(line))
+        .map((line) => line.replace(/[ \t]+/g, " ").replace(/^ | $/g, "")),
+      [
+        "set -euo pipefail",
+        "mkdir -p target/differential",
+        "node --test tests/tooling/formatter-expression-width-semantics.test.mjs tests/tooling/formatter-continuation-prefix-width.test.mjs 2>&1 | tee target/differential/formatter-source.log",
+      ],
+    );
+    assert.equal(replay.env, undefined);
+    assert.equal(replay["continue-on-error"], undefined);
+    assert.equal(Object.hasOwn(replay, "timeout-minutes"), false);
+    assert.equal(job["timeout-minutes"], 15);
+    assert.equal(upload.if, "${{ always() && matrix.lane == 'lsp' }}");
+    assert.equal(upload.uses, "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a");
+    assert.deepEqual(upload.with, {
+      name: "source-formatter-semantics-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}",
+      path: "target/differential/formatter-expression-width-semantics.json\ntarget/differential/formatter-continuation-prefix-width.json\ntarget/differential/formatter-source.log\ntarget/ci/vize.differential-build.json\n",
+      "if-no-files-found": "error",
+      "retention-days": 7,
+    });
+    assert.equal(upload["continue-on-error"], undefined);
+    assert.equal(job["continue-on-error"], undefined);
+    assert.equal(job.needs, "pr-source-plan");
+    assert.ok(flow.jobs["source-report"].needs?.includes("pr-native-runtime"));
+    assert.equal(outer.jobs["pr-source-checks"].uses, "./.github/workflows/pr-source-checks.yml");
+    assert.ok(outer.jobs["test-report"].needs?.includes("pr-source-checks"));
+  };
+  requireReplay(source, action, check);
+  for (const path of [
+    ".github/workflows/pr-source-checks.yml",
+    "tests/tooling/formatter-expression-width-semantics.test.mjs",
+    "tests/tooling/formatter-continuation-prefix-width.test.mjs",
+    "tests/tooling/support/formatter-expression-width-semantics.mjs",
+    "tests/tooling/support/formatter-continuation-semantics.mjs",
+    "tests/tooling/support/sfc-equivalence.ts",
+    "tests/tooling/support/babel-expression-signature.ts",
+    "tests/tooling/support/sfc-equivalence/blocks.ts",
+    "tests/tooling/support/sfc-opening-tag.ts",
+    "tests/_fixtures/differential/formatter-regressions/expression-print-width-7876/corpus.json",
+    "tests/_fixtures/differential/formatter-regressions/continuation-prefix-width-7876/original-example.input",
+  ])
+    assert.ok(planNativeRuntime([path]).matrix.lane.includes("lsp"), path);
+  for (const path of [
+    "README.md",
+    "tests/tooling/formatter-continuation-reference.test.mjs",
+    "tests/tooling/support/sfc-equivalence.ts.map",
+    "tests/tooling/support/babel-expression-signature.ts.map",
+    "tests/tooling/support/sfc-equivalence/blocks.ts.map",
+    "tests/tooling/support/sfc-opening-tag.ts.map",
+    "tests/_fixtures/differential/formatter-regressions/continuation-prefix-width-78760/corpus.json",
+  ])
+    assert.deepEqual(planNativeRuntime([path]).matrix.lane, ["none"], path);
+  for (const kind of "producer producer-skip job-skip dependency caller skip partial advisory provider upload detached formatting quoted inline continued-comment heredoc comment".split(
+    " ",
+  )) {
+    const flow = structuredClone(source),
+      producer = structuredClone(action),
+      outer = structuredClone(check);
+    const steps = flow.jobs["pr-native-runtime"].steps!;
+    const replay = steps.find((step) => step.name === replayName)!;
+    const upload = steps.find((step) => step.name === uploadName)!;
+    if (kind === "producer")
+      producer.runs.steps[0].run = "node tests/differential/build-receipt.ts\n";
+    if (kind === "producer-skip") producer.runs.steps[0].if = "${{ false }}";
+    if (kind === "job-skip") flow.jobs["pr-native-runtime"].if = "${{ false }}";
+    if (kind === "dependency")
+      steps.find((step) => step.name === "Install native runtime oracle dependencies")!.run =
+        "vp install --filter './tests...'";
+    if (kind === "caller")
+      steps.find((step) => step.name === lspName)!.uses = "./.github/actions/borrowed-cli";
+    if (kind === "skip") replay.if = "${{ false }}";
+    if (kind === "partial")
+      replay.run = replay.run!.replace(continuation, "--test-name-pattern partial");
+    if (kind === "advisory") replay["continue-on-error"] = true;
+    if (kind === "provider") replay.env = { PUBLIC_CONSUMER: "/borrowed" };
+    if (kind === "upload") upload.if = "${{ success() }}";
+    if (kind === "detached") outer.jobs["test-report"].needs = [];
+    if (kind === "formatting")
+      replay.run = `# "comment"\n\n${replay.run!.replace("--test ", "--test \\\n ")}`;
+    if (kind === "quoted")
+      replay.run = replay.run!.replace("node --test ", 'node --test "  literal whitespace  " ');
+    if (kind === "inline")
+      replay.run = replay.run!.replace("--test ", "--test # inline changes argv ");
+    if (kind === "continued-comment")
+      replay.run = replay.run!.replace("--test ", "--test \\\n# comment\n ");
+    if (kind === "heredoc")
+      replay.run = replay.run!.replace("--test ", "--test <<EOF\npayload\nEOF\n");
+    if (kind === "comment") replay.run = "# \\\nUNEXPECTED_COMMAND\n" + replay.run;
+    if (kind === "formatting") requireReplay(flow, producer, outer);
+    else assert.throws(() => requireReplay(flow, producer, outer), assert.AssertionError, kind);
+  }
 });
