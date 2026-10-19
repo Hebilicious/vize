@@ -7,12 +7,12 @@ defineProps<{
   dependents?: string[];
 }>();
 
-const titleId = useId();
-
 const emit = defineEmits<{
   close: [];
   confirm: [];
 }>();
+
+const titleId = useId();
 </script>
 
 <template>
