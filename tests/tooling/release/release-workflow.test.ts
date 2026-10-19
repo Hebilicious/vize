@@ -155,7 +155,9 @@ test("registry visibility is checked once, after publishing, and gates only JSR"
 });
 
 test("the stamp reaches every tracked non-private npm and editor manifest", async () => {
-  const extra = new Set(await extraReleasePackageJsonPaths());
+  const extra = new Set(
+    (await extraReleasePackageJsonPaths()).map((file) => file.replaceAll("\\", "/")),
+  );
   const tracked = execFileSync("git", ["ls-files", "-z", "--", "editors", "npm"], { cwd: root })
     .toString()
     .split("\0")
@@ -175,4 +177,9 @@ test("the stamp rewrites aliased fork pins and keeps upstream versions", () => {
     updateWorkspaceManifestVersions(input, "0.430.0", "0.430.1"),
     input.replaceAll("0.430.0", "0.430.1"),
   );
+});
+
+test("Open VSX publication tolerates ovsx dependency build scripts", () => {
+  const job = (workflow.jobs["publish-open-vsx"] as Job & { env?: Record<string, string> }).env;
+  assert.equal(job?.PNPM_CONFIG_STRICT_DEP_BUILDS, "false");
 });
