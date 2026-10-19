@@ -1,4 +1,5 @@
-//! Shared raw-line ownership for directive reanchoring and both printers.
+//! Lexical raw-line ownership, the fallback of `literal_spans::ValueLines` for
+//! values that do not parse on their own (e.g. `v-for` aliases).
 //! Mirrors existing quasi/substitution tracking, adding legal continued quotes
 //! and rendered quote entities. Retains the prior raw-byte quasi ownership as
 //! a lower bound; the assignment-regexp shield is deliberately bounded.
@@ -98,10 +99,6 @@ impl LiteralLineState {
             }
             self.inherited_escaped = byte == b'\\' && !self.inherited_escaped;
         }
-    }
-
-    pub(crate) fn line_holds_code(&self, line: &str) -> bool {
-        !self.line_is_raw() && !line.trim().is_empty()
     }
 
     pub(crate) fn advance_line(&mut self, line: &str) {
