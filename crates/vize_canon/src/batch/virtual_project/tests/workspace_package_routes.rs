@@ -116,6 +116,7 @@ fn package_shadow_preserves_user_paths_and_raw_manifest() {
         context: PackageResolutionContext::default(),
         route: Some(route),
         invalidation_paths: vec![manifest_path.clone(), component_path.clone()],
+        shared_invalidation_paths: Vec::new(),
     }]);
     let context = &project.package_routes_snapshot()[0].context;
     assert_eq!(context.module_resolution.as_deref(), Some("bundler"));
@@ -258,6 +259,7 @@ fn measured_warm_package_patch(route_count: usize) -> WarmWork {
                 nested_routes: Vec::new(),
             }),
             invalidation_paths: vec![source, root.join("package.json")],
+            shared_invalidation_paths: Vec::new(),
         });
     }
 
@@ -299,4 +301,41 @@ fn measured_warm_package_patch(route_count: usize) -> WarmWork {
     };
     let _ = fs::remove_dir_all(&project_root);
     work
+}
+
+#[test]
+fn one_registration_pass_scans_each_route_once_for_all_importers() {
+    let root = unique_case_dir("reachability-memo");
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join("src/lib")).unwrap();
+    fs::write(
+        root.join("package.json"),
+        r##"{"type":"module","imports":{"#lib/*":"./src/lib/*"}}"##,
+    )
+    .unwrap();
+    fs::write(
+        root.join("tsconfig.json"),
+        r#"{"compilerOptions":{"module":"ESNext","moduleResolution":"Bundler","allowImportingTsExtensions":true,"noEmit":true},"include":["src/**/*"]}"#,
+    )
+    .unwrap();
+    fs::write(root.join("src/lib/util.ts"), "export const one = 1;\n").unwrap();
+    let importers = ["src/one.ts", "src/two.ts"].map(|path| root.join(path));
+    for importer in &importers {
+        fs::write(importer, "export { one } from '#lib/util.ts';\n").unwrap();
+    }
+
+    let mut project = VirtualProject::new(&root).unwrap();
+    for importer in &importers {
+        project.register_path(importer).unwrap();
+    }
+    let mut memo = Default::default();
+    project.reconcile_package_routes_for_importers_with(&importers[..1], &mut memo);
+    project.reconcile_package_routes_for_importers_with(&importers[1..], &mut memo);
+
+    assert_eq!(project.package_route_metrics().reachability_checks, 1);
+    let bindings = project.package_routes_snapshot();
+    assert_eq!(bindings.len(), 2, "{bindings:#?}");
+    let set = |index: usize| bindings[index].shared_invalidation_paths[0].as_ptr();
+    assert_eq!(set(0), set(1), "importers share one reachability set");
+    let _ = fs::remove_dir_all(&root);
 }
