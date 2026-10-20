@@ -1382,6 +1382,53 @@
           "sha256": "2ad499a9665600b7ce468b7568641491f1262c3010dc40d5d4c53b2b5b775412"
         }
       ]
+    },
+    {
+      "id": "typechecker/listener-attribute-parity-9852/class-style-and-spread-listeners",
+      "state": "active",
+      "targets": [
+        "batch"
+      ],
+      "adapters": {
+        "legacy": "batch-typechecker-fixture-v1",
+        "native": null
+      },
+      "pack": "listener-attribute-parity-9852",
+      "case": "class-style-and-spread-listeners",
+      "test": "listener_keeps_class_style_and_spread_attribute_parity",
+      "regressionCommit": "11cb03950bc8d2a4e9cb8d164b0aaca79e302291",
+      "sourceRevision": "11cb03950bc8d2a4e9cb8d164b0aaca79e302291",
+      "packReference": {
+        "path": "listener-attribute-parity-9852/cases.json",
+        "sha256": "1e131a3d05517fb1dbfd4f7ffe593986e8ed08f803fb09e0d542fc52acafe8eb"
+      },
+      "inputs": [
+        {
+          "file": "tsconfig.json",
+          "path": "listener-attribute-parity-9852/tsconfig.json.txt",
+          "sha256": "e36b280dce185f4be85cbff1838c0ee06d8d7a46b38b3e63df995c0decd7b13b"
+        },
+        {
+          "file": "src/MyButton.vue",
+          "path": "listener-attribute-parity-9852/src/MyButton.vue.txt",
+          "sha256": "dd3a4e3cd999f2236d3f0e4592727b63ae5fc6179c2b78b2d88eac114301d0df"
+        },
+        {
+          "file": "src/App.vue",
+          "path": "listener-attribute-parity-9852/src/App.vue.txt",
+          "sha256": "83a65eb7f5ab8b7bf2c53184d6b89920cd2ff49aba6b29c4485316fb9992f4b0"
+        },
+        {
+          "file": "src/Card.vue",
+          "path": "listener-attribute-parity-9852/src/Card.vue.txt",
+          "sha256": "b71b7d589eabdc6c3607399f87162e1ca18bcf9061769f5cbc88845ee9f6f9b3"
+        },
+        {
+          "file": "src/Spread.vue",
+          "path": "listener-attribute-parity-9852/src/Spread.vue.txt",
+          "sha256": "c726f210eaba328ff6e53ff8ca53ab0d78de169931ed586462bb42b8bfac16df"
+        }
+      ]
     }
   ]
 }
