@@ -29,7 +29,7 @@ use crate::{String, dialect::VueDialect};
 pub use compiler::{JsxCompat, JsxMode};
 pub(crate) use entries::RawConfigEntry;
 pub use entries::{
-    ConfigEntryFiles, ConfigEntryIgnore, LinterConfigEntry, LinterConfigPlan,
+    CompilerConfigEntry, ConfigEntryFiles, ConfigEntryIgnore, LinterConfigEntry, LinterConfigPlan,
     LinterConfigPlanWithConfigRuleOptions, LinterConfigPlanWithRuleOptions, ResolvedLinterConfig,
     ResolvedLinterConfigWithConfigRuleOptions,
 };

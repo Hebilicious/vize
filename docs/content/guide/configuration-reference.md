@@ -115,8 +115,8 @@ Vue 2.7 and Nuxt 2 compatibility require the separate `legacy` build. `vue.typeC
 
 ## Experimental Flat Entries
 
-Use the target package's TypeScript project for monorepo checking. Scoped Vue lint
-settings can use `vue.entries`:
+Use the target package's TypeScript project for monorepo checking. Scoped compiler
+and Vue lint settings can use `vue.entries`:
 
 ```ts
 export default defineConfig({
@@ -125,6 +125,7 @@ export default defineConfig({
     entries: [
       {
         files: ["src/trusted/**/*.vue"],
+        compiler: { whitespace: "condense" },
         linter: { rules: { "vue/no-v-html": "off" } },
       },
     ],
@@ -132,7 +133,7 @@ export default defineConfig({
 });
 ```
 
-Entries accept `basePath`, `files`, `ignores` and `linter`; other sections remain
+Entries accept `basePath`, `files`, `ignores`, `compiler` and `linter`; other sections remain
 project-wide. Do not move TypeScript project references into these entries.
 
 ## Shared Bases with `extends`

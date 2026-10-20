@@ -75,9 +75,9 @@ export default defineConfig({
 });
 ```
 
-Canonical entries currently accept `name`, `basePath`, `files`, `ignores` and
-`linter`. Other sections and `version` remain project-wide; placing them in an
-entry is an error. The CLI's scoped linter policy retains its existing behavior.
+Canonical entries accept `name`, `basePath`, `files`, `ignores`, `compiler` and
+`linter`. Matching compiler options apply per file in Vite and the CLI. Other
+sections and `version` remain project-wide; placing them in an entry is an error.
 Per-file editor scope support and additional scoped sections remain unfinished.
 
 ## TypeScript project settings
