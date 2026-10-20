@@ -56,7 +56,7 @@ fn did_change_publishes_versioned_lint_before_held_native_diagnostics() {
     let server = fixture.service.inner();
     let native = futures::executor::block_on(server.state.corsa_request_scope());
     let edited = ORIGINAL.replace(" alt=\"\"", "");
-    let mut change = Box::pin(server.apply_document_changes(
+    let change = server.apply_document_changes(
         &fixture.app,
         vec![TextDocumentContentChangeEvent {
             range: None,
@@ -64,13 +64,16 @@ fn did_change_publishes_versioned_lint_before_held_native_diagnostics() {
             text: edited,
         }],
         3,
-    ));
+    );
 
     assert!(
-        change.as_mut().now_or_never().is_some(),
+        crate::runtime::block_on(crate::runtime::timeout(
+            std::time::Duration::from_secs(5),
+            change,
+        ))
+        .is_ok(),
         "didChange waited for the held native diagnostic pass"
     );
-    drop(change);
     let expected = sync_packet(&fixture);
     assert_eq!(
         diagnostics(drain(&mut fixture.socket, async {})),
