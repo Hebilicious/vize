@@ -1,5 +1,14 @@
+/// <reference lib="dom" />
 import assert from "node:assert/strict";
 import type { Browser, Page } from "playwright";
+import type { PluginOption } from "vite";
+
+// The published plugins resolve from the installed acceptance project, not this checkout.
+const publishedVitePlugin: string = "@vizejs/vite-plugin";
+const publishedMuseaPlugin: string = "@vizejs/vite-plugin-musea";
+const isPluginFactory = (
+  value: unknown,
+): value is (options?: Record<string, unknown>) => PluginOption => typeof value === "function";
 
 export async function frames(
   page: Page,
@@ -82,8 +91,9 @@ export async function checkLegacy(
   observe?: (page: Page) => void,
 ) {
   const { createServer } = await import("vite");
-  const { default: vize } = await import("@vizejs/vite-plugin");
-  const { musea } = await import("@vizejs/vite-plugin-musea");
+  const { default: vize }: { default: unknown } = await import(publishedVitePlugin);
+  const { musea }: { musea: unknown } = await import(publishedMuseaPlugin);
+  assert.ok(isPluginFactory(vize) && isPluginFactory(musea), "published plugin exports changed");
   const legacy = await createServer({
     root: process.cwd(),
     configFile: false,

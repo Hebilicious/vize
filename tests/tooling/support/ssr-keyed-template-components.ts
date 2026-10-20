@@ -379,7 +379,8 @@ export async function observeKeyedTemplates(input: Packet, seams: Seams) {
         assert(profile.client.vaporInteropPlugin);
         app.use(profile.client.vaporInteropPlugin);
       }
-      app.mount(host);
+      // Vue types its container as the DOM Element; happy-dom supplies its own.
+      app.mount(host as unknown as Element);
       await profile.client.nextTick();
       const after = nodes(host);
       const graph = {

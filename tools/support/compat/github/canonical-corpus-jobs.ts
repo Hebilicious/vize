@@ -29,7 +29,11 @@ export async function readCanonicalJobs(options: Options, run: Run) {
   });
   const ids = new Set<number>();
   const workers = checks
-    .filter((check) => /(?:^| \/ )canonical observer \(([^)]+)\)$/.test(check.name ?? ""))
+    .filter(
+      (check) =>
+        typeof check.name === "string" &&
+        /(?:^| \/ )canonical observer \(([^)]+)\)$/.test(check.name),
+    )
     .map((check) => {
       const checkId = check.id;
       if (typeof checkId !== "number" || !Number.isSafeInteger(checkId) || checkId <= 0) {
@@ -37,10 +41,16 @@ export async function readCanonicalJobs(options: Options, run: Run) {
       }
       assert(!ids.has(checkId), "Duplicate canonical check ID");
       ids.add(checkId);
-      assert.equal(check.check_suite?.id, run.check_suite_id, "Foreign canonical check suite");
+      const suite = check.check_suite;
+      assert.ok(
+        suite !== null && typeof suite === "object" && "id" in suite,
+        "Foreign canonical check suite",
+      );
+      assert.equal(suite.id, run.check_suite_id, "Foreign canonical check suite");
       assert.equal(check.head_sha, run.head_sha, "Foreign canonical check head");
       const checkUrl = `${options.apiUrl}/repos/${options.repository}/check-runs/${checkId}`;
       assert.equal(check.url, checkUrl, "Foreign canonical check URL");
+      assert.ok(typeof check.details_url === "string", "Foreign canonical job URL");
       const details = new URL(check.details_url);
       const prefix = `/${options.repository}/actions/runs/${run.id}/job/`;
       assert.equal(details.origin, new URL(options.serverUrl).origin, "Foreign canonical job host");

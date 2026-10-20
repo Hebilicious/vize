@@ -130,7 +130,8 @@ test("the fresh-project matrix exercises a project path with spaces and non-ASCI
     FRESH_INIT_MATRIX.some((cell) => {
       const directory = cell.projectDirectory ?? "";
       return (
-        directory.includes(" ") && [...directory].some((character) => character.charCodeAt(0) > 127)
+        directory.includes(" ") &&
+        Array.from(directory).some((character) => character.charCodeAt(0) > 127)
       );
     }),
     "fresh-install smoke must exercise a spaced Unicode project path",

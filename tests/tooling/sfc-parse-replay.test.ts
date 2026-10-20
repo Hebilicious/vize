@@ -72,7 +72,10 @@ test("every case has three adjacent AB and BA pairs and balanced case positions"
   const plan = pairPlan();
   assert.equal(plan.length, 6);
   for (const name of CASES) {
-    assert.deepEqual(plan.map((row) => row.cases.indexOf(name)).sort(), [0, 0, 1, 1, 2, 2]);
+    assert.deepEqual(
+      plan.map((row) => row.cases.indexOf(name)).sort((left, right) => left - right),
+      [0, 0, 1, 1, 2, 2],
+    );
   }
   assert.equal(plan.filter((row) => row.sides.join("/") === "base/head").length, 3);
   assert.equal(plan.filter((row) => row.sides.join("/") === "head/base").length, 3);

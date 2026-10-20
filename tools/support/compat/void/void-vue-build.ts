@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 // Exercise the candidate Vite adapter, source native compiler and CLI in a real
 // Void (@void/vue) app: build, workerd SSR, dev SSR + HMR, check, lint, fmt.
 import assert from "node:assert/strict";

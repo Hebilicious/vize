@@ -23,22 +23,42 @@ const detectors = [
 ];
 const unitOutput = "target/unused-bindings-units";
 
+type CargoPacket = { reason?: string; filenames?: string[] };
+type UnitGap = { filename: string; hash?: string; reason: string };
+type UnitFingerprint = { filename: string; hash: string; source: string; path: string };
+type Unit = {
+  log: string;
+  line: number;
+  packet: CargoPacket;
+  fingerprints: UnitFingerprint[];
+  gaps: UnitGap[];
+};
+type TestResults = { cases: [string, string][]; summaries: string[][] };
+type Run = {
+  suite: string;
+  profile: string;
+  command: string[];
+  exitCode: number | null;
+  durationMs: number | null;
+  results?: TestResults;
+};
+
 // Cargo output hashes authenticate a bounded fingerprint directory. Unhashed
 // final executables cannot be associated by crate name alone: report that gap.
-export function collectUnitEvidence(output, target, context = {}) {
+export function collectUnitEvidence(output: string, target: string, context: object = {}) {
   mkdirSync(output, { recursive: true });
   const canonicalTarget = realpathSync(target);
-  const inside = (path) => {
+  const inside = (path: string) => {
     const name = relative(canonicalTarget, realpathSync(path));
     return name !== ".." && !name.startsWith("../") && !isAbsolute(name);
   };
   const report = {
     status: "no compiler artifacts observed",
     context,
-    logs: [],
-    units: [],
-    buildScripts: [],
-    parseGaps: [],
+    logs: [] as string[],
+    units: [] as Unit[],
+    buildScripts: [] as { log: string; line: number; packet: CargoPacket }[],
+    parseGaps: [] as { log: string; line: number; reason: string }[],
   };
   for (const log of readdirSync(output)
     .filter((name) => name.endsWith(".jsonl"))
@@ -46,7 +66,7 @@ export function collectUnitEvidence(output, target, context = {}) {
     const lines = readFileSync(join(output, log), "utf8").split(/\r?\n/);
     report.logs.push(log);
     for (const [index, line] of lines.entries()) {
-      let packet;
+      let packet: CargoPacket | null;
       try {
         packet = JSON.parse(line);
       } catch {
@@ -61,10 +81,10 @@ export function collectUnitEvidence(output, target, context = {}) {
       if (packet?.reason === "build-script-executed")
         report.buildScripts.push({ log, line: index + 1, packet });
       if (packet?.reason !== "compiler-artifact") continue;
-      const unit = { log, line: index + 1, packet, fingerprints: [], gaps: [] };
+      const unit: Unit = { log, line: index + 1, packet, fingerprints: [], gaps: [] };
       report.units.push(unit);
-      const seen = new Set();
-      for (const filename of packet.filenames) {
+      const seen = new Set<string>();
+      for (const filename of packet.filenames ?? []) {
         if (!existsSync(filename) || !inside(filename)) {
           unit.gaps.push({ filename, reason: "output missing or outside target" });
           continue;
@@ -128,12 +148,12 @@ export function collectUnitEvidence(output, target, context = {}) {
   return report;
 }
 
-export function testResults(stdout) {
-  const cases = [];
-  const summaries = [];
+export function testResults(stdout: string): TestResults {
+  const cases: [string, string][] = [];
+  const summaries: string[][] = [];
   for (const line of stdout.split(/\r?\n/)) {
     const row = /^test (.+) \.\.\. (ok|ignored(?:, .*)?|FAILED)$/.exec(line);
-    if (row) cases.push([row[1], row[2]]);
+    if (row?.[1] && row[2]) cases.push([row[1], row[2]]);
     const summary =
       /^test result: (ok|FAILED)\. (\d+) passed; (\d+) failed; (\d+) ignored; (\d+) measured; (\d+) filtered out;/.exec(
         line,
@@ -158,11 +178,12 @@ export function testResults(stdout) {
   assert.equal(cases.filter((row) => row[1] === "ok").length, counts.passed);
   assert.equal(cases.filter((row) => row[1].startsWith("ignored")).length, counts.ignored);
   assert.equal(cases.length, counts.passed + counts.ignored);
-  const order = (left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right));
+  const order = (left: unknown, right: unknown) =>
+    JSON.stringify(left).localeCompare(JSON.stringify(right));
   return { cases: cases.sort(order), summaries: summaries.sort(order) };
 }
 
-export function compareResults(before, after, suite) {
+export function compareResults(before: TestResults, after: TestResults, suite: string) {
   assert.deepEqual(after, before, `${suite}: testcase/status or Cargo summary drift`);
   const required =
     suite === "fact_demand"
@@ -181,19 +202,16 @@ async function main() {
   const output = "target/unused-bindings-profiles";
   mkdirSync(output, { recursive: true });
   mkdirSync(unitOutput, { recursive: true });
-  const commandOutput = (command, args) => execFileSync(command, args, { encoding: "utf8" }).trim();
-  assert.ok(process.env.VIZE_DAVINCI_FACT_CORPUS, "The pinned corpus must be hydrated");
+  const commandOutput = (command: string, args: string[]) =>
+    execFileSync(command, args, { encoding: "utf8" }).trim();
+  const corpus = process.env.VIZE_DAVINCI_FACT_CORPUS;
+  assert.ok(corpus, "The pinned corpus must be hydrated");
   const identity = () => ({
     source: commandOutput("git", ["rev-parse", "HEAD"]),
     rustc: commandOutput("rustc", ["-Vv"]),
     cargo: commandOutput("cargo", ["-V"]),
-    corpus: process.env.VIZE_DAVINCI_FACT_CORPUS,
-    submodules: commandOutput("git", [
-      "submodule",
-      "status",
-      "--",
-      ...process.env.VIZE_DAVINCI_FACT_CORPUS.split(","),
-    ]),
+    corpus,
+    submodules: commandOutput("git", ["submodule", "status", "--", ...corpus.split(",")]),
     env: Object.fromEntries(
       [
         "RUSTUP_TOOLCHAIN",
@@ -205,7 +223,13 @@ async function main() {
       ].map((key) => [key, process.env[key] ?? null]),
     ),
   });
-  const receipt = {
+  const receipt: {
+    before: ReturnType<typeof identity>;
+    order: string;
+    runs: Run[];
+    after?: ReturnType<typeof identity>;
+    status?: string;
+  } = {
     before: identity(),
     order: "test first, ci second; one sample includes cache warming, not an all-CI claim",
     runs: [],
@@ -228,7 +252,13 @@ async function main() {
         ...(profile === "ci" ? ["--profile", "ci"] : []),
         ...selection,
       ];
-      const run = { suite, profile, command: ["cargo", ...args], exitCode: null, durationMs: null };
+      const run: Run = {
+        suite,
+        profile,
+        command: ["cargo", ...args],
+        exitCode: null,
+        durationMs: null,
+      };
       receipt.runs.push(run);
       const started = performance.now();
       let stdout = "";
@@ -244,7 +274,7 @@ async function main() {
         stderr += chunk;
         process.stderr.write(chunk);
       });
-      run.exitCode = await new Promise((resolve) => {
+      run.exitCode = await new Promise<number | null>((resolve) => {
         child.once("error", (error) => {
           stderr += String(error);
           resolve(-1);
@@ -264,12 +294,12 @@ async function main() {
   receipt.after = identity();
   save();
   assert.deepEqual(receipt.after, receipt.before, "Source/compiler/corpus/environment drift");
-  for (let index = 0; index < suites.length; index++)
-    compareResults(
-      receipt.runs[index].results,
-      receipt.runs[index + suites.length].results,
-      suites[index][0],
-    );
+  for (let index = 0; index < suites.length; index++) {
+    const before = receipt.runs[index]?.results;
+    const after = receipt.runs[index + suites.length]?.results;
+    assert.ok(before && after, "Every profile run must record its results");
+    compareResults(before, after, suites[index][0]);
+  }
   receipt.status = "passed";
   save();
 }

@@ -26,7 +26,7 @@ type Case = {
 };
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const checker = join(root, "tools/support/typescript/check-project.ts");
-const project = join(root, "tsconfig.ci-gates.json");
+const project = join(root, "tools/tsconfig.json");
 const ledger = readFileSync(new URL("./fixtures/ci-gates/packets.json", import.meta.url), "utf8");
 const cases = JSON.parse(ledger) as Case[];
 const artifact = join(root, "target/typescript-ci-gates", `node-${process.versions.node}`);

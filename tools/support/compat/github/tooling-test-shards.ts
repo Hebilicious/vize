@@ -184,7 +184,7 @@ function assertExactPartition(plan: ToolingShardPlan, shards: readonly { files: 
 export function toolingShards(plan: ToolingShardPlan) {
   const leadMs = validatePlan(plan);
   const limit = Math.min(MAX_TOOLING_SHARDS, Math.max(1, plan.tests.length));
-  const budget = plan.tests.reduce(
+  const budget = plan.tests.reduce<number>(
     (largest, file) => Math.max(largest, estimateToolingTestMs(plan.tier, file)),
     TOOLING_SHARD_TARGET_MS[plan.tier],
   );

@@ -51,17 +51,8 @@ const iterationRepoCheckCommand = [
   .join(" ");
 const strictRepoCheckCommand = [
   iterationRepoCheckCommand,
+  // Every project the root tsconfig.json solution references.
   "node tools/support/typescript/check-project.ts",
-  "node tools/support/typescript/check-project.ts tsconfig.benchmark-reports.json",
-  "node tools/support/typescript/check-project.ts tsconfig.benchmark-scripts.json",
-  "node tools/support/typescript/check-project.ts tsconfig.ci-gates.json",
-  "node tools/support/typescript/check-project.ts tsconfig.canonical-corpus.json",
-  "node tools/support/typescript/check-project.ts tsconfig.native-history.json",
-  "node tools/support/typescript/check-project.ts tsconfig.compat-davinci.json",
-  "node tools/support/typescript/check-project.ts tsconfig.compat-nuxt.json",
-  "node tools/support/typescript/check-project.ts tsconfig.source-build-receipt.json",
-  "node tools/support/typescript/check-project.ts tsconfig.css-catalog.json",
-  "node tools/support/typescript/check-project.ts tsconfig.vuefes-compat.json",
 ].join(" && ");
 const ciVizeAppCheckCommand = [
   runInDirectory(

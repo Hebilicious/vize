@@ -38,11 +38,11 @@ search covers those too.
    importer anywhere in the repository. It also updates every live caller and
    reference: workflow and action commands and path filters, Vite+ tasks,
    package scripts, tests and living documentation.
-3. **Check.** The same commit lists each migrated file explicitly in
-   `tsconfig.benchmark-scripts.json`. That project extends the strict
-   `tsconfig.node.json` and runs in `check:repo` beside the other checked
-   projects. It has no include glob and no exclusions. Files that are not
-   typed yet are simply absent.
+3. **Check.** Nothing to register: the root `tsconfig.json` solution holds the
+   strict base options and references glob-based projects (`tools/`, `tests/`,
+   `npm/`, `docs/`, `.github/`), so every new `.ts` file is checked by
+   `check:repo`. `tests/tsconfig.json` still excludes untyped legacy files;
+   delete a file's entry there once it type-checks.
 4. **Verify.** The strict project, `vp fmt`, `vp lint`, every test that
    imports or names a moved file, and the source-length budget must all pass.
    Run `vp lint` on directories: given a single file it printed no warnings
