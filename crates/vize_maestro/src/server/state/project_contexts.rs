@@ -426,6 +426,7 @@ impl ServerState {
 
 fn document_root(path: &Path, workspace: &Path) -> PathBuf {
     let mut directory = path.parent().unwrap_or(workspace);
+    let mut vite_root = None;
     while directory != workspace && directory.starts_with(workspace) {
         if directory.join("package.json").is_file()
             || directory.join("tsconfig.json").is_file()
@@ -433,27 +434,65 @@ fn document_root(path: &Path, workspace: &Path) -> PathBuf {
             || std::fs::read_dir(directory).is_ok_and(|entries| {
                 entries
                     .flatten()
-                    .any(|entry| is_config_marker(&entry.path()))
+                    .any(|entry| is_typescript_config_marker(&entry.path()))
             })
         {
             return directory.to_path_buf();
+        }
+        if vite_root.is_none()
+            && std::fs::read_dir(directory).is_ok_and(|entries| {
+                entries
+                    .flatten()
+                    .any(|entry| is_vite_config_marker(&entry.path()))
+            })
+        {
+            vite_root = Some(directory.to_path_buf());
         }
         let Some(parent) = directory.parent() else {
             break;
         };
         directory = parent;
     }
-    workspace.to_path_buf()
+    // A Vite app nested inside an existing package/TypeScript project is not
+    // a separate editor project. Its sources keep the package tsconfig paths
+    // and Vize policy. A standalone Vite directory with no package authority
+    // above it still owns its documents.
+    if workspace.join("package.json").is_file()
+        || workspace.join("tsconfig.json").is_file()
+        || workspace.join("jsconfig.json").is_file()
+        || std::fs::read_dir(workspace).is_ok_and(|entries| {
+            entries
+                .flatten()
+                .any(|entry| is_typescript_config_marker(&entry.path()))
+        })
+    {
+        workspace.to_path_buf()
+    } else {
+        vite_root.unwrap_or_else(|| workspace.to_path_buf())
+    }
+}
+
+fn is_vite_config_marker(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.starts_with("vite.config."))
+}
+
+fn is_typescript_config_marker(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| {
+            (name.starts_with("tsconfig") && name.ends_with(".json")) || name == "jsconfig.json"
+        })
 }
 
 fn is_config_marker(path: &Path) -> bool {
     path.file_name()
         .and_then(|name| name.to_str())
         .is_some_and(|name| {
-            name.starts_with("vite.config.")
-                || (name.starts_with("tsconfig") && name.ends_with(".json"))
+            is_vite_config_marker(path)
+                || is_typescript_config_marker(path)
                 || name == "package.json"
-                || name == "jsconfig.json"
         })
 }
 
