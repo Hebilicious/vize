@@ -221,6 +221,7 @@ fn define_macros_order_from_option(
     vize_l0::config::DefineMacrosOrderOptions {
         order: options
             .order
+            .map(|order| order.into_iter().map(Into::into).collect())
             .unwrap_or_else(|| vize_l0::config::DefineMacrosOrderOptions::default().order),
     }
 }
