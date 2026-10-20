@@ -5,7 +5,8 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 const ACCESS_SUFFIX: &str = ".access";
-const LOCK_SUFFIXES: [&str; 2] = [".lock", ".materialize.lock"];
+const ACTIVE_LOCK_SUFFIX: &str = ".active.lock";
+const LOCK_SUFFIXES: [&str; 3] = [".lock", ".materialize.lock", ACTIVE_LOCK_SUFFIX];
 const MAX_PROJECT_ENTRIES: usize = 24;
 const MAX_UNUSED_AGE: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 
@@ -69,6 +70,22 @@ pub(super) fn maintain_project_cache(current: &Path) {
             // racing process create a new inode that is not mutually excluded.
         }
     }
+}
+
+/// Keep a project cache entry alive while a [`VirtualProject`](super::VirtualProject)
+/// can still read or incrementally update its materialized tree.
+pub(super) fn acquire_usage_lock(root: &Path) -> Option<File> {
+    let path = sibling_path(root, ACTIVE_LOCK_SUFFIX);
+    fs::create_dir_all(path.parent()?).ok()?;
+    let file = OpenOptions::new()
+        .create(true)
+        .read(true)
+        .truncate(false)
+        .write(true)
+        .open(path)
+        .ok()?;
+    file.lock_shared().ok()?;
+    Some(file)
 }
 
 fn touch(path: &Path) -> std::io::Result<()> {
@@ -168,5 +185,24 @@ mod tests {
         maintain_project_cache(&current);
 
         assert!(locked.is_dir());
+    }
+
+    #[test]
+    fn maintenance_never_removes_an_entry_with_a_live_project_owner() {
+        let cache = tempfile::tempdir().unwrap();
+        let projects = cache.path().join("canon/projects");
+        fs::create_dir_all(&projects).unwrap();
+        let live = projects.join(key(1));
+        let current = projects.join(key(2));
+        fs::create_dir(&live).unwrap();
+        fs::create_dir(&current).unwrap();
+        let _usage = acquire_usage_lock(&live).unwrap();
+        for index in 3..(MAX_PROJECT_ENTRIES + 12) {
+            fs::create_dir(projects.join(key(index as u8))).unwrap();
+        }
+
+        maintain_project_cache(&current);
+
+        assert!(live.is_dir());
     }
 }

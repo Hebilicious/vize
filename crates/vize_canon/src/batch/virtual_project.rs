@@ -186,6 +186,10 @@ pub struct VirtualProject {
     /// re-scoped to a session-private namespace.
     virtual_root: PathBuf,
 
+    /// Shared owner lock held for as long as this project can read or patch
+    /// its materialized cache. Cache GC takes the same file exclusively.
+    _cache_usage_lock: Option<std::fs::File>,
+
     /// Explicit tsconfig path, if one was provided by the caller.
     tsconfig_path: Option<PathBuf>,
 
