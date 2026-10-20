@@ -26,6 +26,9 @@ export function isArtFileInput(filePath: string): boolean {
 export function createVrtOptions(options: CliOptions): ExtendedVrtOptions {
   // `vrt.a11y` is MuseaA11yRunner config. ExtendedVrtOptions.a11y is a boolean.
   const configured = withoutA11y(options.vrt);
+  const comparison = options.colorThresholdProvided
+    ? { ...configured.comparison, colorThreshold: options.colorThreshold }
+    : configured.comparison;
   const vrtOptions: ExtendedVrtOptions = {
     ...configured,
     ...(options.projectRoot !== undefined ? { projectRoot: options.projectRoot } : {}),
@@ -36,6 +39,7 @@ export function createVrtOptions(options: CliOptions): ExtendedVrtOptions {
       ? { adoptLegacySnapshots: options.adoptLegacySnapshots }
       : {}),
     capture: { waitForPreviewReady: true, ...configured.capture },
+    ...(comparison !== undefined ? { comparison } : {}),
     ...(options.previewBasePath !== undefined ? { previewBasePath: options.previewBasePath } : {}),
     ...(options.previewUrls !== undefined ? { previewUrls: options.previewUrls } : {}),
     // run, approve, and clean all read this directory.
@@ -47,6 +51,12 @@ export function createVrtOptions(options: CliOptions): ExtendedVrtOptions {
   const workers = options.workersProvided ? options.workers : configured.workers;
   if (workers !== undefined) {
     vrtOptions.workers = normalizeVrtWorkerCount(workers);
+  }
+  if (options.browserArgs.length > 0) {
+    vrtOptions.launchOptions = {
+      ...configured.launchOptions,
+      args: [...(configured.launchOptions?.args ?? []), ...options.browserArgs],
+    };
   }
   return vrtOptions;
 }
@@ -71,8 +81,11 @@ function withoutA11y(vrt: MuseaVrtOptions | undefined): Omit<MuseaVrtOptions, "a
 }
 
 /** Options object `musea-vrt --a11y` passes to `MuseaA11yRunner`. */
-export function createA11yRunner<T>(options: CliOptions, Runner: new (a11y?: A11yOptions) => T): T {
-  return new Runner(options.vrt?.a11y);
+export function createA11yRunner<T>(
+  options: CliOptions,
+  Runner: new (a11y?: A11yOptions, launchOptions?: MuseaVrtOptions["launchOptions"]) => T,
+): T {
+  return new Runner(options.vrt?.a11y, createVrtOptions(options).launchOptions);
 }
 
 export async function runVrt(options: CliOptions, artFiles: ArtFileInfo[]): Promise<void> {
