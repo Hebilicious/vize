@@ -428,8 +428,7 @@ fn document_root(path: &Path, workspace: &Path) -> PathBuf {
     let mut directory = path.parent().unwrap_or(workspace);
     let mut vite_root = None;
     while directory != workspace && directory.starts_with(workspace) {
-        if directory.join("package.json").is_file()
-            || directory.join("tsconfig.json").is_file()
+        if directory.join("tsconfig.json").is_file()
             || directory.join("jsconfig.json").is_file()
             || std::fs::read_dir(directory).is_ok_and(|entries| {
                 entries
@@ -447,6 +446,9 @@ fn document_root(path: &Path, workspace: &Path) -> PathBuf {
             })
         {
             vite_root = Some(directory.to_path_buf());
+        }
+        if directory.join("package.json").is_file() {
+            return vite_root.unwrap_or_else(|| directory.to_path_buf());
         }
         let Some(parent) = directory.parent() else {
             break;
