@@ -188,17 +188,17 @@ test("complete legacy-only observations stay in the denominator with zero native
     capture,
   );
   const report = typecheckerReport(loaded, captures, sourceRevision);
-  assert.equal(report.summary.legacyMatches, 36);
+  assert.equal(report.summary.legacyMatches, 37);
   const acceptance = summarizeNativeAcceptance(loaded, report, {
     sourceRevision,
     buildReceiptSha256: sha256(receipt),
     requiredStages: ["parse", "facts", "emit", "check"],
   });
   assert.deepEqual(acceptance.total, {
-    planned: 36,
+    planned: 37,
     nativeHandled: 0,
     nativeEquivalent: 0,
-    unsupported: 36,
+    unsupported: 37,
     legacyBacked: 0,
     unverified: 0,
   });
