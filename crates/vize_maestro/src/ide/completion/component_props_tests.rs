@@ -100,7 +100,7 @@ defineSlots<{
     .unwrap();
 
     for (suffix, prefix) in [("#></template>", "#"), ("v-slot:></template>", "v-slot:")] {
-        let source = format!(
+        let source = vize_l0::cstr!(
             r#"<script setup lang="ts">
 import MySelect from "./MySelect.vue"
 </script>
@@ -108,7 +108,9 @@ import MySelect from "./MySelect.vue"
   <MySelect><template {suffix}</MySelect>
 </template>"#
         );
-        let parent_path = dir.path().join(format!("Parent-{}.vue", prefix.len()));
+        let parent_path = dir
+            .path()
+            .join(vize_l0::cstr!("Parent-{}.vue", prefix.len()));
         fs::write(&parent_path, &source).unwrap();
         let uri = Url::from_file_path(&parent_path).unwrap();
         let state = ServerState::new();
@@ -117,7 +119,9 @@ import MySelect from "./MySelect.vue"
             .open(uri.clone(), source.clone(), 1, "vue".to_string());
         state.update_virtual_docs(&uri, &source);
 
-        let offset = source.find(&format!("<template {prefix}")).unwrap()
+        let offset = source
+            .find(&vize_l0::cstr!("<template {prefix}"))
+            .unwrap()
             + "<template ".len()
             + prefix.len();
         let ctx = IdeContext::at_completion(&state, &uri, offset).unwrap();
@@ -138,8 +142,8 @@ import MySelect from "./MySelect.vue"
         assert_eq!(
             edits,
             vec![
-                format!(r#"{prefix}selection="{{ ${{1:item}} }}""#),
-                format!(r#"{prefix}item="{{ ${{1:item}} }}""#),
+                vize_l0::cstr!(r#"{prefix}selection="{{ ${{1:item}} }}""#),
+                vize_l0::cstr!(r#"{prefix}item="{{ ${{1:item}} }}""#),
             ]
         );
     }
