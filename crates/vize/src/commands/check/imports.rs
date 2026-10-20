@@ -4,7 +4,10 @@
 //! sources. This module separates authored files that TypeScript can resolve
 //! in place from files that must enter Vize's mirror for Vue import rewriting.
 
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use rayon::prelude::*;
 
@@ -106,7 +109,12 @@ pub(super) fn collect_transitive_local_imports_with_session(
         };
         // Default runs walk the same roots again after adding hidden ambient
         // declarations; the session keeps each file's specifiers for that pass.
-        let occurrences = match session.module_specifiers.remove(&file) {
+        let occurrences = match session
+            .registration_cache
+            .module_specifiers
+            .get(&file)
+            .cloned()
+        {
             Some(cached) => cached,
             None => {
                 // File reads and specifier extraction do not touch the mutable
@@ -115,7 +123,12 @@ pub(super) fn collect_transitive_local_imports_with_session(
                 let pending = queue
                     .iter()
                     .map(|(path, _, _)| path)
-                    .filter(|path| !session.module_specifiers.contains_key(*path))
+                    .filter(|path| {
+                        !session
+                            .registration_cache
+                            .module_specifiers
+                            .contains_key(*path)
+                    })
                     .cloned()
                     .collect::<Vec<_>>();
                 let loaded = pending
@@ -125,15 +138,18 @@ pub(super) fn collect_transitive_local_imports_with_session(
                         (path, occurrences)
                     })
                     .collect::<Vec<_>>();
-                session.module_specifiers.extend(loaded);
+                session.registration_cache.module_specifiers.extend(loaded);
                 scan_module_specifiers(&file)
             }
         };
         let Some(occurrences) = occurrences else {
-            session.module_specifiers.insert(file.clone(), None);
+            session
+                .registration_cache
+                .module_specifiers
+                .insert(file.clone(), None);
             continue;
         };
-        for occurrence in &occurrences {
+        for occurrence in occurrences.iter() {
             let specifier = occurrence.specifier.clone();
             let relative_specifier = is_relative_specifier(&specifier);
             let absolute_specifier = Path::new(specifier.as_str()).is_absolute();
@@ -367,7 +383,10 @@ pub(super) fn collect_transitive_local_imports_with_session(
                 queue.push((resolved, needs_registration, in_package_graph));
             }
         }
-        session.module_specifiers.insert(file, Some(occurrences));
+        session
+            .registration_cache
+            .module_specifiers
+            .insert(file, Some(occurrences));
     }
 
     sort_package_route_bindings(&mut package_routes);
@@ -381,9 +400,9 @@ pub(super) fn collect_transitive_local_imports_with_session(
 /// Scan the raw file text directly — the byte scanner only reacts to
 /// `import`/`from` string operands, so an SFC's `<template>`/`<style>`
 /// are inert and no `.vue` parse is needed on this hot path.
-fn scan_module_specifiers(file: &Path) -> Option<Vec<ModuleSpecifierOccurrence>> {
+fn scan_module_specifiers(file: &Path) -> Option<Arc<[ModuleSpecifierOccurrence]>> {
     let source = std::fs::read_to_string(file).ok()?;
-    Some(extract_module_specifier_occurrences(&source))
+    Some(Arc::from(extract_module_specifier_occurrences(&source)))
 }
 
 #[cfg(test)]

@@ -50,7 +50,7 @@ pub(super) struct VirtualRegistrationCache {
     negative_alias_sources: FxHashSet<PathBuf>,
     /// Specifiers read by registration frontiers in this check. Overlapping
     /// candidates share the immutable parse result.
-    module_specifiers:
+    pub(super) module_specifiers:
         FxHashMap<PathBuf, Option<Arc<[super::specifiers::ModuleSpecifierOccurrence]>>>,
     #[cfg(test)]
     source_reads: usize,
