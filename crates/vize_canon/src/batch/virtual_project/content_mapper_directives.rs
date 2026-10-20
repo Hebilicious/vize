@@ -7,9 +7,10 @@
 
 use std::ops::Range;
 
-use vize_atelier_sfc::SfcTemplateBlock;
+use vize_atelier_sfc::SfcDescriptor;
 use vize_l0::String as CompactString;
 
+use super::super::vue_codegen::generic_attribute::GenericCopies;
 use crate::template_diagnostic_directives::{DirectivePolicy, TemplateDiagnosticDirectives};
 
 use super::protocol::{
@@ -21,13 +22,13 @@ use super::protocol::{
 const UNUSED_EXPECT_CODE: i32 = 4;
 
 /// Project comments onto checks for their authored target nodes. Returns
-/// `None` when the template declares no directives that reach the mapper.
-pub(super) fn template_diagnostic_directives(
-    template: Option<&SfcTemplateBlock<'_>>,
+/// `None` when the SFC declares no directives that reach the mapper.
+pub(super) fn sfc_diagnostic_directives(
+    source: &str,
+    descriptor: &SfcDescriptor<'_>,
     spans: &[ContentMapperSpan],
 ) -> Option<ContentMapperDiagnosticDirectives> {
-    let template = template?;
-    let authored = TemplateDiagnosticDirectives::for_template(template);
+    let authored = TemplateDiagnosticDirectives::for_descriptor(source, descriptor);
     let mut directives = Vec::new();
     let mut expects_unused_table = false;
 
@@ -86,6 +87,32 @@ pub(super) fn template_diagnostic_directives(
         unused_expect_directive_diagnostics,
         directives,
     })
+}
+
+/// Generated copies of the `generic` attribute repeat the diagnostics of the
+/// one mapped copy; ignore them so each authored error reports once.
+pub(super) fn with_generic_echoes(
+    directives: Option<ContentMapperDiagnosticDirectives>,
+    copies: Option<&GenericCopies>,
+) -> Option<ContentMapperDiagnosticDirectives> {
+    let Some(copies) = copies else {
+        return directives;
+    };
+    let mut directives = directives.unwrap_or(ContentMapperDiagnosticDirectives {
+        unused_expect_directive_diagnostics: Vec::new(),
+        directives: Vec::new(),
+    });
+    directives.directives.extend(copies.echoes().map(|echo| {
+        ContentMapperDiagnosticDirective([
+            copies.attribute.start,
+            copies.attribute.len(),
+            echo.start,
+            echo.end,
+            DIRECTIVE_POLICY_IGNORE,
+            0,
+        ])
+    }));
+    Some(directives)
 }
 
 fn mapped_virtual_ranges(

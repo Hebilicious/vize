@@ -29,7 +29,7 @@ pub use protocol::{
 
 #[path = "content_mapper_directives.rs"]
 mod directives;
-use directives::template_diagnostic_directives;
+use directives::{sfc_diagnostic_directives, with_generic_echoes};
 
 #[path = "content_mapper_component_name.rs"]
 mod component_name;
@@ -38,6 +38,7 @@ use component_name::content_mapper_component_name;
 use super::build::{descriptor_uses_jsx_script, prepend_vue_jsx_reference};
 use super::diagnostics::invalid_sfc_fallback_virtual_ts;
 use super::javascript_sfc::prepare_script_blocks;
+use super::vue_codegen::generic_attribute::GenericCopies;
 use super::vue_codegen::{GeneratedVueFile, VueCodegenOptions, generate_vue_virtual_ts};
 
 #[path = "content_mapper_masked_spans.rs"]
@@ -208,9 +209,15 @@ pub fn generate_vue_content_mapper_transform_with_options(
     let spans = protocol_spans(content, &code, &mappings, &mapping_meta);
     Ok(ContentMapperTransform {
         extension: CONTENT_MAPPER_VIRTUAL_EXTENSION,
-        // Directive comments are read from HTML templates only.
+        // Directive comments are read from HTML templates and SFC blocks only.
         diagnostic_directives: (!authored.is_derived())
-            .then(|| template_diagnostic_directives(descriptor.template.as_ref(), &spans))
+            .then(|| {
+                let echoes = GenericCopies::find(&code, &mappings, content, &descriptor);
+                with_generic_echoes(
+                    sfc_diagnostic_directives(content, &descriptor, &spans),
+                    echoes.as_ref(),
+                )
+            })
             .flatten(),
         mappings: spans,
         semantic_links: protocol_semantic_links(&semantic_links),
@@ -300,30 +307,84 @@ fn protocol_spans(
     masked_spans::expand(&mut candidates, source, generated);
     let mut accepted = span_normalize::normalize(candidates);
     accepted.sort_by_key(|candidate| candidate.generated.start);
-    accepted
-        .into_iter()
-        .map(|candidate| {
-            let after = diagnostic_regions
-                .partition_point(|range| range.start <= candidate.generated.start);
-            let diagnostic_only = after
-                .checked_sub(1)
-                .and_then(|index| diagnostic_regions.get(index))
-                .is_some_and(|range| candidate.generated.end <= range.end);
-            let features = if diagnostic_only {
-                0
-            } else {
-                content_mapper_span_features(generated, candidate.generated.start, candidate.kind)
-            };
+    let mut spans = Vec::with_capacity(accepted.len());
+    for (index, candidate) in accepted.iter().enumerate() {
+        let after =
+            diagnostic_regions.partition_point(|range| range.start <= candidate.generated.start);
+        let diagnostic_only = after
+            .checked_sub(1)
+            .and_then(|index| diagnostic_regions.get(index))
+            .is_some_and(|range| candidate.generated.end <= range.end);
+        let features = if diagnostic_only {
+            0
+        } else {
+            content_mapper_span_features(generated, candidate.generated.start, candidate.kind)
+        };
+        let previous_end = index
+            .checked_sub(1)
+            .and_then(|previous| accepted.get(previous))
+            .map_or(0, |previous| previous.generated.end);
+        let next_start = accepted
+            .get(index + 1)
+            .map_or(generated.len(), |next| next.generated.start);
+        let delimiters = synthetic_delimiters(generated, &candidate.generated)
+            .filter(|(open, close)| previous_end <= *open && *close < next_start);
+        let target = delimiters
+            .and_then(|(_, close)| {
+                model_value(source, generated, candidate, accepted.get(index + 1), close)
+            })
+            .unwrap_or(&candidate.original);
+        let delimiter = |at: usize| {
             ContentMapperSpan([
-                candidate.generated.start,
-                candidate.generated.len(),
-                candidate.original.start,
-                candidate.original.len(),
-                candidate.kind as usize,
-                features,
+                at,
+                1,
+                target.start,
+                target.len(),
+                ContentMapperSpanKind::Atom as usize,
+                0,
             ])
-        })
-        .collect()
+        };
+        spans.extend(delimiters.map(|(open, _)| delimiter(open)));
+        spans.push(ContentMapperSpan([
+            candidate.generated.start,
+            candidate.generated.len(),
+            candidate.original.start,
+            candidate.original.len(),
+            candidate.kind as usize,
+            features,
+        ]));
+        spans.extend(delimiters.map(|(_, close)| delimiter(close)));
+    }
+    spans
+}
+
+/// A `v-model` key directly followed by its mapped value: the props-object
+/// mismatch reports on the model expression, the per-prop check on `v-model`.
+fn model_value<'a>(
+    source: &str,
+    generated: &str,
+    key: &SpanCandidate,
+    next: Option<&'a SpanCandidate>,
+    close: usize,
+) -> Option<&'a Range<usize>> {
+    let next = next?;
+    let model = source.get(key.original.clone())?.starts_with("v-model")
+        || source.get(..key.original.start)?.ends_with("v-model:");
+    (model && generated.get(close + 1..next.generated.start) == Some(": "))
+        .then_some(&next.original)
+}
+
+/// The generated quotes around a mapped name, when no authored span owns them.
+///
+/// TypeScript reports a string-literal node (a quoted property key, a CSS
+/// module name) from its opening quote, and maps a position in an unmapped gap
+/// to the end of the preceding span. Diagnostic-only atoms on both quotes keep
+/// such a diagnostic on the authored name instead of the previous attribute.
+fn synthetic_delimiters(generated: &str, range: &Range<usize>) -> Option<(usize, usize)> {
+    let open = range.start.checked_sub(1)?;
+    let quote = *generated.as_bytes().get(open)?;
+    (matches!(quote, b'"' | b'\'') && generated.as_bytes().get(range.end) == Some(&quote))
+        .then_some((open, range.end))
 }
 
 fn candidate(
