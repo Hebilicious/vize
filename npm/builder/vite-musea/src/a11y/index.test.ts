@@ -106,6 +106,7 @@ void test("a failed audit is recorded as an error, not a fabricated violation", 
   const runner = new MuseaA11yRunner();
   const failingVrtRunner = {
     createPage: () => Promise.reject(new Error("browser is gone")),
+    getOptions: () => ({ workers: 1 }),
   } as unknown as MuseaVrtRunner;
 
   const results = await runner.runAudits(
@@ -131,4 +132,68 @@ void test("a failed audit is recorded as an error, not a fabricated violation", 
   assert.equal(summary.criticalCount, 0);
   assert.equal(summary.totalViolations, 0);
   assert.equal(summary.erroredVariants, 1);
+});
+
+void test("audits honor the VRT worker limit and preserve variant order", async () => {
+  const runner = new MuseaA11yRunner();
+  let active = 0;
+  let peak = 0;
+  let closed = 0;
+
+  runner.auditPage = async (_page, artPath, variantName) => {
+    await new Promise((resolve) => setTimeout(resolve, variantName === "slow" ? 30 : 1));
+    return { artPath, variantName, violations: [], passes: 1, incomplete: 0 };
+  };
+
+  const vrtRunner = {
+    getOptions: () => ({ workers: 2 }),
+    getCapture: () => ({ waitForPreviewReady: false }),
+    getPreviewUrl: (_baseUrl: string, artPath: string, variantName: string) =>
+      `http://localhost/${artPath}/${variantName}`,
+    createPage: async () => {
+      active++;
+      peak = Math.max(peak, active);
+      return {
+        page: {
+          goto: async () => undefined,
+          waitForSelector: async () => undefined,
+          waitForTimeout: async () => undefined,
+        },
+        context: {
+          close: async () => {
+            active--;
+            closed++;
+          },
+        },
+      };
+    },
+  } as unknown as MuseaVrtRunner;
+
+  const results = await runner.runAudits(
+    [
+      {
+        path: "src/Button.art.vue",
+        metadata: { title: "Button", tags: [], status: "ready" },
+        variants: ["slow", "fast-1", "fast-2", "fast-3"].map((name) => ({
+          name,
+          template: "<button />",
+          isDefault: name === "slow",
+          skipVrt: false,
+        })),
+        hasScriptSetup: false,
+        hasScript: false,
+        styleCount: 0,
+      },
+    ],
+    "http://localhost:5173/__musea__",
+    vrtRunner,
+  );
+
+  assert.equal(peak, 2);
+  assert.equal(active, 0);
+  assert.equal(closed, 4);
+  assert.deepEqual(
+    results.map((result) => result.variantName),
+    ["slow", "fast-1", "fast-2", "fast-3"],
+  );
 });
