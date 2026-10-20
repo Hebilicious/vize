@@ -146,6 +146,31 @@ fn test_corsa_hover_is_decorated_for_editor_clients() {
     assert!(value.contains("count: number"));
 }
 
+#[cfg(feature = "native")]
+#[test]
+fn script_module_specifier_hover_uses_authored_text_and_range() {
+    crate::runtime::block_on(async {
+        let source = r#"<script setup lang="ts">
+import { formatCount } from "./util";
+</script>
+"#;
+        let (state, uri) = state_with_document("App.vue", source);
+        let offset = source.find("./util").unwrap() + 3;
+        let ctx = IdeContext::new(&state, &uri, offset).unwrap();
+
+        let hover = HoverService::hover_with_corsa(&ctx, None).await.unwrap();
+        let range = hover.range.unwrap();
+        assert_eq!(range.start.line, 1);
+        assert_eq!(range.start.character, 29);
+        assert_eq!(range.end.line, 1);
+        assert_eq!(range.end.character, 35);
+
+        let value = hover_markdown(hover);
+        assert!(value.contains("module \"./util\""), "{value}");
+        assert!(!value.contains("vize-canon"), "{value}");
+    });
+}
+
 #[test]
 fn test_binding_type_to_ts_display() {
     assert_eq!(
