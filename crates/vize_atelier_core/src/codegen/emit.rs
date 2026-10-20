@@ -19,6 +19,10 @@ use super::root::{
     is_ignorable_root_text,
 };
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "codegen inputs remain explicit across the internal SFC environment boundary"
+)]
 pub(super) fn generate_with_sections_and_options(
     root: &RootNode<'_>,
     options: CodegenOptions,
