@@ -45,6 +45,19 @@ function toViteFsPath(filePath: string): string {
   return encodeURI(`/@fs${filePath.split(path.sep).join("/")}`);
 }
 
+export function ignorePackedGalleryAssetTransforms(html: string, basePath: string): string {
+  const assetPrefix = `${basePath.replace(/\/+$/, "")}/assets/`;
+
+  return html.replace(/<script\b[^>]*>/giu, (tag) => {
+    const type = /\btype\s*=\s*(["'])module\1/iu.exec(tag);
+    const src = /\bsrc\s*=\s*(["'])([^"']+)\1/iu.exec(tag);
+    if (!type || !src || !src[2].startsWith(assetPrefix) || /\bvite-ignore\b/iu.test(tag)) {
+      return tag;
+    }
+    return tag.replace(/^<script\b/iu, "<script vite-ignore");
+  });
+}
+
 async function tryLoadSourceGalleryHtml(
   devServer: ViteDevServer,
   url: string,
@@ -153,7 +166,12 @@ export function registerMiddleware(devServer: ViteDevServer, ctx: MiddlewareCont
           `<script>${generateDevGlobalsScript(basePath, devSessionToken, themeConfig, tokenPreviewConfig, toolbar)}</script></head>`,
         );
         res.setHeader("Content-Type", "text/html");
-        res.end(await devServer.transformIndexHtml(url, html));
+        res.end(
+          await devServer.transformIndexHtml(
+            url,
+            ignorePackedGalleryAssetTransforms(html, basePath),
+          ),
+        );
         return;
       } catch {
         const sourceHtml = await tryLoadSourceGalleryHtml(

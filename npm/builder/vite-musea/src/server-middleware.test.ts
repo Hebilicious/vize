@@ -4,14 +4,63 @@ import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import os from "node:os";
 import path from "node:path";
-import type { Connect, ViteDevServer } from "vite";
+import { createServer as createViteServer, type Connect, type ViteDevServer } from "vite";
 
 import {
   generateDevGlobalsScript,
+  ignorePackedGalleryAssetTransforms,
   registerMiddleware,
   serveGalleryAsset,
   type MiddlewareContext,
 } from "./server-middleware.ts";
+
+void test("packed gallery assets bypass Vite transforms without hiding other modules", () => {
+  const html = `<!doctype html>
+<script type="module" crossorigin src="/gallery/assets/index-abc.js"></script>
+<script type="module" src="/application.js"></script>
+<script src="/gallery/assets/legacy.js"></script>`;
+
+  const transformed = ignorePackedGalleryAssetTransforms(html, "/gallery/");
+
+  assert.match(
+    transformed,
+    /<script vite-ignore type="module" crossorigin src="\/gallery\/assets\/index-abc\.js">/,
+  );
+  assert.match(transformed, /<script type="module" src="\/application\.js">/);
+  assert.match(transformed, /<script src="\/gallery\/assets\/legacy\.js">/);
+  assert.equal((transformed.match(/vite-ignore/gu) ?? []).length, 1);
+});
+
+void test("packed gallery keeps Vite development injection without pre-transforming assets", async () => {
+  const server = await createViteServer({
+    appType: "custom",
+    configFile: false,
+    logLevel: "silent",
+    optimizeDeps: { noDiscovery: true },
+    server: { middlewareMode: true },
+  });
+  const warmed: string[] = [];
+  server.warmupRequest = async (url: string) => {
+    warmed.push(url);
+  };
+
+  try {
+    const transformed = await server.transformIndexHtml(
+      "/gallery/",
+      ignorePackedGalleryAssetTransforms(
+        '<script type="module" src="/gallery/assets/index-abc.js"></script>',
+        "/gallery",
+      ),
+    );
+
+    assert.deepEqual(warmed, []);
+    assert.doesNotMatch(transformed, /vite-ignore/u);
+    assert.match(transformed, /\/@vite\/client/u);
+    assert.match(transformed, /src="\/gallery\/assets\/index-abc\.js"/u);
+  } finally {
+    await server.close();
+  }
+});
 
 interface CapturedResponse {
   body: string;
