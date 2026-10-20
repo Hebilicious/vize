@@ -115,7 +115,7 @@ fn specifier_at(source: &str, start: usize, end: usize) -> Option<&str> {
     let line = source.get(line_start..line_end)?;
     let local_start = start - line_start;
     let local_end = end - line_start;
-    let mut quote = None;
+    let mut quote: Option<(char, usize)> = None;
     let mut escaped = false;
 
     for (offset, character) in line.char_indices() {
