@@ -16,7 +16,7 @@
       "api": "--current-api",
       "cases": {
         "path": "crates/vize_patina/tests/fixtures/lint-history/cases.json",
-        "sha256": "77fbbfd94c26e1ee806923f5d01005d9ef9bb950eb8fcf8a95045008618ba403"
+        "sha256": "85305a008466f30c9f95da6882c83b372a11bfa016d632f78aac7897ce37ca56"
       }
     },
     {
@@ -54,7 +54,7 @@
   ],
   "oracles": {
     "path": "tests/_fixtures/differential/linter/oracle-index.json",
-    "sha256": "797fa965d2f4e5f4daefc003ec9f8ef5c526e2233210669773006d547e56ed1b"
+    "sha256": "d5adc8a70108c07d5e8fbd75841072fa2d7add7fefcad7f4cd83bf294735e812"
   },
   "cases": [
     {
@@ -133,6 +133,21 @@
             "path": "source.txt",
             "role": "issue-authored-reproduction",
             "sha256": "88678aef2a9a4d094e0d61e178f51d6d8ae8d06285dd9187ce377b2b2e2899f3"
+          }
+        ]
+      }
+    },
+    {
+      "id": "linter/current-api/dynamic-slot-v-for-component-bodies",
+      "state": "active",
+      "targets": ["lint"],
+      "inputs": {
+        "root": "dynamic-slot-v-for-9924",
+        "files": [
+          {
+            "path": "source.txt",
+            "role": "issue-authored-reproduction",
+            "sha256": "d50755b2532cb85e5da3aa35a9e97b2f3b9c30d0b9e6e41ecb8774a421fe200c"
           }
         ]
       }

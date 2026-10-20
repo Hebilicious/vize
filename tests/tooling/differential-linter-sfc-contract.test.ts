@@ -38,13 +38,13 @@ function packet(value: any) {
 void test("all current SFC wires have the complete bounded transition and old packs stay exact", () => {
   assert.equal(
     sha256(fs.readFileSync(manifest)),
-    "2ffe3965493b676310fa020d784a6c3cb158da2eb7b32fbd62b64c134bc610d7",
+    "1e57b8417a24edba452b85a2215d27fea0f1bf1769afbc119f0033c9fcd77508",
   );
   assert.equal(
     sha256(
       fs.readFileSync(path.join(root, "tests/_fixtures/differential/linter/oracle-index.json")),
     ),
-    "797fa965d2f4e5f4daefc003ec9f8ef5c526e2233210669773006d547e56ed1b",
+    "d5adc8a70108c07d5e8fbd75841072fa2d7add7fefcad7f4cd83bf294735e812",
   );
   const expected: [string, ReturnType<typeof missing> | null][] = [
     ["current-api/ref-string-untyped", null],
@@ -86,6 +86,7 @@ void test("all current SFC wires have the complete bounded transition and old pa
     ],
     ["current-api/static-class-utf8-fix-corrected", missing("vapor/prefer-static-class")],
     ["current-api/valid-v-else-autofix-preserves-directive", missing("vue/valid-v-else")],
+    ["current-api/dynamic-slot-v-for-component-bodies", missing("vue/valid-v-for")],
     ["next-tick/valid-arrow-expression-return-sfc", missing("script/valid-next-tick")],
     [
       "next-tick/valid-parenthesized-arrow-expression-return-sfc",
