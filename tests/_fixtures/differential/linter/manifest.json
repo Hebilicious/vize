@@ -58,6 +58,26 @@
   },
   "cases": [
     {
+      "id": "linter/current-api/patina-rule-guards-9870-9871",
+      "state": "active",
+      "targets": ["lint"],
+      "inputs": {
+        "root": "patina-rule-guards-9870-9871",
+        "files": [
+          {
+            "path": "FadeIn.vue.txt",
+            "role": "issue-authored-reproduction",
+            "sha256": "6b85c49c50df7f2c1d0bd8a013c94866aee7efad84b239e92dc7a1c850879a80"
+          },
+          {
+            "path": "BaseButton.vue.txt",
+            "role": "issue-authored-reproduction",
+            "sha256": "bd5a5174c124fa411586d2c41519c4481189d2c6befbcd6fa5c46da5c0df8cfd"
+          }
+        ]
+      }
+    },
+    {
       "id": "linter/current-api/ref-string-untyped",
       "state": "active",
       "targets": ["lint"]
