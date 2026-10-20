@@ -238,7 +238,9 @@ export async function setupNuxtLintConfigGeneration(
   const resolveAddons =
     dependencies.resolveAddons ??
     ("callHook" in nuxt
-      ? setupNuxtLintConfigAddons(nuxt as NuxtLintGenerationNuxt & NuxtLintConfigAddonNuxt)
+      ? setupNuxtLintConfigAddons(nuxt as NuxtLintGenerationNuxt & NuxtLintConfigAddonNuxt, {
+          rootDir: planRoot,
+        })
       : undefined);
   const resolveProjectRuleSets = dependencies.resolveProjectLintRules
     ? async (rootDir: string): Promise<ProjectLintRuleSets> => {
