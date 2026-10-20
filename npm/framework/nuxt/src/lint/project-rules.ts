@@ -7,6 +7,13 @@
  */
 import type { NuxtLintSeverity } from "@vizejs/nuxt-lint-config";
 import type { VizeRuleConfigPreset } from "oxlint-plugin-vize";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { importConfigModule } from "../../../../cli/src/config/module-runtime.mjs";
+import {
+  VITE_CONFIG_FILE_NAMES,
+  resolveViteConfigSource,
+} from "../../../../cli/src/config/vite-runtime.mjs";
 
 export type ProjectLintRules = Record<string, NuxtLintSeverity>;
 
@@ -28,6 +35,10 @@ const CONFIG_PRESETS = [
   "ecosystem",
   "nuxt",
 ] as const;
+
+const RETIRED_CONFIG = /^vize\.config\.(?:pkl|[cm]?[jt]s|json)$/;
+const CONFIG_MIGRATION =
+  "vize.config.* is no longer supported; move Vue settings to vue: in vite.config.* and TypeScript settings to tsconfig.json";
 
 type ConfigPreset = (typeof CONFIG_PRESETS)[number];
 
@@ -72,11 +83,7 @@ interface ProjectConfig {
 }
 
 async function readProjectConfig(rootDir: string): Promise<ProjectConfig> {
-  const { loadViteConfigSource } = await import("vize/config");
-  const parsed = await loadViteConfigSource(rootDir, {
-    mode: "auto",
-    env: { command: "lint", mode: "development" },
-  });
+  const parsed = await loadProjectViteConfigSource(rootDir);
   if (!parsed) return {};
   const rawLinter =
     parsed.vue &&
@@ -96,6 +103,40 @@ async function readProjectConfig(rootDir: string): Promise<ProjectConfig> {
       : undefined,
     oxlint: parsed.lint,
   };
+}
+
+async function loadProjectViteConfigSource(
+  rootDir: string,
+): Promise<Record<string, unknown> | null> {
+  let directory = path.resolve(rootDir);
+  while (true) {
+    for (const name of VITE_CONFIG_FILE_NAMES) {
+      const filePath = path.join(directory, name);
+      if (!fs.existsSync(filePath)) continue;
+      const module = await importConfigModule(filePath);
+      if (module === null) throw new Error("Unable to load Vite configuration at " + filePath);
+      return resolveViteConfigSource(module.default ?? module, {
+        command: "lint",
+        mode: "development",
+      });
+    }
+    if (
+      fs.existsSync(directory) &&
+      fs.readdirSync(directory).some((name) => RETIRED_CONFIG.test(name))
+    ) {
+      throw new Error(CONFIG_MIGRATION);
+    }
+    if (
+      ["package.json", "tsconfig.json", "jsconfig.json"].some((name) =>
+        fs.existsSync(path.join(directory, name)),
+      )
+    ) {
+      return null;
+    }
+    const parent = path.dirname(directory);
+    if (parent === directory) return null;
+    directory = parent;
+  }
 }
 
 function explicitOxlintRules(value: unknown): ProjectLintRules {
