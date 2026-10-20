@@ -249,12 +249,42 @@ impl DiagnosticMapper<'_> {
                 .and_then(|(line, column)| self.virtual_offset(file, line, column))
                 .unwrap_or(start)
                 .max(start);
-            return crate::projection::assemble::is_generated_vue_ts_import_extension_at(
+            if crate::projection::assemble::is_generated_vue_ts_import_extension_at(
                 &file.content,
                 raw.code,
                 &raw.message,
                 start as usize,
                 end as usize,
+            ) {
+                return true;
+            }
+            let pre_start = file.source_map.import_map.get_original_offset(start) as usize;
+            let pre_end = file.source_map.import_map.get_original_offset(end) as usize;
+            let authored_range = file
+                .source_map
+                .sfc_map
+                .as_ref()
+                .map(|map| {
+                    map.projection()
+                        .diagnostic_range_to_authored(pre_start, pre_end)
+                })
+                .unwrap_or(Some((pre_start, pre_end.max(pre_start))));
+            let Some((authored_start, authored_end)) = authored_range else {
+                return false;
+            };
+            let Some(authored) = self
+                .project
+                .original_content_for_virtual(&file.virtual_path)
+            else {
+                return false;
+            };
+            return crate::projection::assemble::is_rewritten_ts_import_extension(
+                &file.content,
+                authored,
+                raw.code,
+                &raw.message,
+                start as usize..end as usize,
+                authored_start..authored_end,
             );
         }
         let Some(original) =

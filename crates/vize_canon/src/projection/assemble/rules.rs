@@ -98,6 +98,30 @@ pub(crate) fn is_authored_vue_import_extension(
             .is_some_and(|specifier| has_extension(specifier, &[".vue"]))
 }
 
+/// `TS5097` caused only by Canon adding a TypeScript extension while routing
+/// an authored extensionless or `.vue` import into the virtual project.
+pub(crate) fn is_rewritten_ts_import_extension(
+    generated: &str,
+    authored: &str,
+    code: Option<u32>,
+    message: &str,
+    generated_range: Range<usize>,
+    authored_range: Range<usize>,
+) -> bool {
+    if !is_ts5097_import_extension(code, message) {
+        return false;
+    }
+    let Some(generated) = specifier_at(generated, generated_range.start, generated_range.end)
+    else {
+        return false;
+    };
+    let Some(authored) = specifier_at(authored, authored_range.start, authored_range.end) else {
+        return false;
+    };
+    has_extension(generated, &[".ts", ".tsx", ".mts", ".cts"])
+        && !has_extension(authored, &[".ts", ".tsx", ".mts", ".cts"])
+}
+
 /// TypeScript's CLI formatter only supplies the diagnostic start, so recover
 /// the quoted module specifier that contains that zero-width position. LSP
 /// diagnostics usually carry the whole literal and take the same path.
@@ -155,7 +179,10 @@ fn is_ts5097_import_extension(code: Option<u32>, message: &str) -> bool {
 
 #[cfg(test)]
 mod import_extension_tests {
-    use super::{is_authored_vue_import_extension, is_generated_vue_ts_import_extension};
+    use super::{
+        is_authored_vue_import_extension, is_generated_vue_ts_import_extension,
+        is_rewritten_ts_import_extension,
+    };
     use crate::projection::FinishedDiagnostic;
 
     const MESSAGE: &str = "An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.";
@@ -191,6 +218,30 @@ mod import_extension_tests {
             let start = source.find('\'').unwrap();
             assert_eq!(
                 is_authored_vue_import_extension(source, Some(5097), MESSAGE, start, start),
+                suppressed
+            );
+        }
+    }
+
+    #[test]
+    fn generated_typescript_extension_is_suppressed_only_for_an_authored_rewrite() {
+        let generated = "import { value } from '/virtual/src/value.ts';\n";
+        let extensionless = "import { value } from './value';\n";
+        let explicit = "import { value } from './value.ts';\n";
+        let generated_start = generated.find("'/virtual").unwrap();
+        let generated_end = generated.find("';").unwrap() + 1;
+        for (authored, suppressed) in [(extensionless, true), (explicit, false)] {
+            let authored_start = authored.find("'./value").unwrap();
+            let authored_end = authored.find("';").unwrap() + 1;
+            assert_eq!(
+                is_rewritten_ts_import_extension(
+                    generated,
+                    authored,
+                    Some(5097),
+                    MESSAGE,
+                    generated_start..generated_end,
+                    authored_start..authored_end,
+                ),
                 suppressed
             );
         }
