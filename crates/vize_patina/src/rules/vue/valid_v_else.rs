@@ -64,20 +64,17 @@ impl Rule for ValidVElse {
 
         // Check 1: v-else should not have an expression
         if directive.exp.is_some() {
-            let fix = Fix::new(
-                "Remove the expression from v-else",
-                TextEdit::delete(directive.loc.span.start, directive.loc.span.end),
-            );
-            ctx.report(
-                crate::diagnostic::LintDiagnostic::error(
-                    META.name,
-                    ctx.t("vue/valid-v-else.unexpected_expression").as_ref(),
-                    directive.loc.span.start,
-                    directive.loc.span.end,
-                )
-                .with_help(ctx.t("vue/valid-v-else.help").as_ref())
-                .with_fix(fix),
-            );
+            let mut diagnostic = crate::diagnostic::LintDiagnostic::error(
+                META.name,
+                ctx.t("vue/valid-v-else.unexpected_expression").as_ref(),
+                directive.loc.span.start,
+                directive.loc.span.end,
+            )
+            .with_help(ctx.t("vue/valid-v-else.help").as_ref());
+            if let Some(fix) = unexpected_expression_fix(ctx.source, directive) {
+                diagnostic = diagnostic.with_fix(fix);
+            }
+            ctx.report(diagnostic);
         }
 
         // Check 2: v-else should not be used with v-if or v-else-if
@@ -93,6 +90,21 @@ impl Rule for ValidVElse {
             );
         }
     }
+}
+
+fn unexpected_expression_fix(source: &str, directive: &DirectiveNode) -> Option<Fix> {
+    let raw_name = directive.raw_name?;
+    let authored =
+        source.get(directive.loc.span.start as usize..directive.loc.span.end as usize)?;
+    authored.starts_with(raw_name).then(|| {
+        Fix::new(
+            "Remove the expression from v-else",
+            TextEdit::delete(
+                directive.loc.span.start + raw_name.len() as u32,
+                directive.loc.span.end,
+            ),
+        )
+    })
 }
 
 /// Report every `v-else` that does not directly follow a conditional branch.
@@ -159,6 +171,14 @@ mod tests {
             "test.vue",
         );
         assert_eq!(result.error_count, 1);
+        assert_eq!(
+            result.diagnostics[0]
+                .fix
+                .as_ref()
+                .unwrap()
+                .apply(r#"<div v-if="foo"></div><div v-else="bar"></div>"#),
+            r#"<div v-if="foo"></div><div v-else></div>"#
+        );
         insta::assert_debug_snapshot!(result.diagnostics);
     }
 

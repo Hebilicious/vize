@@ -15,7 +15,7 @@ pub(super) struct Open<'a> {
 }
 
 /// Geometry retained only at the original successful closing-name match.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct MatchedClose {
     start: usize,
     end: usize,
@@ -39,6 +39,27 @@ pub(super) fn read_open<'a>(
     source: &'a str,
     at: usize,
 ) -> Result<Option<Open<'a>>, ()> {
+    let mut attrs = Vec::new_in(&allocator);
+    let boundary = read_open_boundary(source, at, |attr| attrs.push(attr))?;
+    Ok(boundary.map(|boundary| Open {
+        name: boundary.name,
+        end: boundary.end,
+        attrs,
+        self_closing: boundary.self_closing,
+    }))
+}
+
+struct OpenBoundary<'a> {
+    name: &'a str,
+    end: usize,
+    self_closing: bool,
+}
+
+fn read_open_boundary<'a>(
+    source: &'a str,
+    at: usize,
+    mut attribute: impl FnMut(BlockAttr<'a>),
+) -> Result<Option<OpenBoundary<'a>>, ()> {
     let bytes = source.as_bytes();
     if bytes.get(at) != Some(&b'<') || !bytes.get(at + 1).is_some_and(u8::is_ascii_alphabetic) {
         return Ok(None);
@@ -48,7 +69,6 @@ pub(super) fn read_open<'a>(
         pos += 1;
     }
     let name = source.get(at + 1..pos).ok_or(())?;
-    let mut attrs = Vec::new_in(&allocator);
     loop {
         while bytes
             .get(pos)
@@ -58,18 +78,16 @@ pub(super) fn read_open<'a>(
         }
         match bytes.get(pos) {
             Some(b'>') => {
-                return Ok(Some(Open {
+                return Ok(Some(OpenBoundary {
                     name,
                     end: pos + 1,
-                    attrs,
                     self_closing: false,
                 }));
             }
             Some(b'/') if bytes.get(pos + 1) == Some(&b'>') => {
-                return Ok(Some(Open {
+                return Ok(Some(OpenBoundary {
                     name,
                     end: pos + 2,
-                    attrs,
                     self_closing: true,
                 }));
             }
@@ -126,7 +144,7 @@ pub(super) fn read_open<'a>(
         } else {
             None
         };
-        attrs.push(BlockAttr {
+        attribute(BlockAttr {
             name,
             value,
             span: Span::new(start as u32, pos as u32),
@@ -134,15 +152,18 @@ pub(super) fn read_open<'a>(
     }
 }
 
-pub(super) fn find_template_close<'a>(
-    allocator: &'a Allocator,
-    source: &'a str,
+pub(super) fn find_template_close(
+    source: &str,
     from: usize,
 ) -> (usize, Option<MatchedClose>, bool) {
     let bytes = source.as_bytes();
     let (mut pos, mut depth) = (from, 1usize);
     let mut uncertain = false;
-    while pos < bytes.len() {
+    while let Some(offset) = bytes
+        .get(pos..)
+        .and_then(|rest| memchr::memchr2(b'<', b'{', rest))
+    {
+        pos += offset;
         if bytes
             .get(pos..)
             .is_some_and(|rest| rest.starts_with(b"<!--"))
@@ -173,7 +194,9 @@ pub(super) fn find_template_close<'a>(
             pos = close.end();
             continue;
         }
-        if let Ok(Some(open)) = read_open(allocator, source, pos) {
+        // Nested tags only contribute boundary geometry. Parse the same
+        // spelling and quoted values without allocating discarded attributes.
+        if let Ok(Some(open)) = read_open_boundary(source, pos, |_| {}) {
             if open.name.eq_ignore_ascii_case("template") && !open.self_closing {
                 depth += 1;
             }
@@ -196,7 +219,8 @@ pub(super) fn find_template_close<'a>(
 
 pub(super) fn find_close(bytes: &[u8], from: usize, name: &str) -> Option<MatchedClose> {
     let mut pos = from;
-    while pos < bytes.len() {
+    while let Some(offset) = bytes.get(pos..).and_then(|rest| memchr::memchr(b'<', rest)) {
+        pos += offset;
         if bytes.get(pos) == Some(&b'<')
             && let Some(close) = close_at(bytes, pos, name)
         {
@@ -236,13 +260,12 @@ fn close_at(bytes: &[u8], at: usize, name: &str) -> Option<MatchedClose> {
 }
 
 pub(super) fn find_bytes(bytes: &[u8], from: usize, needle: &[u8]) -> Option<usize> {
-    bytes
-        .get(from..)?
-        .windows(needle.len())
-        .position(|part| part == needle)
-        .map(|offset| from + offset)
+    memchr::memmem::find(bytes.get(from..)?, needle).map(|offset| from + offset)
 }
 
 fn is_name(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_')
 }
+
+#[cfg(test)]
+mod tests;
