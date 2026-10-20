@@ -68,8 +68,7 @@ const _hoisted_1 = { to: \"#app\" }
 
 function render(_ctx, _cache, $props, $setup, $data, $options) {
   return (_openBlock(), _createBlock(_Teleport, _hoisted_1, [
-    _createTextVNode(\"hello \"),
-    _toDisplayString(msg)
+    _createTextVNode(\"hello \" + _toDisplayString(msg), 1 /* TEXT */)
   ], 1 /* TEXT */))
 }")
     );

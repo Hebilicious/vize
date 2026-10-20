@@ -11,8 +11,8 @@ use super::EmitError;
 use super::UnsupportedReason as Reason;
 use super::buf::Buf;
 use super::children::{
-    emit_create_text_vnode, emit_dynamic_part, emit_interpolation, emit_plain_text_vnode,
-    emit_raw_interpolation_or_refuse, emit_to_display_string, is_empty_interpolation,
+    emit_create_text_vnode, emit_interpolation, emit_raw_interpolation_or_refuse,
+    emit_slot_compound_parts, emit_to_display_string, is_empty_interpolation,
 };
 use super::hoist::{emit_hoisted_element, is_hoistable};
 use super::js::escape_js_string;
@@ -236,9 +236,9 @@ fn emit_fallback_comment(
     Ok(())
 }
 
-/// Slot fallback walks each L1 child (`generate_node`), so a merged
-/// compound expands back into separate array entries: static parts as
-/// `_createTextVNode`, interpolations as bare `_toDisplayString`.
+/// Slot fallback walks each L1 child (`generate_node`). A compound L2
+/// interpolation represents one adjacent text run, so preserve it as one
+/// `_createTextVNode` just like authored component slot children.
 fn emit_fallback_interp(
     cx: &mut EmitCx<'_>,
     interp: &InterpolationOp<'_>,
@@ -267,15 +267,8 @@ fn emit_fallback_interp(
                 ))?
                 .parts
                 .clone();
-            for part in parts.iter() {
-                start_fallback_item(cx, compact, first);
-                if part.dynamic {
-                    emit_dynamic_part(cx, part.text.as_str(), Site::Expression)?;
-                } else {
-                    emit_plain_text_vnode(cx, part.text.as_str());
-                }
-            }
-            Ok(())
+            start_fallback_item(cx, compact, first);
+            emit_slot_compound_parts(cx, &parts, interp.span)
         }
         ExprRef::Opaque(opaque) if is_empty_interpolation(opaque) => {
             start_fallback_item(cx, compact, first);
