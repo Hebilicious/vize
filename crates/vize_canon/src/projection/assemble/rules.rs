@@ -64,8 +64,24 @@ pub(super) fn is_generated_vue_ts_import_extension<P>(
     generated: &str,
     diagnostic: &FinishedDiagnostic<P>,
 ) -> bool {
-    is_ts5097_import_extension(diagnostic.code, &diagnostic.message)
-        && specifier_at(generated, diagnostic.start, diagnostic.end)
+    is_generated_vue_ts_import_extension_at(
+        generated,
+        diagnostic.code,
+        &diagnostic.message,
+        diagnostic.start,
+        diagnostic.end,
+    )
+}
+
+pub(crate) fn is_generated_vue_ts_import_extension_at(
+    generated: &str,
+    code: Option<u32>,
+    message: &str,
+    start: usize,
+    end: usize,
+) -> bool {
+    is_ts5097_import_extension(code, message)
+        && specifier_at(generated, start, end)
             .is_some_and(|specifier| has_extension(specifier, &[".vue.ts", ".vue.tsx"]))
 }
 

@@ -83,6 +83,9 @@ impl DiagnosticMapper<'_> {
         let mut output = Vec::new();
         let mut groups: FxHashMap<PathBuf, AuthoredGroup<'_>> = FxHashMap::default();
         for raw in raws {
+            if self.is_rewritten_vue_import_extension(&raw) {
+                continue;
+            }
             if project.skips_typescript_diagnostics(&raw.virtual_path) {
                 continue;
             }
@@ -216,23 +219,6 @@ impl DiagnosticMapper<'_> {
         let original = self
             .project
             .diagnostic_position(&raw.virtual_path, raw.line, raw.column)?;
-        if raw.code == Some(5097) {
-            let source = self.original_source(&original.path)?;
-            let start = source.line_index.line_col_to_offset(
-                &source.content,
-                original.line,
-                original.column,
-            )? as usize;
-            if crate::projection::assemble::is_authored_vue_import_extension(
-                &source.content,
-                raw.code,
-                &raw.message,
-                start,
-                start,
-            ) {
-                return None;
-            }
-        }
         if raw.code == Some(6133) && is_vue(&original.path) {
             return None;
         }
@@ -245,6 +231,55 @@ impl DiagnosticMapper<'_> {
             severity: raw.severity,
             block_type: original.block_type,
         })
+    }
+
+    pub(in crate::batch::executor) fn is_rewritten_vue_import_extension(
+        &mut self,
+        raw: &RawDiagnostic,
+    ) -> bool {
+        if raw.code != Some(5097) || !raw.message.contains("allowImportingTsExtensions") {
+            return false;
+        }
+        if let Some(file) = self.project.find_by_diagnostic_virtual(&raw.virtual_path) {
+            let Some(start) = self.virtual_offset(file, raw.line, raw.column) else {
+                return false;
+            };
+            let end = raw
+                .end
+                .and_then(|(line, column)| self.virtual_offset(file, line, column))
+                .unwrap_or(start)
+                .max(start);
+            return crate::projection::assemble::is_generated_vue_ts_import_extension_at(
+                &file.content,
+                raw.code,
+                &raw.message,
+                start as usize,
+                end as usize,
+            );
+        }
+        let Some(original) =
+            self.project
+                .diagnostic_position(&raw.virtual_path, raw.line, raw.column)
+        else {
+            return false;
+        };
+        let Some(source) = self.original_source(&original.path) else {
+            return false;
+        };
+        let Some(start) =
+            source
+                .line_index
+                .line_col_to_offset(&source.content, original.line, original.column)
+        else {
+            return false;
+        };
+        crate::projection::assemble::is_authored_vue_import_extension(
+            &source.content,
+            raw.code,
+            &raw.message,
+            start as usize,
+            start as usize,
+        )
     }
 }
 
