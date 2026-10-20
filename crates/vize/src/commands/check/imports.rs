@@ -6,6 +6,8 @@
 
 use std::path::{Path, PathBuf};
 
+use rayon::prelude::*;
+
 use vize_canon::batch::is_vue_runtime_support_specifier;
 use vize_canon::{PackageRouteBinding, PackageRouteResolver, PackageSourceOptions};
 #[cfg(test)]
@@ -106,7 +108,26 @@ pub(super) fn collect_transitive_local_imports_with_session(
         // declarations; the session keeps each file's specifiers for that pass.
         let occurrences = match session.module_specifiers.remove(&file) {
             Some(cached) => cached,
-            None => scan_module_specifiers(&file),
+            None => {
+                // File reads and specifier extraction do not touch the mutable
+                // resolution caches. Fill the rest of this frontier on Rayon
+                // while this file is read, then resolve every result serially.
+                let pending = queue
+                    .iter()
+                    .map(|(path, _, _)| path)
+                    .filter(|path| !session.module_specifiers.contains_key(*path))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let loaded = pending
+                    .into_par_iter()
+                    .map(|path| {
+                        let occurrences = scan_module_specifiers(&path);
+                        (path, occurrences)
+                    })
+                    .collect::<Vec<_>>();
+                session.module_specifiers.extend(loaded);
+                scan_module_specifiers(&file)
+            }
         };
         let Some(occurrences) = occurrences else {
             session.module_specifiers.insert(file.clone(), None);

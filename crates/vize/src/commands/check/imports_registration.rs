@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use vize_l0::{FxHashMap, FxHashSet};
 
@@ -45,6 +48,10 @@ pub(super) struct VirtualRegistrationCache {
     /// Package files every reachability scan of this walk reads and parses.
     reachability_sources: vize_canon::batch::ReachabilitySources,
     negative_alias_sources: FxHashSet<PathBuf>,
+    /// Specifiers read by registration frontiers in this check. Overlapping
+    /// candidates share the immutable parse result.
+    module_specifiers:
+        FxHashMap<PathBuf, Option<Arc<[super::specifiers::ModuleSpecifierOccurrence]>>>,
     #[cfg(test)]
     source_reads: usize,
 }
@@ -57,6 +64,7 @@ impl Default for VirtualRegistrationCache {
             // `vize check` runs once: nothing refreshes from these inputs.
             reachability_sources: vize_canon::batch::ReachabilitySources::untracked(),
             negative_alias_sources: FxHashSet::default(),
+            module_specifiers: FxHashMap::default(),
             #[cfg(test)]
             source_reads: 0,
         }
