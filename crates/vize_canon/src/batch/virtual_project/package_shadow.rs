@@ -20,6 +20,36 @@ pub(super) struct PackageShadowTopology {
     pub(super) manifests: FxHashMap<PathBuf, PathBuf>,
     pub(super) aliases: FxHashMap<PathBuf, PathBuf>,
     pub(super) install_roots: FxHashMap<PathBuf, PathBuf>,
+    #[cfg(test)]
+    pub(super) route_visits: usize,
+}
+
+#[derive(Default)]
+pub(super) struct PackageShadowTraversal {
+    ancestors: FxHashSet<PathBuf>,
+    visited: FxHashSet<(PathBuf, PathBuf, PathBuf, PathBuf)>,
+}
+
+impl PackageShadowTraversal {
+    fn enter(&mut self, route: &crate::PackageRoute, shadow_root: &Path) -> bool {
+        if !self.ancestors.insert(route.manifest_path.clone()) {
+            return false;
+        }
+        if !self.visited.insert((
+            route.package_link_root.clone(),
+            route.package_root.clone(),
+            route.manifest_path.clone(),
+            shadow_root.to_path_buf(),
+        )) {
+            self.ancestors.remove(&route.manifest_path);
+            return false;
+        }
+        true
+    }
+
+    fn exit(&mut self, route: &crate::PackageRoute) {
+        self.ancestors.remove(&route.manifest_path);
+    }
 }
 
 impl VirtualProject {
@@ -62,6 +92,7 @@ impl VirtualProject {
             return Ok(());
         };
         let mut topology = PackageShadowTopology::default();
+        let mut traversal = PackageShadowTraversal::default();
 
         if let Some(scope_manifest) = binding.context.scope_manifest_path.as_ref()
             && scope_manifest.is_file()
@@ -81,7 +112,7 @@ impl VirtualProject {
             self.collect_route_shadow_topology(
                 route,
                 &canonical_root,
-                &mut FxHashSet::default(),
+                &mut traversal,
                 &mut topology,
                 plan,
             );
@@ -117,7 +148,7 @@ impl VirtualProject {
                 self.collect_route_shadow_topology(
                     route,
                     &shadow_root,
-                    &mut FxHashSet::default(),
+                    &mut traversal,
                     &mut topology,
                     plan,
                 );
@@ -156,12 +187,16 @@ impl VirtualProject {
         &self,
         route: &crate::PackageRoute,
         shadow_root: &Path,
-        ancestors: &mut FxHashSet<PathBuf>,
+        traversal: &mut PackageShadowTraversal,
         topology: &mut PackageShadowTopology,
         plan: &WorkspaceShadowPlan,
     ) {
-        if !ancestors.insert(route.manifest_path.clone()) {
+        if !traversal.enter(route, shadow_root) {
             return;
+        }
+        #[cfg(test)]
+        {
+            topology.route_visits += 1;
         }
         topology.manifests.insert(
             shadow_root.join("package.json"),
@@ -181,13 +216,13 @@ impl VirtualProject {
             self.collect_route_shadow_topology(
                 nested,
                 &shadow_root.join("node_modules").join(package_name),
-                ancestors,
+                traversal,
                 topology,
                 plan,
             );
         }
-        self.collect_workspace_dependency_shadows(route, shadow_root, ancestors, topology, plan);
-        ancestors.remove(&route.manifest_path);
+        self.collect_workspace_dependency_shadows(route, shadow_root, traversal, topology, plan);
+        traversal.exit(route);
     }
 
     fn collect_manifest_target_shadows(
