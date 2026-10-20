@@ -7,8 +7,8 @@ use super::super::js::escape_js_string;
 use super::super::prefix::Site;
 use super::super::{EmitCx, EmitError, UnsupportedReason as Reason};
 use super::{
-    emit_compound_parts, emit_create_text_vnode, emit_quoted_text, emit_to_display_string,
-    is_empty_interpolation, slot_compound::emit_slot_compound_parts,
+    emit_compound_parts, emit_create_text_vnode, emit_quoted_text, emit_slot_compound_parts,
+    emit_to_display_string, is_empty_interpolation,
 };
 
 /// Slot default children emit one or more `_createTextVNode`s.

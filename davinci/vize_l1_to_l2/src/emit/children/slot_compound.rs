@@ -6,7 +6,7 @@ use super::{EmitCx, EmitError, Reason, emit_compound_parts};
 use crate::emit::buf::Buf;
 use crate::emit::prefix::Site;
 
-pub(super) fn emit_slot_compound_parts(
+pub(in crate::emit) fn emit_slot_compound_parts(
     cx: &mut EmitCx<'_>,
     parts: &[TextPart],
     span: Span,
