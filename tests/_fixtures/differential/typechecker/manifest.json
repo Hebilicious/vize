@@ -1234,6 +1234,25 @@
           "sha256": "e36b280dce185f4be85cbff1838c0ee06d8d7a46b38b3e63df995c0decd7b13b"
         }
       ]
+    },
+    {
+      "id": "typechecker/nuxt-plugin-injection-types/authored-dependency-identity",
+      "state": "active",
+      "targets": ["batch"],
+      "adapters": {
+        "legacy": "batch-typechecker-fixture-v1",
+        "native": null
+      },
+      "inputs": {
+        "root": "nuxt-plugin-injection-types",
+        "files": [
+          {
+            "path": "project.json",
+            "role": "entry",
+            "sha256": "2ad499a9665600b7ce468b7568641491f1262c3010dc40d5d4c53b2b5b775412"
+          }
+        ]
+      }
     }
   ]
 }
