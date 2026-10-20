@@ -120,6 +120,52 @@ export default {
 }
 
 #[test]
+fn production_v_if_placeholder_omits_development_comment_text() {
+    let descriptor = parse_sfc(
+        r#"<template><div><p v-if="open">open</p><span>always</span></div></template>"#,
+        SfcParseOptions::default(),
+    )
+    .expect("parse SFC");
+
+    for custom_renderer in [false, true] {
+        let compiler_options = vize_atelier_dom::DomCompilerOptions {
+            custom_renderer,
+            ..Default::default()
+        };
+        let mut development_options = SfcCompileOptions::default();
+        development_options.template.is_prod = false;
+        development_options.template.compiler_options = Some(compiler_options.clone());
+        let development =
+            compile_sfc(&descriptor, development_options).expect("compile development SFC");
+        assert!(
+            development
+                .code
+                .contains("_createCommentVNode(\"v-if\", true)"),
+            "development output should retain the v-if hint (custom_renderer={custom_renderer}):\n{}",
+            development.code
+        );
+
+        let mut production_options = SfcCompileOptions::default();
+        production_options.template.is_prod = true;
+        production_options.template.compiler_options = Some(compiler_options);
+        let production =
+            compile_sfc(&descriptor, production_options).expect("compile production SFC");
+        assert!(
+            production.code.contains("_createCommentVNode(\"\", true)"),
+            "production output should emit an empty placeholder (custom_renderer={custom_renderer}):\n{}",
+            production.code
+        );
+        assert!(
+            !production
+                .code
+                .contains("_createCommentVNode(\"v-if\", true)"),
+            "production output should omit the development hint (custom_renderer={custom_renderer}):\n{}",
+            production.code
+        );
+    }
+}
+
+#[test]
 fn test_script_only_ssr_preserves_default_export() {
     let source = r#"<script lang="ts">
 import type { PropType } from 'vue'
