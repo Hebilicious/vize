@@ -99,7 +99,7 @@ impl ScriptRule for ConfiguredDefineMacrosOrder {
         offset: usize,
         result: &mut ScriptLintResult,
     ) {
-        let order = self.0.iter().map(String::as_str).collect::<Vec<_>>();
+        let order = self.0.iter().map(|name| name.as_str()).collect::<Vec<_>>();
         check(program, offset, result, &order);
     }
 }
