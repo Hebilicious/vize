@@ -26,11 +26,13 @@ export function getRuleOptions(
       if (isComponentNameInTemplateCasingOption(firstOption)) {
         return { componentNameInTemplateCasing: firstOption };
       }
+      if (isRecord(firstOption)) return cliRuleOptions(ruleName, firstOption);
       break;
     case "script/custom-event-name-casing":
       if (isCustomEventNameCasingOption(firstOption)) {
         return { customEventNameCasing: firstOption };
       }
+      if (isRecord(firstOption)) return cliRuleOptions(ruleName, firstOption);
       break;
     case "vue/no-mutating-props":
       if (isNoMutatingPropsOption(firstOption)) {
@@ -62,6 +64,17 @@ export function getRuleOptions(
         return { attributeHyphenation: firstOption };
       }
       break;
+    case "script/define-props-destructuring":
+    case "html/no-empty-palpable-content":
+    case "type/strict-boolean-expressions":
+    case "script/no-restricted-globals":
+    case "script/no-restricted-members":
+    case "vue/require-component-registration":
+    case "vue/valid-v-on":
+    case "vue/valid-v-slot":
+    case "musea/prefer-design-tokens":
+      if (isRecord(firstOption)) return cliRuleOptions(ruleName, firstOption);
+      break;
   }
   return undefined;
 }
@@ -78,6 +91,10 @@ function isDefineMacrosOrderOption(value: unknown): value is DefineMacrosOrderOp
         (name, index) => isString(name) && name.length > 0 && order.indexOf(name) === index,
       ))
   );
+}
+
+function cliRuleOptions(ruleName: string, option: Record<string, unknown>): PatinaRuleOptions {
+  return { ruleOptions: { [ruleName]: structuredClone(option) } };
 }
 
 function isComponentNameInTemplateCasingOption(

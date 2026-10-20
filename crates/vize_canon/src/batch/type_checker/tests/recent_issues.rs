@@ -1,4 +1,5 @@
 use super::{create_project_case, resolve_test_tsgo_binary, snapshot_project_diagnostics};
+mod allow_importing_ts_extensions;
 mod art_variant;
 mod component_event_assignment_scope;
 mod component_options_index_signature;
@@ -24,6 +25,7 @@ mod lexical_dollar_slots;
 mod literal_dynamic_slot_names;
 mod native_prop_anchors;
 mod normalization;
+mod nuxt_plugin_injections;
 mod open_slot_index_signature;
 mod optional_boolean_props;
 mod options_api_bridge_anchors;

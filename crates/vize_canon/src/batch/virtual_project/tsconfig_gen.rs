@@ -188,7 +188,6 @@ impl VirtualProject {
         // normal imports look like project-build membership errors (TS6307).
         compiler_options.remove("composite");
         normalize_native_removed_options(&mut compiler_options);
-        compiler_options.insert("allowImportingTsExtensions".into(), Value::Bool(true));
         if self.requires_arbitrary_extensions() || preserved_arbitrary_extensions {
             compiler_options.insert("allowArbitraryExtensions".into(), Value::Bool(true));
         }
@@ -230,6 +229,11 @@ impl VirtualProject {
         }
 
         if let Some(out_dir) = out_dir {
+            // Declaration inputs import Canon's generated `.vue.ts` and
+            // `.vue.tsx` routes. The check config preserves the authored
+            // policy so TS5097 remains reportable, while this emit-only
+            // config must accept Canon's own extensions.
+            compiler_options.insert("allowImportingTsExtensions".into(), Value::Bool(true));
             compiler_options.insert("noEmit".into(), Value::Bool(false));
             compiler_options.insert("declaration".into(), Value::Bool(true));
             compiler_options.insert("emitDeclarationOnly".into(), Value::Bool(true));
