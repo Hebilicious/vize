@@ -58,7 +58,7 @@ fn native_script_setup_completion_merges_checker_builtins_and_globals_by_label()
     assert_eq!(r#ref["sortText"], "11");
     assert_eq!(r#ref["detail"], "function ref<T>(value: T): Ref<T>");
     let define_props = item(items, "defineProps");
-    assert_eq!(define_props["kind"], 6);
+    assert_eq!(define_props["kind"], 3);
     assert_eq!(define_props["detail"], "Macro: defineProps<T>()");
 
     fixture.shutdown();
