@@ -163,7 +163,10 @@ fn converging_workspace_dependency_paths_visit_each_shadow_route_once() {
     // Every package can be reached through Fibonacci-many dependency paths.
     // Each physical package is expanded exactly once; alternate paths become
     // aliases to that primary copy instead of recursive copies.
-    assert_eq!(root_topology.route_visits, PACKAGE_COUNT);
+    assert_eq!(
+        root_topology.route_visits,
+        root_topology.traversal_roots * PACKAGE_COUNT
+    );
 }
 
 fn assert_complete(project: &VirtualProject, root: &Path) {

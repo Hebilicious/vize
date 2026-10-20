@@ -22,6 +22,8 @@ pub(super) struct PackageShadowTopology {
     pub(super) install_roots: FxHashMap<PathBuf, PathBuf>,
     #[cfg(test)]
     pub(super) route_visits: usize,
+    #[cfg(test)]
+    pub(super) traversal_roots: usize,
 }
 
 #[derive(Default)]
@@ -100,7 +102,6 @@ impl VirtualProject {
             return Ok(());
         };
         let mut topology = PackageShadowTopology::default();
-        let mut traversal = PackageShadowTraversal::default();
 
         if let Some(scope_manifest) = binding.context.scope_manifest_path.as_ref()
             && scope_manifest.is_file()
@@ -117,6 +118,11 @@ impl VirtualProject {
         if let Ok(canonical_root) =
             mirrored_virtual_path(&self.project_root, &self.virtual_root, &route.package_root)
         {
+            let mut traversal = PackageShadowTraversal::default();
+            #[cfg(test)]
+            {
+                topology.traversal_roots += 1;
+            }
             self.collect_route_shadow_topology(
                 route,
                 &canonical_root,
@@ -153,6 +159,11 @@ impl VirtualProject {
                 return Ok(());
             };
             for shadow_root in shadow_roots {
+                let mut traversal = PackageShadowTraversal::default();
+                #[cfg(test)]
+                {
+                    topology.traversal_roots += 1;
+                }
                 self.collect_route_shadow_topology(
                     route,
                     &shadow_root,
