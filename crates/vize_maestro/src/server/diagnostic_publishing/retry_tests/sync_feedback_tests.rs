@@ -70,6 +70,7 @@ fn did_change_publishes_versioned_lint_before_held_native_diagnostics() {
         change.as_mut().now_or_never().is_some(),
         "didChange waited for the held native diagnostic pass"
     );
+    drop(change);
     let expected = sync_packet(&fixture);
     assert_eq!(
         diagnostics(drain(&mut fixture.socket, async {})),
