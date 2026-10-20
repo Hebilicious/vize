@@ -1,7 +1,4 @@
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::path::{Path, PathBuf};
 
 use vize_l0::{FxHashMap, FxHashSet};
 
@@ -51,7 +48,7 @@ pub(super) struct VirtualRegistrationCache {
     /// Specifiers read by registration frontiers in this check. Overlapping
     /// candidates share the immutable parse result.
     pub(super) module_specifiers:
-        FxHashMap<PathBuf, Option<Arc<[super::specifiers::ModuleSpecifierOccurrence]>>>,
+        FxHashMap<PathBuf, Option<Box<[super::specifiers::ModuleSpecifierOccurrence]>>>,
     #[cfg(test)]
     source_reads: usize,
 }

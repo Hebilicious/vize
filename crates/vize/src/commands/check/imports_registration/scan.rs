@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use rayon::prelude::*;
 
 use super::{
@@ -50,18 +48,23 @@ pub(super) fn source_needs_virtual_registration(
             let loaded = pending
                 .into_par_iter()
                 .map(|path| {
-                    let occurrences = std::fs::read_to_string(&path)
-                        .ok()
-                        .map(|source| Arc::from(extract_module_specifier_occurrences(&source)));
+                    let occurrences = std::fs::read_to_string(&path).ok().map(|source| {
+                        extract_module_specifier_occurrences(&source).into_boxed_slice()
+                    });
                     (path, occurrences)
                 })
                 .collect::<Vec<_>>();
             cache.module_specifiers.extend(loaded);
         }
-        let Some(Some(occurrences)) = cache.module_specifiers.get(&file).cloned() else {
+        let Some(cached) = cache.module_specifiers.remove(&file) else {
+            continue;
+        };
+        let Some(occurrences) = cached else {
+            cache.module_specifiers.insert(file, None);
             continue;
         };
         let Some(dir) = file.parent() else {
+            cache.module_specifiers.insert(file, Some(occurrences));
             continue;
         };
 
@@ -182,6 +185,7 @@ pub(super) fn source_needs_virtual_registration(
                 frontier.queue.push(resolved);
             }
         }
+        cache.module_specifiers.insert(file, Some(occurrences));
     }
 
     needs_registration

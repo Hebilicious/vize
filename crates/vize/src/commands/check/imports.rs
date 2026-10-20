@@ -4,10 +4,7 @@
 //! sources. This module separates authored files that TypeScript can resolve
 //! in place from files that must enter Vize's mirror for Vue import rewriting.
 
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::path::{Path, PathBuf};
 
 use rayon::prelude::*;
 
@@ -109,44 +106,47 @@ pub(super) fn collect_transitive_local_imports_with_session(
         };
         // Default runs walk the same roots again after adding hidden ambient
         // declarations; the session keeps each file's specifiers for that pass.
-        let occurrences = match session
+        if !session
             .registration_cache
             .module_specifiers
-            .get(&file)
-            .cloned()
+            .contains_key(&file)
         {
-            Some(cached) => cached,
-            None => {
-                // File reads and specifier extraction do not touch the mutable
-                // resolution caches. Fill the rest of this frontier on Rayon
-                // while this file is read, then resolve every result serially.
-                let pending = queue
-                    .iter()
-                    .map(|(path, _, _)| path)
-                    .filter(|path| {
-                        !session
-                            .registration_cache
-                            .module_specifiers
-                            .contains_key(*path)
-                    })
-                    .cloned()
-                    .collect::<Vec<_>>();
-                let loaded = pending
-                    .into_par_iter()
-                    .map(|path| {
-                        let occurrences = scan_module_specifiers(&path);
-                        (path, occurrences)
-                    })
-                    .collect::<Vec<_>>();
-                session.registration_cache.module_specifiers.extend(loaded);
-                scan_module_specifiers(&file)
-            }
-        };
-        let Some(occurrences) = occurrences else {
+            // File reads and specifier extraction do not touch the mutable
+            // resolution caches. Fill the rest of this frontier on Rayon
+            // while this file is read, then resolve every result serially.
+            let pending = queue
+                .iter()
+                .map(|(path, _, _)| path)
+                .filter(|path| {
+                    !session
+                        .registration_cache
+                        .module_specifiers
+                        .contains_key(*path)
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            let loaded = pending
+                .into_par_iter()
+                .map(|path| {
+                    let occurrences = scan_module_specifiers(&path);
+                    (path, occurrences)
+                })
+                .collect::<Vec<_>>();
+            session.registration_cache.module_specifiers.extend(loaded);
+            let occurrences = scan_module_specifiers(&file);
             session
                 .registration_cache
                 .module_specifiers
-                .insert(file.clone(), None);
+                .insert(file.clone(), occurrences);
+        }
+        let Some(cached) = session.registration_cache.module_specifiers.remove(&file) else {
+            continue;
+        };
+        let Some(occurrences) = cached else {
+            session
+                .registration_cache
+                .module_specifiers
+                .insert(file, None);
             continue;
         };
         for occurrence in occurrences.iter() {
@@ -400,9 +400,9 @@ pub(super) fn collect_transitive_local_imports_with_session(
 /// Scan the raw file text directly — the byte scanner only reacts to
 /// `import`/`from` string operands, so an SFC's `<template>`/`<style>`
 /// are inert and no `.vue` parse is needed on this hot path.
-fn scan_module_specifiers(file: &Path) -> Option<Arc<[ModuleSpecifierOccurrence]>> {
+fn scan_module_specifiers(file: &Path) -> Option<Box<[ModuleSpecifierOccurrence]>> {
     let source = std::fs::read_to_string(file).ok()?;
-    Some(Arc::from(extract_module_specifier_occurrences(&source)))
+    Some(extract_module_specifier_occurrences(&source).into_boxed_slice())
 }
 
 #[cfg(test)]
