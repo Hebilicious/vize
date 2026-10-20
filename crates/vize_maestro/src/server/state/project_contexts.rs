@@ -453,12 +453,11 @@ fn document_root(path: &Path, workspace: &Path) -> PathBuf {
         };
         directory = parent;
     }
-    // A Vite app nested inside an existing package/TypeScript project is not
-    // a separate editor project. Its sources keep the package tsconfig paths
-    // and Vize policy. A standalone Vite directory with no package authority
-    // above it still owns its documents.
-    if workspace.join("package.json").is_file()
-        || workspace.join("tsconfig.json").is_file()
+    // A Vite app nested inside an existing TypeScript project is not a
+    // separate editor project. Its sources keep the ancestor tsconfig paths
+    // and Vize policy. Package-only workspaces still allow nested Vite apps to
+    // establish their own project context.
+    if workspace.join("tsconfig.json").is_file()
         || workspace.join("jsconfig.json").is_file()
         || std::fs::read_dir(workspace).is_ok_and(|entries| {
             entries
