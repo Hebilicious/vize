@@ -13,11 +13,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-// @ts-expect-error -- untyped release smoke helpers
 import { CONFIG_FREE_PROJECT_SHAPES } from "./smoke-release-init-config-free.mjs";
-// @ts-expect-error -- untyped release smoke helpers
 import { packedFileSpec, packedRedirects } from "./smoke-release-init-fresh.mjs";
-// @ts-expect-error -- untyped release smoke helpers
 import { PACKAGE_MANAGERS } from "./smoke-release-init-managers.mjs";
 import {
   assertFreshProject,
@@ -29,9 +26,7 @@ import {
   runGeneratedCheck,
   runManager,
   writeFiles,
-  // @ts-expect-error -- untyped release smoke helpers
 } from "./smoke-release-init-project.mjs";
-// @ts-expect-error -- untyped release smoke helpers
 import { run } from "./smoke-process.mjs";
 
 interface SmokeContext {

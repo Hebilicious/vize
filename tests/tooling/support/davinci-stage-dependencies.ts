@@ -72,8 +72,8 @@ export function workspaceDependencyDeclaration(name: string): {
   );
 
   const { path: dependencyPath, version } = declaration as Record<string, unknown>;
-  assert.equal(typeof dependencyPath, "string", `${name} must declare a path`);
-  assert.equal(typeof version, "string", `${name} must declare a version`);
+  assert.ok(typeof dependencyPath === "string", `${name} must declare a path`);
+  assert.ok(typeof version === "string", `${name} must declare a version`);
   return { path: dependencyPath, version };
 }
 

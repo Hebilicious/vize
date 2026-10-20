@@ -1,0 +1,8 @@
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true
+  },
+  "files": ["generate-css-catalog.ts", "../../../tests/tooling/lsp-css-catalog.test.ts"]
+}

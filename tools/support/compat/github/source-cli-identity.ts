@@ -40,8 +40,10 @@ export function runtimeIdentity(root: string) {
   const checkout = sourceCliCheckout(root);
   const source = checkout.sourceRevision;
   assert.equal(process.env.GITHUB_SHA, source, "checked source differs from workflow source");
-  assert.match(process.env.GITHUB_RUN_ID ?? "", /^[1-9][0-9]*$/);
-  assert.match(process.env.GITHUB_RUN_ATTEMPT ?? "", /^[1-9][0-9]*$/);
+  const runId = process.env.GITHUB_RUN_ID ?? "";
+  const runAttempt = process.env.GITHUB_RUN_ATTEMPT ?? "";
+  assert.match(runId, /^[1-9][0-9]*$/);
+  assert.match(runAttempt, /^[1-9][0-9]*$/);
   assert.equal(process.platform, "linux");
   assert.equal(process.arch, "x64");
   assert.ok(process.env.RUNNER_TEMP, "owned linker installation is required");
@@ -53,8 +55,8 @@ export function runtimeIdentity(root: string) {
   return {
     sourceRevision: source,
     sourceTree: checkout.sourceTree,
-    runId: process.env.GITHUB_RUN_ID,
-    runAttempt: process.env.GITHUB_RUN_ATTEMPT,
+    runId,
+    runAttempt,
     platform: process.platform,
     arch: process.arch,
     rustc: command(root, "rustc", ["-vV"]),

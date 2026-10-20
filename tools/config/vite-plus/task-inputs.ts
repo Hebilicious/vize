@@ -111,8 +111,8 @@ const toolingInputs = [
   "Cargo.toml",
   "Cargo.lock",
   "rust-toolchain.toml",
-  // Root TypeScript projects, nextest and ignore rules configure tooling too.
-  "tsconfig*.json",
+  // The root TypeScript solution, nextest and ignore rules configure tooling too.
+  "tsconfig.json",
   ".config/**",
   ".gitignore",
   "crates/**",
@@ -125,7 +125,7 @@ const toolingInputs = [
   "examples/**",
   "playground/**",
   "README.md",
-] satisfies TaskInput[];
+] satisfies TaskInput;
 
 /**
  * Cache inputs for the root task catalog.

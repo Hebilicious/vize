@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 // Each function runs inside the page through Playwright's `page.evaluate`, so
 // it must stay self-contained (no imports or module-scope helpers).
 

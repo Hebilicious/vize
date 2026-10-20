@@ -84,7 +84,7 @@ test("iteration JS checks keep the warning budget without repository verificatio
 
   assert.equal(iteration, full.split(" && ")[0]);
   assert.doesNotMatch(iteration, /check-project|rust-script/);
-  assert.match(full, /check-project\.ts tsconfig\.css-catalog\.json/);
+  assert.match(full, / && node tools\/support\/typescript\/check-project\.ts$/);
 });
 
 test("normalizing a macOS C.UTF-8 environment updates child-process locale variables", () => {

@@ -114,8 +114,18 @@ assert.deepEqual(scoped, {
   include: [],
   files: ["tests/differential/build-receipt.ts", "tests/differential/sha256.ts"],
 });
-const currentScoped = { ...scoped, files: [...scoped.files, ...receiptQualificationPaths] };
-assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, project), "utf8")), currentScoped);
+// The scoped project was folded into the glob-based tests/ project (#8840).
+const testsProject = JSON.parse(
+  fs.readFileSync(path.join(root, "tests/tsconfig.json"), "utf8"),
+) as {
+  include: string[];
+  exclude: string[];
+};
+assert.ok(testsProject.include.includes("**/*.ts"));
+for (const file of [...scoped.files, ...receiptQualificationPaths])
+  assert.ok(!testsProject.exclude.includes(file.slice("tests/".length)), file);
+// The last body of the scoped project before it was folded.
+const foldedProject = `${JSON.stringify({ ...scoped, files: [...scoped.files, ...receiptQualificationPaths] }, null, 2)}\n`;
 const changed = [
   ...published.keys(),
   ...receiptQualificationPaths,
@@ -126,7 +136,8 @@ const read: ReceiptExtensionReader = (side, file) => {
   if (side === "after") {
     if (file === companion)
       return published.get(companion)!.after!.toString("utf8") + receiptCompanionAppendix;
-    if (file === project || file === companion || receiptQualificationPaths.some((p) => p === file))
+    if (file === project) return foldedProject;
+    if (file === companion || receiptQualificationPaths.some((p) => p === file))
       return fs.readFileSync(path.join(root, file));
     if (Object.hasOwn(receiptWitnessDigests, file)) return fs.readFileSync(path.join(root, file));
     if (Object.hasOwn(receiptAssertionDigests, file))
