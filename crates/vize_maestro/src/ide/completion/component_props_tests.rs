@@ -56,9 +56,33 @@ import Child from './Child.vue'
         .find(|item| item.label == "some-message")
         .expect("some-message prop completion should be present");
     let doc = markdown_doc(&prop.documentation);
-    assert!(doc.contains("```typescript"), "got {doc:?}");
-    assert!(doc.contains("```vue"), "got {doc:?}");
-    assert!(doc.contains("Vue Component Props"), "got {doc:?}");
+    assert_eq!(
+        doc,
+        r#"**Prop `someMessage`**
+
+_Required component prop_
+
+```typescript
+interface Props {
+  someMessage: string
+}
+```
+
+**Requirement**
+
+Required
+
+**Example**
+
+```vue
+<Component some-message="..." />
+<Component :someMessage="value" />
+```
+
+**Docs**
+
+[Vue Component Props](https://vuejs.org/guide/components/props.html)"#
+    );
 }
 
 #[test]
@@ -102,14 +126,22 @@ import MySelect from "./MySelect.vue"
             .iter()
             .map(|item| item.label.as_str())
             .collect::<Vec<_>>();
+        let edits = items
+            .iter()
+            .map(|item| match item.text_edit.as_ref().unwrap() {
+                CompletionTextEdit::Edit(edit) => edit.new_text.clone(),
+                CompletionTextEdit::InsertAndReplace(_) => panic!("expected a simple text edit"),
+            })
+            .collect::<Vec<_>>();
 
         assert_eq!(labels, vec!["selection", "item"], "{prefix}: {items:#?}");
-        assert!(items.iter().all(|item| {
-            item.text_edit.as_ref().is_some_and(|edit| match edit {
-                CompletionTextEdit::Edit(edit) => edit.new_text.starts_with(prefix),
-                CompletionTextEdit::InsertAndReplace(_) => false,
-            })
-        }));
+        assert_eq!(
+            edits,
+            vec![
+                format!(r#"{prefix}selection="{{ ${{1:item}} }}""#),
+                format!(r#"{prefix}item="{{ ${{1:item}} }}""#),
+            ]
+        );
     }
 }
 
