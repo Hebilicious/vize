@@ -138,6 +138,21 @@
       }
     },
     {
+      "id": "linter/current-api/dynamic-slot-v-for-component-bodies",
+      "state": "active",
+      "targets": ["lint"],
+      "inputs": {
+        "root": "dynamic-slot-v-for-9924",
+        "files": [
+          {
+            "path": "source.txt",
+            "role": "issue-authored-reproduction",
+            "sha256": "d50755b2532cb85e5da3aa35a9e97b2f3b9c30d0b9e6e41ecb8774a421fe200c"
+          }
+        ]
+      }
+    },
+    {
       "id": "linter/next-tick/valid-arrow-expression-return-script",
       "state": "active",
       "targets": ["lint"]
