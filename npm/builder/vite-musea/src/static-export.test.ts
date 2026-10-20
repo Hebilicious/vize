@@ -90,7 +90,8 @@ void test("emitStaticGallery packages browser-facing static output", async () =>
       },
     });
 
-    const previewId = staticPreviewId(art.path, "Default");
+    const publicPath = "src/Button.art.vue";
+    const previewId = staticPreviewId(publicPath, "Default");
     const staticPayload = JSON.parse(assetText(assets, "__musea__/api/static.json")) as {
       arts: Array<{ path: string; metadata: { title: string }; variants: Array<{ name: string }> }>;
       previews: Record<string, Record<string, string>>;
@@ -99,7 +100,7 @@ void test("emitStaticGallery packages browser-facing static output", async () =>
       details?: Record<string, Record<string, unknown>>;
     };
     assert.equal(staticPayload.snapshotIdentityVersion, 1);
-    assert.deepEqual(staticPayload.snapshotIdentities, { [art.path]: "src/Button.art.vue" });
+    assert.deepEqual(staticPayload.snapshotIdentities, { [publicPath]: publicPath });
     const artsPayload = JSON.parse(assetText(assets, "__musea__/api/arts")) as Array<{
       path: string;
       metadata: { title: string };
@@ -107,11 +108,11 @@ void test("emitStaticGallery packages browser-facing static output", async () =>
     }>;
 
     assert.deepEqual(staticPayload.arts.map(compactArtPayload), [
-      { path: art.path, title: "Button", variants: ["Default"] },
+      { path: publicPath, title: "Button", variants: ["Default"] },
     ]);
     assert.deepEqual(artsPayload.map(compactArtPayload), staticPayload.arts.map(compactArtPayload));
     assert.deepEqual(staticPayload.previews, {
-      [art.path]: {
+      [publicPath]: {
         Default: `/__musea__/preview/${previewId}.html`,
       },
     });
@@ -136,7 +137,7 @@ void test("emitStaticGallery packages browser-facing static output", async () =>
       __MUSEA_BASE_PATH__: "/__musea__",
       __MUSEA_STATIC__: true,
       __MUSEA_STATIC_PREVIEWS__: {
-        [art.path]: {
+        [publicPath]: {
           Default: `/__musea__/preview/${previewId}.html`,
         },
       },
@@ -155,7 +156,7 @@ void test("emitStaticGallery packages browser-facing static output", async () =>
     // Baked into a static artifact that reads as "audited and clean" for every
     // component. The panel measures accessibility live in the preview instead,
     // so the field had no consumer, only the false reading.
-    const detailKeys = Object.keys(staticPayload.details?.[art.path] ?? {});
+    const detailKeys = Object.keys(staticPayload.details?.[publicPath] ?? {});
     assert.ok(
       detailKeys.length > 0,
       "the payload must still carry per-art details; an empty object would make the next assertion vacuous",
@@ -202,9 +203,21 @@ void test("static galleries infer a shared snapshot root for Arts outside the Vi
     });
 
     const payload = JSON.parse(assetText(assets, "__musea__/api/static.json")) as {
+      arts: Array<{ path: string }>;
       snapshotIdentities: Record<string, string>;
     };
-    assert.equal(payload.snapshotIdentities[artPath], "ui/src/Button.art.vue");
+    const publicPath = "ui/src/Button.art.vue";
+    assert.deepEqual(
+      payload.arts.map((item) => item.path),
+      [publicPath],
+    );
+    assert.equal(payload.snapshotIdentities[publicPath], publicPath);
+    for (const [fileName, source] of assets) {
+      assert.ok(
+        !source.includes(workspace),
+        `static asset ${fileName} leaked its build workspace: ${workspace}`,
+      );
+    }
   } finally {
     await fs.promises.rm(workspace, { recursive: true, force: true });
   }
@@ -234,7 +247,8 @@ void test("emitStaticGallery prefixes browser URLs with Vite base without nestin
       themeConfig: undefined,
     });
 
-    const previewId = staticPreviewId(art.path, "Default");
+    const publicPath = "src/Button.art.vue";
+    const previewId = staticPreviewId(publicPath, "Default");
     const publicBasePath = "/app/aim/aim-front/design-system/__musea__";
     const staticPayload = JSON.parse(assetText(assets, "__musea__/api/static.json")) as {
       previews: Record<string, Record<string, string>>;
@@ -247,7 +261,7 @@ void test("emitStaticGallery prefixes browser URLs with Vite base without nestin
       false,
     );
     assert.deepEqual(staticPayload.previews, {
-      [art.path]: {
+      [publicPath]: {
         Default: `${publicBasePath}/preview/${previewId}.html`,
       },
     });
@@ -259,7 +273,7 @@ void test("emitStaticGallery prefixes browser URLs with Vite base without nestin
     const globals = executeStaticGlobals(galleryHtml);
     assert.equal(globals.__MUSEA_BASE_PATH__, publicBasePath);
     assert.deepEqual(globals.__MUSEA_STATIC_PREVIEWS__, {
-      [art.path]: {
+      [publicPath]: {
         Default: `${publicBasePath}/preview/${previewId}.html`,
       },
     });
