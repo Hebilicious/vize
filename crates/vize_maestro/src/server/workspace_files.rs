@@ -79,6 +79,8 @@ async fn register_typecheck_dependency_watcher(server: &MaestroServer) {
             .await
         {
             tracing::warn!("failed to register typecheck dependency watcher: {error}");
+        } else {
+            server.state.set_corsa_disk_watcher_registered();
         }
     }
     #[cfg(not(feature = "native"))]
@@ -148,6 +150,7 @@ pub(super) async fn did_create_files(server: &MaestroServer, params: &CreateFile
 fn record_created_files(state: &ServerState, params: &CreateFilesParams) {
     #[cfg(feature = "native")]
     {
+        state.invalidate_canonical_editor_paths();
         state.invalidate_global_component_references(
             params.files.iter().map(|file| file.uri.as_str()),
         );
@@ -175,6 +178,7 @@ pub(super) async fn did_delete_files(server: &MaestroServer, params: &DeleteFile
 fn record_deleted_files(state: &ServerState, params: &DeleteFilesParams) {
     #[cfg(feature = "native")]
     {
+        state.invalidate_canonical_editor_paths();
         state.invalidate_global_component_references(
             params.files.iter().map(|file| file.uri.as_str()),
         );
