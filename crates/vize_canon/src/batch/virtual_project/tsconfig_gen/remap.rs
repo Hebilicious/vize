@@ -77,8 +77,11 @@ impl VirtualProject {
         } else {
             modules_index + 2
         };
+        let Some(package_components) = components.get(..package_end) else {
+            return false;
+        };
         let mut package = PathBuf::new();
-        for component in &components[..package_end] {
+        for component in package_components {
             package.push(component.as_os_str());
         }
         std::fs::canonicalize(self.project_root.join(package))
