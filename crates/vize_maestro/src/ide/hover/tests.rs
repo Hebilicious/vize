@@ -80,10 +80,12 @@ const message = ref('hello')
     let hover = HoverService::hover(&ctx).unwrap();
     let value = hover_markdown(hover);
 
-    assert!(value.contains("message"));
     // The binding still resolves at the identifier boundary; its *type* is
     // the backend's to answer now, so the heuristic reports provenance only.
-    assert!(value.contains("_Template binding_"));
+    assert_eq!(
+        value,
+        "**message**\n\n_Template binding_\n\nBinding from `<script setup>`.\n\n**Behavior**\n- Available directly in the template scope.\n- Vue automatically unwraps refs when rendering templates."
+    );
 }
 
 #[test]
@@ -102,8 +104,10 @@ const message = ref('hello')
     let hover = HoverService::hover(&ctx).unwrap();
     let value = hover_markdown(hover);
 
-    assert!(value.contains("message"));
-    assert!(value.contains("_Template binding_"));
+    assert_eq!(
+        value,
+        "**message**\n\n_Template binding_\n\nBinding from `<script setup>`.\n\n**Behavior**\n- Available directly in the template scope.\n- Vue automatically unwraps refs when rendering templates."
+    );
 }
 
 #[test]
@@ -142,8 +146,7 @@ fn test_corsa_hover_is_decorated_for_editor_clients() {
     let value = hover_markdown(hover);
 
     // The signature is the whole body: no preamble above the fence (#3894).
-    assert!(value.starts_with("```typescript"));
-    assert!(value.contains("count: number"));
+    assert_eq!(value, "```typescript\n(property) count: number\n```");
 }
 
 #[cfg(feature = "native")]
@@ -166,8 +169,7 @@ import { formatCount } from "./util";
         assert_eq!(range.end.character, 35);
 
         let value = hover_markdown(hover);
-        assert!(value.contains("module \"./util\""), "{value}");
-        assert!(!value.contains("vize-canon"), "{value}");
+        assert_eq!(value, "```typescript\nmodule \"./util\"\n```");
     });
 }
 
