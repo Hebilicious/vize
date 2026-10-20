@@ -435,7 +435,9 @@ fn test_scoped_css_moves_scope_before_trailing_universal_selectors() {
 
     assert_eq!(
         result.css.as_deref(),
-        Some(".row[data-v-test]>*{flex-shrink:0;}.row[data-v-test] *{margin:0;}")
+        Some(
+            ".row[data-v-test] > *{ flex-shrink: 0; }.row[data-v-test] *{ margin: 0; }\n"
+        )
     );
 }
 

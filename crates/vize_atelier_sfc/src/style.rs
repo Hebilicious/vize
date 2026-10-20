@@ -446,6 +446,15 @@ fn scope_single_selector(selector: &str, attr_selector: &str) -> String {
     }
 
     if let Some((prefix, boundary, suffix)) = split_before_trailing_universal_or_pseudo(selector) {
+        if suffix.starts_with(":where(")
+            && let Some(scoped) = scope_bare_where(suffix, attr_selector)
+        {
+            let mut result = String::with_capacity(prefix.len() + boundary.len() + scoped.len());
+            result.push_str(prefix);
+            result.push_str(boundary);
+            result.push_str(&scoped);
+            return result;
+        }
         let scoped_prefix = scope_single_selector(prefix.trim_end(), attr_selector);
         let mut result = String::with_capacity(scoped_prefix.len() + boundary.len() + suffix.len());
         result.push_str(&scoped_prefix);
