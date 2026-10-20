@@ -161,18 +161,9 @@ fn converging_workspace_dependency_paths_visit_each_shadow_route_once() {
         .expect("root workspace package shadow topology");
 
     // Every package can be reached through Fibonacci-many dependency paths.
-    // A route + materialized shadow root is nevertheless one topology node.
-    // The two roots here are the canonical declaration copy and the root
-    // importer's visible copy, so unique work stays linear in package count.
-    assert!(
-        root_topology.route_visits <= 2 * PACKAGE_COUNT + 2,
-        "{} route visits for {PACKAGE_COUNT} packages",
-        root_topology.route_visits
-    );
-    assert!(
-        root_topology.route_visits >= PACKAGE_COUNT,
-        "the fixture must traverse the full dependency chain"
-    );
+    // Each physical package is expanded exactly once; alternate paths become
+    // aliases to that primary copy instead of recursive copies.
+    assert_eq!(root_topology.route_visits, PACKAGE_COUNT);
 }
 
 fn assert_complete(project: &VirtualProject, root: &Path) {

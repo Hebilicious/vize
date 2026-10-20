@@ -27,24 +27,32 @@ pub(super) struct PackageShadowTopology {
 #[derive(Default)]
 pub(super) struct PackageShadowTraversal {
     ancestors: FxHashSet<PathBuf>,
-    visited: FxHashSet<(PathBuf, PathBuf, PathBuf, PathBuf)>,
+    visited: FxHashMap<(PathBuf, PathBuf, PathBuf), PathBuf>,
+}
+
+enum PackageShadowEntry {
+    Entered,
+    Duplicate(PathBuf),
+    Cycle,
 }
 
 impl PackageShadowTraversal {
-    fn enter(&mut self, route: &crate::PackageRoute, shadow_root: &Path) -> bool {
+    fn enter(&mut self, route: &crate::PackageRoute, shadow_root: &Path) -> PackageShadowEntry {
         if !self.ancestors.insert(route.manifest_path.clone()) {
-            return false;
+            return PackageShadowEntry::Cycle;
         }
-        if !self.visited.insert((
+        let identity = (
             route.package_link_root.clone(),
             route.package_root.clone(),
             route.manifest_path.clone(),
-            shadow_root.to_path_buf(),
-        )) {
+        );
+        if let Some(primary_root) = self.visited.get(&identity) {
+            let primary_root = primary_root.clone();
             self.ancestors.remove(&route.manifest_path);
-            return false;
+            return PackageShadowEntry::Duplicate(primary_root);
         }
-        true
+        self.visited.insert(identity, shadow_root.to_path_buf());
+        PackageShadowEntry::Entered
     }
 
     fn exit(&mut self, route: &crate::PackageRoute) {
@@ -191,8 +199,23 @@ impl VirtualProject {
         topology: &mut PackageShadowTopology,
         plan: &WorkspaceShadowPlan,
     ) {
-        if !traversal.enter(route, shadow_root) {
-            return;
+        match traversal.enter(route, shadow_root) {
+            PackageShadowEntry::Cycle => return,
+            PackageShadowEntry::Duplicate(primary_root) => {
+                if shadow_root != primary_root {
+                    topology
+                        .aliases
+                        .entry(shadow_root.to_path_buf())
+                        .or_insert_with(|| primary_root.clone());
+                }
+                // A second specifier can select a different export target from
+                // the same manifest. Merge those leaf probes into the primary
+                // physical copy, but do not walk its dependency graph again.
+                self.collect_package_source_shadows(&route.package_root, &primary_root, topology);
+                self.collect_manifest_target_shadows(route, &primary_root, topology);
+                return;
+            }
+            PackageShadowEntry::Entered => {}
         }
         #[cfg(test)]
         {
