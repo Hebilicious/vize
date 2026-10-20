@@ -8,6 +8,7 @@ use clap::{Args, Subcommand};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use vize_l0::{String, cstr};
 
 mod editor_files;
 
@@ -279,7 +280,7 @@ fn install_vsix(path: &std::path::Path) {
 fn install_published_vscode_extension() {
     let extension = vscode_extension_spec(env!("CARGO_PKG_VERSION"));
     let status = Command::new("code")
-        .args(["--install-extension", &extension, "--force"])
+        .args(["--install-extension", extension.as_str(), "--force"])
         .status();
 
     match status {
@@ -300,7 +301,7 @@ fn install_published_vscode_extension() {
 }
 
 fn vscode_extension_spec(version: &str) -> String {
-    format!("{VSCODE_EXTENSION_ID}@{version}")
+    cstr!("{VSCODE_EXTENSION_ID}@{version}")
 }
 
 // =============================================================================
@@ -375,18 +376,18 @@ fn zed_install() {
 }
 
 fn zed_release_asset_url(version: &str) -> String {
-    format!("{RELEASE_REPOSITORY}/releases/download/v{version}/{ZED_RELEASE_ASSET}")
+    cstr!("{RELEASE_REPOSITORY}/releases/download/v{version}/{ZED_RELEASE_ASSET}")
 }
 
 fn download_zed_extension(version: &str) -> Result<tempfile::TempDir, String> {
     let temporary = tempfile::Builder::new()
         .prefix("vize-zed-extension-")
         .tempdir()
-        .map_err(|error| format!("could not create a temporary directory: {error}"))?;
+        .map_err(|error| cstr!("could not create a temporary directory: {error}"))?;
     let archive = temporary.path().join(ZED_RELEASE_ASSET);
     let source = temporary.path().join("zed");
     std::fs::create_dir(&source)
-        .map_err(|error| format!("could not prepare the extension directory: {error}"))?;
+        .map_err(|error| cstr!("could not prepare the extension directory: {error}"))?;
 
     let curl = std::env::var_os("VIZE_IDE_CURL").unwrap_or_else(|| OsString::from("curl"));
     let url = zed_release_asset_url(version);
@@ -403,11 +404,11 @@ fn download_zed_extension(version: &str) -> Result<tempfile::TempDir, String> {
         ])
         .arg("--output")
         .arg(&archive)
-        .arg(&url)
+        .arg(url.as_str())
         .status()
-        .map_err(|error| format!("could not run curl: {error}"))?;
+        .map_err(|error| cstr!("could not run curl: {error}"))?;
     if !download.success() {
-        return Err(format!("curl exited with {download} while fetching {url}"));
+        return Err(cstr!("curl exited with {download} while fetching {url}"));
     }
 
     let tar = std::env::var_os("VIZE_IDE_TAR").unwrap_or_else(|| OsString::from("tar"));
@@ -418,14 +419,14 @@ fn download_zed_extension(version: &str) -> Result<tempfile::TempDir, String> {
         .arg(&source)
         .arg("--strip-components=1")
         .status()
-        .map_err(|error| format!("could not run tar: {error}"))?;
+        .map_err(|error| cstr!("could not run tar: {error}"))?;
     if !extract.success() {
-        return Err(format!(
+        return Err(cstr!(
             "tar exited with {extract} while extracting the extension"
         ));
     }
     if !source.join("extension.toml").is_file() {
-        return Err("release archive does not contain zed/extension.toml".to_string());
+        return Err(cstr!("release archive does not contain zed/extension.toml"));
     }
 
     Ok(temporary)
