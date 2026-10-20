@@ -278,7 +278,7 @@ fn install_vsix(path: &std::path::Path) {
 fn install_published_vscode_extension() {
     let extension = vscode_extension_spec(env!("CARGO_PKG_VERSION"));
     let status = Command::new("code")
-        .args(["--install-extension", &extension])
+        .args(["--install-extension", &extension, "--force"])
         .status();
 
     match status {
