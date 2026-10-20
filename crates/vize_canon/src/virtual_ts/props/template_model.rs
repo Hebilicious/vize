@@ -200,7 +200,6 @@ pub(crate) fn generate_props_variables(
         .define_props()
         .and_then(|m| m.type_args.as_ref());
 
-    let props_type_ref = model.authored_type_ref.as_str();
     let template_props_type_ref = model.resolved_type_ref.as_str();
     let defaulted_prop_names = &model.defaulted_prop_names;
 
@@ -249,13 +248,18 @@ pub(crate) fn generate_props_variables(
         }
 
         if should_emit_keyed_template_prop_bindings(summary, type_name, &emitted_names) {
-            for name in collect_keyed_template_prop_names(summary, &emitted_names) {
+            let names = collect_keyed_template_prop_names(summary, &emitted_names);
+            if check_props && !names.is_empty() {
+                // Keep literal public-instance members (including user plugin
+                // augmentations), but never let an index signature hide typos.
+                ts.push_str("  const __vize_keyed_template_context = props as typeof props & { [K in keyof __Ctx as string extends K ? never : number extends K ? never : symbol extends K ? never : K]: __Ctx[K] };\n  void __vize_keyed_template_context;\n");
+            }
+            for name in names {
                 if check_props {
                     emit_keyed_template_prop_binding(
                         ts,
                         binding_mappings,
                         template_props_type_ref,
-                        props_type_ref,
                         name.as_str(),
                         defaulted_prop_names.contains(&name),
                     );
@@ -299,7 +303,6 @@ fn emit_keyed_template_prop_binding(
     ts: &mut String,
     binding_mappings: &mut PropBindingMappings<'_>,
     props_type_ref: &str,
-    key_type_ref: &str,
     prop_name: &str,
     has_default: bool,
 ) {
@@ -308,16 +311,16 @@ fn emit_keyed_template_prop_binding(
     if has_default {
         append!(
             *ts,
-            "  const {binding_name} = props[(\"{prop_name}\" satisfies keyof {key_type_ref})] as Exclude<{props_type_ref}[\"{prop_name}\"], undefined>;\n"
+            "  const {binding_name} = __vize_keyed_template_context[(\"{prop_name}\" satisfies keyof typeof __vize_keyed_template_context)] as Exclude<{props_type_ref}[\"{prop_name}\"], undefined>;\n"
         );
     } else {
         append!(
             *ts,
-            "  const {binding_name} = props[(\"{prop_name}\" satisfies keyof {key_type_ref})];\n"
+            "  const {binding_name} = __vize_keyed_template_context[(\"{prop_name}\" satisfies keyof typeof __vize_keyed_template_context)];\n"
         );
     }
     append!(*ts, "  void {binding_name};\n");
-    let property_start = start + binding_name.len() + " = props[(\"".len();
+    let property_start = start + binding_name.len() + " = __vize_keyed_template_context[(\"".len();
     binding_mappings.link(
         start..start + binding_name.len(),
         property_start..property_start + prop_name.len(),
