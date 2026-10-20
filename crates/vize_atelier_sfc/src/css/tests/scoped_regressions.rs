@@ -47,6 +47,17 @@ fn test_compile_scoped_css_scopes_parent_before_trailing_universal() {
 }
 
 #[test]
+fn test_compile_scoped_css_scopes_parent_before_descendant_universal() {
+    let code =
+        compile_scoped_css_without_whitespace(".row > * { flex-shrink: 0; } .row * { margin: 0; }");
+
+    assert_eq!(
+        code,
+        ".row[data-v-123]>*{flex-shrink:0;}.row[data-v-123] *{margin:0;}"
+    );
+}
+
+#[test]
 fn test_compile_scoped_css_scopes_parent_before_universal_pseudo() {
     let code =
         compile_scoped_css_without_whitespace(".dialog__action-buttons>*:hover { flex: 1; }");
