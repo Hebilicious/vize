@@ -36,25 +36,18 @@ mod tests {
         std::fs::create_dir(&second).unwrap();
         std::fs::write(first.join("source.ts"), "first").unwrap();
         std::fs::write(second.join("source.ts"), "second").unwrap();
+        let first_source = first.canonicalize().unwrap().join("source.ts");
+        let second_source = second.canonicalize().unwrap().join("source.ts");
         std::os::unix::fs::symlink(&first, &alias).unwrap();
         let state = ServerState::new();
         let authored = alias.join("source.ts");
 
-        assert_eq!(
-            state.canonical_editor_path(&authored),
-            first.join("source.ts")
-        );
+        assert_eq!(state.canonical_editor_path(&authored), first_source);
         std::fs::remove_file(&alias).unwrap();
         std::os::unix::fs::symlink(&second, &alias).unwrap();
-        assert_eq!(
-            state.canonical_editor_path(&authored),
-            first.join("source.ts")
-        );
+        assert_eq!(state.canonical_editor_path(&authored), first_source);
 
         state.invalidate_canonical_editor_paths();
-        assert_eq!(
-            state.canonical_editor_path(&authored),
-            second.join("source.ts")
-        );
+        assert_eq!(state.canonical_editor_path(&authored), second_source);
     }
 }

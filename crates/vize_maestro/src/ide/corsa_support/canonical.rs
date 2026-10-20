@@ -211,14 +211,7 @@ pub(crate) fn map_canonical_materialized_module_location(
     })
 }
 
-fn location_matches_uri(actual: &str, expected: &str) -> bool {
-    actual == expected
-        || super::virtual_document_path(actual).as_deref()
-            == super::virtual_document_path(expected).as_deref()
-        || file_uri_paths_match(actual, expected)
-}
-
-fn location_matches_uri_cached(
+pub(super) fn location_matches_uri_cached(
     state: &crate::server::ServerState,
     actual: &str,
     expected: &str,
@@ -227,23 +220,6 @@ fn location_matches_uri_cached(
         || super::virtual_document_path(actual).as_deref()
             == super::virtual_document_path(expected).as_deref()
         || file_uri_paths_match_cached(state, actual, expected)
-}
-
-fn file_uri_paths_match(left: &str, right: &str) -> bool {
-    let Some(left) = Url::parse(left)
-        .ok()
-        .and_then(|uri| uri.to_file_path().ok())
-    else {
-        return false;
-    };
-    let Some(right) = Url::parse(right)
-        .ok()
-        .and_then(|uri| uri.to_file_path().ok())
-    else {
-        return false;
-    };
-    vize_carton::path::canonicalize_non_verbatim(&left)
-        == vize_carton::path::canonicalize_non_verbatim(&right)
 }
 
 fn file_uri_paths_match_cached(
