@@ -198,9 +198,7 @@ impl super::CompletionService {
 
             if !corsa_items.is_empty() {
                 let items = match block_type {
-                    BlockType::Script => {
-                        script::merge_checker_completions(ctx, false, corsa_items)
-                    }
+                    BlockType::Script => script::merge_checker_completions(ctx, false, corsa_items),
                     BlockType::ScriptSetup => {
                         script::merge_checker_completions(ctx, true, corsa_items)
                     }

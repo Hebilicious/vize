@@ -30,11 +30,11 @@ use tower_lsp::lsp_types::{
     CompletionItem, CompletionItemKind, CompletionItemLabelDetails, Documentation, MarkupContent,
     MarkupKind,
 };
-#[cfg(feature = "native")]
-use vize_l0::FxHashMap;
 use vize_croquis::ScopeKind;
 use vize_croquis::facts::BindingsTable;
 use vize_croquis::{Drawer, DrawerOptions};
+#[cfg(feature = "native")]
+use vize_l0::FxHashMap;
 use vize_relief::BindingType;
 
 use self::context::{
