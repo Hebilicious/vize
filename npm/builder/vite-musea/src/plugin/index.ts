@@ -36,12 +36,13 @@ import {
 } from "../static-export.js";
 import { resolveMuseaSharedConfig } from "./config.js";
 import { processMuseaArtFile } from "./art-processing.js";
-import { transformMuseaVirtualModule } from "./virtual-transform.js";
+import { museaVirtualTransformId, transformMuseaVirtualModule } from "./virtual-transform.js";
 import { resolvePreviewCssPath } from "./preview-css.js";
 import { resolveStaticPreviewVueVersion } from "./static-preview.js";
 import { attachMuseaOptions } from "./options.js";
 import { registerSourceGalleryDependencies } from "../gallery-dependencies.js";
 import { resolveMuseaGalleryUrls } from "./gallery-url.js";
+import { transformPreprocessedArtStyle } from "../art-style-module.js";
 
 export function musea(options: MuseaOptions = {}): Plugin[] {
   let include = options.include ?? ["**/*.art.vue"];
@@ -301,11 +302,8 @@ export function musea(options: MuseaOptions = {}): Plugin[] {
         return null;
       }
 
-      const safeId = id
-        .replaceAll("\0", "")
-        .replace(/[^\w./-]+/g, "_")
-        .replace(/_+/g, "_");
-      const loaderId = path.join(config.root, `.musea-${safeId}.ts`);
+      const loaderId = museaVirtualTransformId(id);
+      if (!loaderId) return null;
 
       return transformMuseaVirtualModule(code, loaderId, config.command === "serve");
     },
@@ -326,7 +324,15 @@ export function musea(options: MuseaOptions = {}): Plugin[] {
     if (info) artFiles.set(filePath, info);
   }
 
-  return [attachMuseaOptions(mainPlugin, options)];
+  const artStylePostTransform: Plugin = {
+    name: "vite-plugin-musea:style-post-transform",
+    transform(code, id) {
+      const transformed = transformPreprocessedArtStyle(code, id);
+      return transformed === null ? null : { code: transformed, map: null };
+    },
+  };
+
+  return [attachMuseaOptions(mainPlugin, options), artStylePostTransform];
 }
 
 function resolveProjectRoot(projectRoot: string | undefined, viteRoot: string): string | undefined {
