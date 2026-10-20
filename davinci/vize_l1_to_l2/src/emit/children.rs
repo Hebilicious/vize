@@ -3,6 +3,7 @@
 mod slot_compound;
 mod slot_text;
 
+pub(super) use slot_compound::emit_slot_compound_parts;
 pub(super) use slot_text::{emit_slot_text_child, emit_slot_text_run};
 use vize_l0::Span;
 use vize_l0::id::NodeId;

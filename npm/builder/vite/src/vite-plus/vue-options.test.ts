@@ -95,7 +95,14 @@ void test("canonical sections reach the same native normalizer as the selected V
       linter: { enabled: false },
       languageServer: { hover: false },
       files: ["src/**/*.vue"],
-      entries: [{ files: ["widgets/**/*.vue"], linter: { rules: { "vue/no-v-html": "off" } } }],
+      entries: [
+        {
+          name: "widgets",
+          files: ["widgets/**/*.vue"],
+          compiler: { whitespace: "condense" },
+          linter: { rules: { "vue/no-v-html": "off" } },
+        },
+      ],
     },
   };
   const result = await defineConfig(source, integration)(env);
@@ -197,7 +204,7 @@ void test("canonical native leaves retain disabled flags and explicit compiler/f
     },
     {},
   );
-  assert.notEqual(selected.compiler, false);
+  assert.equal(selected.compiler, false);
   assert.deepEqual(selected.metadata.options, { check: true, lint: true, fmt: true });
 });
 
@@ -237,7 +244,7 @@ void test("rejections remain errors without re-evaluating a source", async () =>
   assert.equal(calls, 1);
   await assert.rejects(
     withVue({ formatter: { enabled: false } } as never, {}, integration)(env),
-    /unknown option enabled/,
+    /unknown option "enabled"/,
   );
 });
 

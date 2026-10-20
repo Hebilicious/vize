@@ -1,4 +1,28 @@
 {
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2024"],
+    "types": ["node"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "paths": { "playwright": ["./docs/node_modules/playwright/index.d.ts"] }
+  },
   "files": [],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "references": [
+    { "path": "./tools" },
+    { "path": "./tools/commands/fixtures" },
+    { "path": "./tests" },
+    { "path": "./npm" },
+    { "path": "./docs" },
+    { "path": "./.github" }
+  ]
 }

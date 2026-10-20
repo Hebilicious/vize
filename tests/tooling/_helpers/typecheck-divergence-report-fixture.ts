@@ -145,7 +145,7 @@ export function setup(options: FixtureOptions = {}) {
   // status is derived from that, so a fixture with no diagnostics has to agree.
   const exitCode = vizeDiagnostics.length === 0 ? 0 : 1;
   const typecheckerCoverage = validateTypecheckerOutput(
-    project,
+    { ...project, expectedVueFileCount: 1 },
     parsed,
     exitCode,
     ["src/App.vue"],

@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 import assert from "node:assert/strict";
 import { createComponentBridge, type BridgeModule } from "./component-bridge.ts";
 import { createMissingSsrEdgeControl, type MissingEdge } from "./missing-ssr-edge-control.ts";

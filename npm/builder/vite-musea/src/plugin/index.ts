@@ -41,6 +41,7 @@ import { resolvePreviewCssPath } from "./preview-css.js";
 import { resolveStaticPreviewVueVersion } from "./static-preview.js";
 import { attachMuseaOptions } from "./options.js";
 import { registerSourceGalleryDependencies } from "../gallery-dependencies.js";
+import { resolveMuseaGalleryUrls } from "./gallery-url.js";
 
 export function musea(options: MuseaOptions = {}): Plugin[] {
   let include = options.include ?? ["**/*.art.vue"];
@@ -232,15 +233,14 @@ export function musea(options: MuseaOptions = {}): Plugin[] {
           const address = devServer.httpServer?.address();
           if (address && typeof address === "object") {
             const protocol = devServer.config.server.https ? "https" : "http";
-            const rawHost = address.address;
-            const host = ["::", "::1", "0.0.0.0", "127.0.0.1"].includes(rawHost)
-              ? "localhost"
-              : rawHost;
-            const port = address.port;
-            const url = `${protocol}://${host}:${port}${basePath}`;
-
             console.log();
-            console.log(`  \x1b[36m➜\x1b[0m  \x1b[1mMusea Gallery:\x1b[0m \x1b[36m${url}\x1b[0m`);
+            for (const url of resolveMuseaGalleryUrls(
+              devServer.resolvedUrls,
+              { protocol, address: address.address, port: address.port },
+              basePath,
+            )) {
+              console.log(`  \x1b[36m➜\x1b[0m  \x1b[1mMusea Gallery:\x1b[0m \x1b[36m${url}\x1b[0m`);
+            }
           }
         });
       };

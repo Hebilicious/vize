@@ -143,6 +143,30 @@ fn document_retains_declaration_order_and_entry_base_paths() {
 }
 
 #[test]
+fn document_projects_compiler_entries_in_declaration_order() {
+    let document: ConfigDocument = serde_json::from_str(
+        r#"{
+            "entries": [
+                { "basePath": "src", "files": ["legacy/**"],
+                  "compiler": { "whitespace": "condense", "vapor": true } },
+                { "files": ["modern/**"],
+                  "compiler": { "templateSyntax": "strict", "customElements": ["x-*"] } },
+                { "files": ["lint-only/**"], "linter": { "enabled": false } }
+            ]
+        }"#,
+    )
+    .unwrap();
+    let entries = document.compiler_entries();
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries[0].base_path.as_deref(), Some("src"));
+    assert_eq!(entries[0].files.as_deref().unwrap(), ["legacy/**"]);
+    assert_eq!(entries[0].whitespace.as_deref(), Some("condense"));
+    assert_eq!(entries[0].vapor, Some(true));
+    assert_eq!(entries[1].template_syntax, Some("strict"));
+    assert_eq!(entries[1].custom_elements, ["x-*"]);
+}
+
+#[test]
 fn formatter_preset_assigns_options_that_the_config_does_not_write() {
     let document: ConfigDocument = serde_json::from_str(
         r#"{"formatter":{"preset":"prettier","printWidth":120,"sortBlocks":true,"useTabs":null}}"#,

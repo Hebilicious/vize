@@ -111,7 +111,7 @@ fn dynamic_slot_name_with_forwarded_outlet_keeps_forwarded_flag() {
 }
 
 #[test]
-fn fallback_interp_expands_the_compound_into_sibling_children() {
+fn fallback_interp_keeps_the_compound_in_one_text_vnode() {
     assert_eq!(
         assembled("<slot>hello {{ msg }}</slot>"),
         "\
@@ -119,10 +119,16 @@ const { toDisplayString: _toDisplayString, renderSlot: _renderSlot, createTextVN
 
 function render(_ctx, _cache, $props, $setup, $data, $options) {
   return _renderSlot(_ctx.$slots, \"default\", {}, () => [
-    _createTextVNode(\"hello \"),
-    _toDisplayString(msg)
+    _createTextVNode(\"hello \" + _toDisplayString(msg), 1 /* TEXT */)
   ])
 }"
+    );
+}
+
+#[test]
+fn fallback_interp_keeps_trailing_condensed_space_in_the_same_text_vnode() {
+    assert_shipped_parity(
+        "<p><slot>{{ label }}\n<span v-if=\"required\" class=\"required\">*</span></slot></p>",
     );
 }
 

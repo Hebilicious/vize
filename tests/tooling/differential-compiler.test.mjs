@@ -29,24 +29,43 @@ const build = {
 };
 
 function syntheticReport(code = fixture.expected) {
-  const output = Buffer.from(
-    JSON.stringify({
-      filename: "Layout.vue",
-      code: code.toString(),
-      css: null,
-      errors: [],
-      warnings: [],
-      script_lang: "js",
-      macro_artifacts: [],
-    }),
-  );
-  const observation = compilerAttempt(
-    { status: 0, signal: null, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) },
-    output,
-    fixture.expected,
-  );
-  const verdict =
-    observation.referenceComparison.state === "equal" ? "matched-reference" : "baseline-drift";
+  const rows = loaded.cases.map((current, index) => {
+    const output = Buffer.from(
+      JSON.stringify({
+        filename: "Layout.vue",
+        code: (index === 0 ? code : current.expected).toString(),
+        css: null,
+        errors: [],
+        warnings: [],
+        script_lang: "js",
+        macro_artifacts: [],
+      }),
+    );
+    const observation = compilerAttempt(
+      { status: 0, signal: null, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) },
+      output,
+      current.expected,
+    );
+    const verdict =
+      observation.referenceComparison.state === "equal" ? "matched-reference" : "baseline-drift";
+    return {
+      id: current.id,
+      target: "ssr",
+      legacy: {
+        state: "completed",
+        verdict,
+        argv: COMPILER_ARGV,
+        inputSha256: sha256(current.input),
+        observation,
+      },
+      native: { state: "unsupported", reason: current.adapters.reasons.native },
+      comparison: {
+        state: "not-compared",
+        reason: "whole-product native compiler path unavailable",
+      },
+    };
+  });
+  const baselineDrift = rows.filter((row) => row.legacy.verdict === "baseline-drift").length;
   return {
     schema: "vize.differential.result",
     version: 1,
@@ -56,30 +75,13 @@ function syntheticReport(code = fixture.expected) {
     argv: COMPILER_ARGV,
     buildReceipt: { schema: "vize.differential.build", version: 1, recipe: BUILD_RECIPE, ...build },
     binary: { path: build.binaryPath, sha256: build.binarySha256, version: build.cliVersion },
-    rows: [
-      {
-        id: fixture.id,
-        target: "ssr",
-        legacy: {
-          state: "completed",
-          verdict,
-          argv: COMPILER_ARGV,
-          inputSha256: sha256(fixture.input),
-          observation,
-        },
-        native: { state: "unsupported", reason: fixture.adapters.reasons.native },
-        comparison: {
-          state: "not-compared",
-          reason: "whole-product native compiler path unavailable",
-        },
-      },
-    ],
+    rows,
     summary: {
-      plannedCases: 1,
-      legacyMatches: verdict === "matched-reference" ? 1 : 0,
+      plannedCases: rows.length,
+      legacyMatches: rows.length - baselineDrift,
       legacyFailures: 0,
-      baselineDrift: verdict === "baseline-drift" ? 1 : 0,
-      nativeUnsupported: 1,
+      baselineDrift,
+      nativeUnsupported: rows.length,
       pairedComparisons: 0,
       nativeHandled: 0,
       nativeEquivalent: 0,
@@ -88,15 +90,17 @@ function syntheticReport(code = fixture.expected) {
 }
 
 void test("compiler fixture pins a real full-module reference without native credit", () => {
-  assert.equal(loaded.cases.length, 1);
-  assert.equal(fixture.id, "compiler/sfc/ssr-slot-scope");
+  assert.deepEqual(
+    loaded.cases.map((current) => current.id),
+    ["compiler/sfc/ssr-slot-scope", "compiler/sfc/slot-fallback-compound-text-9889"],
+  );
   const report = syntheticReport();
   assert.deepEqual(validateCompilerReport(loaded, report, build), report.summary);
   assert.deepEqual(summarizeNativeAcceptance(loaded, report, { sourceRevision }).total, {
-    planned: 1,
+    planned: 2,
     nativeHandled: 0,
     nativeEquivalent: 0,
-    unsupported: 1,
+    unsupported: 2,
     legacyBacked: 0,
     unverified: 0,
   });
@@ -118,7 +122,10 @@ void test("compiler comparison checks every code byte and rejects forged native 
 });
 
 void test("compiler input and reference digests fail closed", () => {
-  for (const relative of ["ssr-slot-scope/Layout.vue.txt", "ssr-slot-scope/module.expected.txt"]) {
+  for (const relative of loaded.cases.flatMap((current) => [
+    `${current.inputs.root}/Layout.vue.txt`,
+    `${current.inputs.root}/module.expected.txt`,
+  ])) {
     const copy = fs.mkdtempSync(path.join(os.tmpdir(), "vize-compiler-manifest-"));
     try {
       fs.cpSync(pack, copy, { recursive: true });
@@ -148,12 +155,17 @@ void test("compiler plans and byte-compares every registered SSR case", () => {
     manifest.cases.push(second);
     fs.writeFileSync(path.join(copy, "manifest.json"), JSON.stringify(manifest));
     const multiple = loadCompilerManifest(path.join(copy, "manifest.json"));
-    assert.equal(multiple.cases.length, 2);
+    assert.equal(multiple.cases.length, loaded.cases.length + 1);
 
     const report = syntheticReport();
     report.manifestSha256 = multiple.manifestSha256;
     report.rows.push({ ...structuredClone(report.rows[0]), id: second.id });
-    report.summary = { ...report.summary, plannedCases: 2, legacyMatches: 2, nativeUnsupported: 2 };
+    report.summary = {
+      ...report.summary,
+      plannedCases: report.summary.plannedCases + 1,
+      legacyMatches: report.summary.legacyMatches + 1,
+      nativeUnsupported: report.summary.nativeUnsupported + 1,
+    };
     assert.deepEqual(validateCompilerReport(multiple, report, build), report.summary);
 
     const changed = structuredClone(report);
@@ -167,11 +179,11 @@ void test("compiler plans and byte-compares every registered SSR case", () => {
       multiple.cases[1].expected,
     );
     changed.rows[1].legacy.verdict = "baseline-drift";
-    changed.summary.legacyMatches = 1;
-    changed.summary.baselineDrift = 1;
+    changed.summary.legacyMatches -= 1;
+    changed.summary.baselineDrift += 1;
     assert.deepEqual(validateCompilerReport(multiple, changed, build), changed.summary);
     assert.throws(() =>
-      validateCompilerReport(multiple, { ...report, rows: report.rows.slice(0, 1) }, build),
+      validateCompilerReport(multiple, { ...report, rows: report.rows.slice(0, -1) }, build),
     );
 
     const unavailable = runCompilerPack({
@@ -180,8 +192,8 @@ void test("compiler plans and byte-compares every registered SSR case", () => {
       sourceRevision,
       repoRoot: root,
     });
-    assert.equal(unavailable.rows.length, 2);
-    assert.equal(unavailable.summary.legacyFailures, 2);
+    assert.equal(unavailable.rows.length, loaded.cases.length + 1);
+    assert.equal(unavailable.summary.legacyFailures, loaded.cases.length + 1);
   } finally {
     fs.rmSync(copy, { recursive: true, force: true });
   }
@@ -206,7 +218,11 @@ void test("malformed compiler output retains raw evidence and cannot complete", 
     error: observation.facetError,
     observation,
   };
-  report.summary = { ...report.summary, legacyMatches: 0, legacyFailures: 1 };
+  report.summary = {
+    ...report.summary,
+    legacyMatches: loaded.cases.length - 1,
+    legacyFailures: 1,
+  };
   assert.deepEqual(validateCompilerReport(loaded, report, build), report.summary);
   const forged = structuredClone(report);
   forged.rows[0].legacy.state = "completed";
@@ -239,7 +255,7 @@ void test("missing source-built CLI retains the planned failed row", () => {
     sourceRevision,
     repoRoot: root,
   });
-  assert.equal(report.rows.length, 1);
+  assert.equal(report.rows.length, loaded.cases.length);
   assert.equal(report.rows[0].legacy.state, "failed");
   assert.equal(report.rows[0].native.state, "unsupported");
   assert.equal(report.summary.nativeHandled, 0);

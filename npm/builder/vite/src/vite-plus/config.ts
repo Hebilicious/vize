@@ -37,6 +37,11 @@ function assertVueConfigSpelling(source: VueConfigObject) {
           ? "fmt.vize"
           : undefined;
   if (legacy) {
+    if (legacy === "lint.vize") {
+      throw new Error(
+        "lint.vize is no longer supported; pass { lint: false } as defineConfig's integration options to disable the Vite+ native lint task while keeping CLI lint enabled, and put shared lint settings in vue.linter",
+      );
+    }
     throw new Error(
       `${legacy}: configuration is no longer supported; move Vue settings to vue: in vite.config.*`,
     );
@@ -101,8 +106,8 @@ function vueCompiler(
   legacy: VizeCompilerOptions | false,
   vue: VueConfigObject["vue"],
 ): VizeCompilerOptions | false {
+  if (legacy === false) return false;
   if (vue?.compiler === undefined && vue?.version === undefined) return legacy;
-  if (legacy === false && vue.compiler === undefined) return false;
   const { compatibility, ...native } = vue.compiler ?? {};
   const { vueVersion: _nativeVersion, ...nativeCompatibility } = compatibility ?? {};
   const version = vue.version ?? compatibility?.vueVersion;
@@ -114,7 +119,7 @@ function vueCompiler(
     "2.7": "2.7",
     "3": 3,
   };
-  const previous = legacy === false ? {} : legacy;
+  const previous = legacy;
   return {
     ...previous,
     ...native,

@@ -168,7 +168,7 @@ function verifyRecipes(root, docs, e2e) {
     anchor + "  - '.github/actions/setup-moonbit/**'\n",
   );
   for (const [job, expected] of [
-    ["app-readiness-plan", "6eedaa2dfd736d68bd260d4cd52e180676ebcf61b770a929e708babc4e6e480c"],
+    ["app-readiness-plan", "444555ebcc09f2eb712adb777a7ce5f81a2638eba470cced5e77fa4945cf3306"],
     ["app-e2e-plan", "554e3df0e2b4638c138ac1c0f40ede1cade07152872b1705e3269b5ef2826595"],
   ])
     assert.equal(

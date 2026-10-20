@@ -47,12 +47,12 @@ const vue: VueOptions = {
   formatter: { singleQuote: false, attributeGroups: [] },
   languageServer: { enabled: true, hover: false }, globalTypes: { flag: "boolean" },
   files: [], ignores: [], basePath: "src", lib: { dir: "components" },
-  entries: [{ files: ["widgets/**/*.vue"], linter: { enabled: false } }],
+  entries: [{ files: ["widgets/**/*.vue"], compiler: { whitespace: "condense" }, linter: { enabled: false } }],
 };
 const rootVue: RootVueOptions = vue;
-const scope: VueOptionsEntry = { basePath: "src", files: ["**/*.vue"], ignores: ["generated/**"], linter: { enabled: false } };
+const scope: VueOptionsEntry = { name: "application sources", basePath: "src", files: ["**/*.vue"], ignores: ["generated/**"], compiler: { whitespace: "condense" }, linter: { enabled: false } };
 const rootScope: RootVueOptionsEntry = scope;
-const scopeKeys: Record<keyof VueOptionsEntry, true> = { basePath: true, files: true, ignores: true, linter: true };
+const scopeKeys: Record<keyof VueOptionsEntry, true> = { name: true, basePath: true, files: true, ignores: true, compiler: true, linter: true };
 const rootScopeKeys: Record<keyof RootVueOptionsEntry, true> = scopeKeys;
 withVue({ entries: [rootScope] }, {});
 const vpConfig: UserConfig = { futureOption: { enabled: true }, server: { host: true } };
@@ -78,7 +78,6 @@ withVue({}, defineVpConfig({ futureOption: { enabled: "wrong" } }));
 withVue({ entries: [{ lib: { dir: "components" } }] }, vpConfig);
 // @ts-expect-error Vue version is project-wide.
 withVue({ entries: [{ version: "3" }] }, vpConfig);
-// @ts-expect-error Compiler settings are project-wide.
 withVue({ entries: [{ compiler: { sourceMap: true } }] }, vpConfig);
 // @ts-expect-error Typechecker settings are project-wide.
 withVue({ entries: [{ typeChecker: { enabled: false } }] }, vpConfig);

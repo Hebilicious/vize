@@ -1,0 +1,19 @@
+import { ssrInterpolate as _ssrInterpolate, ssrRenderSlot as _ssrRenderSlot, ssrRenderAttrs as _ssrRenderAttrs } from "@vue/server-renderer"
+import { mergeProps as _mergeProps } from "vue"
+
+function ssrRender(_ctx, _push, _parent, _attrs) {
+  _push(`<p${_ssrRenderAttrs(_mergeProps({ class: "label" }, _attrs))}>`)
+  _ssrRenderSlot(_ctx.$slots, "default", {}, () => {
+    _push(`${_ssrInterpolate(_ctx.label)} `)
+    if (_ctx.required) {
+      _push(`<span class="required">*</span>`)
+    } else {
+      _push(`<!---->`)
+    }
+  }, _push, _parent)
+  _push(`</p>`)
+}
+
+const _sfc_main = {}
+_sfc_main.ssrRender = ssrRender
+export default _sfc_main

@@ -99,7 +99,6 @@ jobs:
               - 'tools/moon/**'
               - 'config/vite-plus/**'
               - 'tsconfig.json'
-              - 'tsconfig.node.json'
               - 'vite.config.ts'
       - name: Checkout readiness source
         if: steps.changes.outputs.readiness == 'true'

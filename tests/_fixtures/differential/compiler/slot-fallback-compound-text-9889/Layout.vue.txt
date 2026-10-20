@@ -1,0 +1,8 @@
+<template>
+  <p class="label">
+    <slot>
+      {{ label }}
+      <span v-if="required" class="required">*</span>
+    </slot>
+  </p>
+</template>

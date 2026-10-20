@@ -28,14 +28,14 @@ void test("source-built compiler matches the pinned SSR module and claims zero n
     sourceRevision: revision.stdout.trim(),
   });
   assert.deepEqual(acceptance.total, {
-    planned: 1,
+    planned: 2,
     nativeHandled: 0,
     nativeEquivalent: 0,
-    unsupported: 1,
+    unsupported: 2,
     legacyBacked: 0,
     unverified: 0,
   });
-  assert.equal(report.summary.legacyMatches, 1, JSON.stringify(report.rows, null, 2));
+  assert.equal(report.summary.legacyMatches, 2, JSON.stringify(report.rows, null, 2));
   assert.equal(report.summary.legacyFailures, 0);
   assert.equal(report.summary.baselineDrift, 0);
 });

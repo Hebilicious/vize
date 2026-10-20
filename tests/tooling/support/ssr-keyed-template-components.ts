@@ -379,7 +379,7 @@ export async function observeKeyedTemplates(input: Packet, seams: Seams) {
         assert(profile.client.vaporInteropPlugin);
         app.use(profile.client.vaporInteropPlugin);
       }
-      app.mount(host);
+      app.mount(host as unknown as Element); // happy-dom host for Vue's DOM Element
       await profile.client.nextTick();
       const after = nodes(host);
       const graph = {

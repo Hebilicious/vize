@@ -38,7 +38,10 @@ test("the complete canonical validation graph derives from the authoritative nat
   );
   assert.ok(entryType);
   const scopedKeys = [...entryType[1].matchAll(/"([^"]+)"/gu)].map((match) => match[1]);
-  assert.deepEqual(scopedKeys.toSorted(), ["basePath", "files", "ignores", "linter"].toSorted());
+  assert.deepEqual(
+    scopedKeys.toSorted(),
+    ["name", "basePath", "files", "ignores", "compiler", "linter"].toSorted(),
+  );
   const fields = Object.fromEntries(keys.map((key) => [key, authoritative.properties[key]]));
   fields.version = { $ref: "#/definitions/VueVersion" };
   fields.entries = {
@@ -162,8 +165,10 @@ test("all documented canonical native sections accept their original field value
     lib: { registries: { "@team": { source: "npm:widgets", dir: "components" } } },
     entries: [
       {
+        name: "application sources",
         files: ["src/**"],
         ignores: ["generated/**"],
+        compiler: { whitespace: "condense" },
         linter: { rules: { "vue/no-v-html": "off" } },
       },
     ],
@@ -176,8 +181,10 @@ test("all documented canonical native sections accept their original field value
     typeChecker: { jsxTypecheck: true, enabled: false, lspRequestTimeoutMs: 1, servers: 1 },
     entries: [
       {
+        name: "application sources",
         files: ["src/**"],
         ignores: ["generated/**"],
+        compiler: { whitespace: "condense" },
         linter: { rules: { "vue/no-v-html": "off" } },
       },
     ],
@@ -203,7 +210,7 @@ test("retired namespaces fail without invoking any legacy or Vite hooks", async 
   assert.equal(calls, 0);
 });
 
-test("canonical entries admit only real native linter scopes while all other native sections stay at the root", async () => {
+test("canonical entries admit compiler and linter scopes while other native sections stay at the root", async () => {
   const rootOptions = {
     version: "3",
     compiler: { vapor: false },
@@ -214,9 +221,11 @@ test("canonical entries admit only real native linter scopes while all other nat
     lib: { dir: "src/lib" },
   };
   const scoped = {
+    name: "lists may use the index as key",
     basePath: "packages/app",
     files: ["*.vue"],
     ignores: ["Ignored.vue"],
+    compiler: { whitespace: "condense" },
     linter: { rules: { "vue/no-v-html": "error" } },
   };
   const source = { vue: { ...rootOptions, entries: [scoped] } };
@@ -228,10 +237,10 @@ test("canonical entries admit only real native linter scopes while all other nat
     vue: { version: "3" },
     entries: [scoped],
   });
-  for (const [key, value] of Object.entries(rootOptions)) {
+  for (const [key, value] of Object.entries(rootOptions).filter(([key]) => key !== "compiler")) {
     for (const item of [value, undefined]) {
       const vue = { entries: [{ ...scoped, [key]: item }] };
-      const error = new RegExp("vue\\.entries\\[0\\]: unknown option " + key);
+      const error = new RegExp('vue\\.entries\\[0\\]: unknown option "' + key + '"');
       assert.throws(() => vueConfigOptions({ vue }), error);
       await assert.rejects(projectViteConfigSource({ vue }), error);
     }
@@ -352,7 +361,7 @@ test("every native language-server boolean survives canonical projection, includ
   }
   await assert.rejects(
     projectViteConfigSource({ vue: { languageServer: { crossFileAnalysis: true } } }),
-    /vue\.languageServer: unknown option crossFileAnalysis/u,
+    /vue\.languageServer: unknown option "crossFileAnalysis"/u,
   );
 });
 

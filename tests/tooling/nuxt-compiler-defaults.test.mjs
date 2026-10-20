@@ -97,12 +97,16 @@ await test("the current Nuxt probe carries every authored scoped compiler policy
       },
     ],
   });
-  // This fixture must use the existing per-file JavaScript compiler API. The
-  // native canonical schema must continue to reject unsupported compiler scopes.
-  await assert.rejects(
-    projectViteConfigSource({ vue: originalOptions.config }),
-    /vue\.entries\[0\]: unknown option compiler/u,
-  );
+  assert.deepEqual(await projectViteConfigSource({ vue: originalOptions.config }), {
+    typeChecker: { jsxTypecheck: true },
+    compiler: { whitespace: "preserve" },
+    entries: [
+      {
+        files: ["app/components/tight/**", "node_modules/**"],
+        compiler: { whitespace: "condense" },
+      },
+    ],
+  });
   assert.deepEqual(original, frozen);
   assert.deepEqual(bytes("vize.config.json.txt"), frozen);
   const activeProbe = fs.readFileSync(

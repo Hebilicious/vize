@@ -81,8 +81,8 @@ pub(super) fn compile_file_stats_with_cache(
         source_hash: hash_str(&source),
         source_len: file_size,
         component_name_len: component_name.len(),
-        settings: settings.cache_bits(),
-        custom_elements_hash: settings.custom_elements_hash(),
+        settings: settings.cache_bits(path),
+        custom_elements_hash: settings.custom_elements_hash(path),
     });
 
     if let Some(key) = cache_key
@@ -168,7 +168,8 @@ pub(super) fn compile_file_stats_with_cache(
     let compile_start = Instant::now();
     let has_scoped = descriptor.styles.iter().any(|s| s.scoped);
     let is_ts = matches!(settings.script_ext, ScriptExtension::Preserve);
-    let custom_elements = CustomElementMatcher::from_patterns(settings.custom_elements.clone());
+    let compiler = settings.compiler_for_path(path);
+    let custom_elements = CustomElementMatcher::from_patterns(compiler.custom_elements.to_vec());
     let compile_opts = SfcCompileOptions {
         parse: SfcParseOptions {
             filename: filename.clone(),
@@ -198,18 +199,18 @@ pub(super) fn compile_file_stats_with_cache(
             scoped: has_scoped,
             ..Default::default()
         },
-        vapor: settings.vapor,
+        vapor: compiler.vapor,
         scope_id: None,
     };
 
     let result = match settings
-        .with_whitespace(|| {
+        .with_whitespace(path, || {
             profile!(
                 "atelier.sfc.compile",
                 compile_sfc_with_custom_elements_template_syntax_codegen_and_experimental_options(
                     &descriptor,
                     compile_opts,
-                    settings.template_syntax,
+                    compiler.template_syntax,
                     custom_elements,
                     CodegenOptions::default(),
                     SfcCompileExperimentalOptions {

@@ -6,13 +6,13 @@ mod normalize;
 pub use crate::dialect::VueDialect;
 pub use document::ConfigDocument;
 pub use model::{
-    ArrowParens, AttributeSortOrder, ComponentNameInTemplateCasingOptions, ConfigEntryFiles,
-    ConfigEntryIgnore, ConfigExperimentalVueFlags, ConfigFeatureFlags, ConfigLintRuleOptions,
-    CustomEventNameCasing, CustomEventNameCasingOptions, DefinePropsDestructuringOptions,
-    EndOfLine, FormatterConfig, FormatterPreset, FormatterProfile, GlobalTypeDeclaration,
-    GlobalTypesConfig, HtmlSelfClosingHtmlOptions, HtmlSelfClosingOptions, HtmlSelfClosingStyle,
-    HyphenationStyle, ImportSortCustomGroup, ImportSortGroup, JsxCompat, JsxMode,
-    LanguageServerConfig, LanguageServerUnstableFlags, LibConfig, LibRegistryConfig,
+    ArrowParens, AttributeSortOrder, CompilerConfigEntry, ComponentNameInTemplateCasingOptions,
+    ConfigEntryFiles, ConfigEntryIgnore, ConfigExperimentalVueFlags, ConfigFeatureFlags,
+    ConfigLintRuleOptions, CustomEventNameCasing, CustomEventNameCasingOptions,
+    DefinePropsDestructuringOptions, EndOfLine, FormatterConfig, FormatterPreset, FormatterProfile,
+    GlobalTypeDeclaration, GlobalTypesConfig, HtmlSelfClosingHtmlOptions, HtmlSelfClosingOptions,
+    HtmlSelfClosingStyle, HyphenationStyle, ImportSortCustomGroup, ImportSortGroup, JsxCompat,
+    JsxMode, LanguageServerConfig, LanguageServerUnstableFlags, LibConfig, LibRegistryConfig,
     LintRuleOptions, LintRuleSeverity, LinterConfig, LinterConfigEntry, LinterConfigPlan,
     LinterConfigPlanWithConfigRuleOptions, LinterConfigPlanWithRuleOptions, LinterExecutionOptions,
     LinterFeatureFlags, LspConfig, MuseaDesignToken, MuseaPreferDesignTokensOptions,
