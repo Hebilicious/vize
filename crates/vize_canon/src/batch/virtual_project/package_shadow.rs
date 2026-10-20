@@ -29,7 +29,7 @@ pub(super) struct PackageShadowTopology {
 #[derive(Default)]
 pub(super) struct PackageShadowTraversal {
     ancestors: FxHashSet<PathBuf>,
-    visited: FxHashMap<(PathBuf, PathBuf, PathBuf), PathBuf>,
+    visited: FxHashMap<(PathBuf, PathBuf), PathBuf>,
 }
 
 enum PackageShadowEntry {
@@ -43,11 +43,7 @@ impl PackageShadowTraversal {
         if !self.ancestors.insert(route.manifest_path.clone()) {
             return PackageShadowEntry::Cycle;
         }
-        let identity = (
-            route.package_link_root.clone(),
-            route.package_root.clone(),
-            route.manifest_path.clone(),
-        );
+        let identity = (route.package_root.clone(), route.manifest_path.clone());
         if let Some(primary_root) = self.visited.get(&identity) {
             let primary_root = primary_root.clone();
             self.ancestors.remove(&route.manifest_path);
