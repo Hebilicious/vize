@@ -262,6 +262,7 @@ fn initial_api_entry_keeps_all_diagnostic_providers_off_even_when_native_typeche
     futures::executor::block_on(server.publish_initial_api_diagnostics_if_version(
         &uri,
         1,
+        None,
         Some(&receipt),
     ));
     assert!(!current.has_corsa_bridge());

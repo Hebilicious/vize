@@ -33,11 +33,23 @@ impl MaestroServer {
         };
         self.state.update_virtual_docs(uri, &content);
         #[cfg(feature = "native")]
-        let retained = super::initial_diagnostics::RetainedDiagnostics::new(self, uri);
-        #[cfg(feature = "native")]
         super::workspace_files::invalidate_changed_document_disk_project_state(self, uri).await;
         #[cfg(feature = "native")]
         let sync = self.publish_changed_sync_diagnostics(uri, version).await;
+        // Keep native validation off the notification/request lane. The
+        // bounded worker retains only the newest version for this URI and
+        // waits for a short typing quiet period before claiming Corsa. Hover,
+        // completion and definition can therefore synchronize and answer from
+        // the current buffer instead of sitting behind an obsolete project
+        // diagnostic pass for every keystroke.
+        #[cfg(feature = "native")]
+        if self.state.is_lsp_typecheck_enabled()
+            && self.schedule_changed_diagnostics(uri.clone(), version, sync.clone())
+        {
+            return;
+        }
+        #[cfg(feature = "native")]
+        let retained = super::initial_diagnostics::RetainedDiagnostics::new(self, uri);
         // Apply editor text before waiting for type diagnostics. Their lock
         // cannot delay didChange or hide the new revision from pending replies.
         #[cfg(feature = "native")]
