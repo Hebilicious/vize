@@ -204,7 +204,7 @@ void test("canonical native leaves retain disabled flags and explicit compiler/f
     },
     {},
   );
-  assert.notEqual(selected.compiler, false);
+  assert.equal(selected.compiler, false);
   assert.deepEqual(selected.metadata.options, { check: true, lint: true, fmt: true });
 });
 

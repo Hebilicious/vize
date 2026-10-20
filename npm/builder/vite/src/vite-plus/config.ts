@@ -101,8 +101,8 @@ function vueCompiler(
   legacy: VizeCompilerOptions | false,
   vue: VueConfigObject["vue"],
 ): VizeCompilerOptions | false {
+  if (legacy === false) return false;
   if (vue?.compiler === undefined && vue?.version === undefined) return legacy;
-  if (legacy === false && vue.compiler === undefined) return false;
   const { compatibility, ...native } = vue.compiler ?? {};
   const { vueVersion: _nativeVersion, ...nativeCompatibility } = compatibility ?? {};
   const version = vue.version ?? compatibility?.vueVersion;
@@ -114,7 +114,7 @@ function vueCompiler(
     "2.7": "2.7",
     "3": 3,
   };
-  const previous = legacy === false ? {} : legacy;
+  const previous = legacy;
   return {
     ...previous,
     ...native,
