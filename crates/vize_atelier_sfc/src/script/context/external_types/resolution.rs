@@ -160,10 +160,7 @@ fn resolve_package_import(current_file: &Path, specifier: &str) -> Option<PathBu
     None
 }
 
-fn package_import_target(
-    imports: &serde_json::Value,
-    specifier: &str,
-) -> Option<String> {
+fn package_import_target(imports: &serde_json::Value, specifier: &str) -> Option<String> {
     let imports = imports.as_object()?;
     if let Some(value) = imports.get(specifier) {
         return package_import_target_value(value, None);
