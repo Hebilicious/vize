@@ -26,6 +26,7 @@
 import path from "node:path";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { formatCliError } from "./errors.js";
 import type { ArtFileInfo } from "../types/index.js";
 import { parseArtFile, parseWorkers } from "./utils.js";
 import { scanArtFiles } from "../utils.js";
@@ -268,7 +269,7 @@ async function main(): Promise<void> {
     try {
       await runGenerate(options);
     } catch (error) {
-      console.error("\n  Error:", error);
+      console.error("\n  Error:", formatCliError(error));
       process.exit(1);
     }
     return;
@@ -284,7 +285,7 @@ async function main(): Promise<void> {
     try {
       await runServe(options);
     } catch (error) {
-      console.error("\n  Error:", error);
+      console.error("\n  Error:", formatCliError(error));
       process.exit(1);
     }
     return;
@@ -337,14 +338,14 @@ async function main(): Promise<void> {
         break;
     }
   } catch (error) {
-    console.error("\n  Error:", error);
+    console.error("\n  Error:", formatCliError(error));
     process.exit(1);
   }
 }
 
 if (isDirectRun()) {
   main().catch((error) => {
-    console.error("Fatal error:", error);
+    console.error("Fatal error:", formatCliError(error));
     process.exit(1);
   });
 }
