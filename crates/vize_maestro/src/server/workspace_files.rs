@@ -94,6 +94,7 @@ fn typecheck_dependency_watcher_registration() -> Registration {
             "**/*.d.{ts,mts,cts}",
             "**/*.{vue,ts,tsx,mts,cts,js,jsx,mjs,cjs}",
             "**/package.json",
+            "**/{pnpm-lock.yaml,pnpm-workspace.yaml,yarn.lock,bun.lock,bun.lockb}",
             "**/vite.config.*",
             "**/*.json",
             "**/jsconfig.json",
