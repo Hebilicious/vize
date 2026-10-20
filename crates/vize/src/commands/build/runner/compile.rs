@@ -235,7 +235,8 @@ fn compile_file_inner(
     let compile_start = Instant::now();
     let has_scoped = descriptor.styles.iter().any(|s| s.scoped);
     let is_ts = matches!(settings.script_ext, ScriptExtension::Preserve);
-    let custom_elements = CustomElementMatcher::from_patterns(settings.custom_elements.clone());
+    let compiler = settings.compiler_for_path(path);
+    let custom_elements = CustomElementMatcher::from_patterns(compiler.custom_elements.to_vec());
     let compile_opts = SfcCompileOptions {
         parse: SfcParseOptions {
             filename: filename.clone(),
@@ -265,11 +266,11 @@ fn compile_file_inner(
             scoped: has_scoped,
             ..Default::default()
         },
-        vapor: settings.vapor,
+        vapor: compiler.vapor,
         scope_id: None,
     };
 
-    let (result, capture) = settings.with_whitespace(|| {
+    let (result, capture) = settings.with_whitespace(path, || {
         profile!("atelier.sfc.compile", {
         let experimental = SfcCompileExperimentalOptions {
             self_component: settings.experimental_self_component,
@@ -278,7 +279,7 @@ fn compile_file_inner(
             compile_sfc_for_adapter_with_stage_capture(
                 &descriptor,
                 compile_opts,
-                settings.template_syntax,
+                compiler.template_syntax,
                 custom_elements,
                 CodegenOptions::default(),
                 SfcScriptOutputMode::InlineTemplate,
@@ -294,7 +295,7 @@ fn compile_file_inner(
             compile_sfc_with_custom_elements_template_syntax_codegen_and_experimental_options(
                 &descriptor,
                 compile_opts,
-                settings.template_syntax,
+                compiler.template_syntax,
                 custom_elements,
                 CodegenOptions::default(),
                 experimental,

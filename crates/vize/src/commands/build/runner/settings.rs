@@ -2,8 +2,11 @@
 
 use std::path::{Path, PathBuf};
 use vize_atelier_core::{TemplateSyntaxMode, WhitespaceStrategy};
+use vize_carton::config::matcher::LintPlanScope;
 use vize_l0::String;
-use vize_l0::config::{ConfigExperimentalVueFlags, ConfigFeatureFlags, VueVersion};
+use vize_l0::config::{
+    CompilerConfigEntry, ConfigExperimentalVueFlags, ConfigFeatureFlags, VueVersion,
+};
 use vize_l0::hash::hash_bytes;
 
 use crate::commands::build::{BuildArgs, ScriptExtension};
@@ -19,6 +22,8 @@ pub(super) struct BuildConfigSettings {
     pub(super) custom_elements: Vec<String>,
     pub(super) dialect: Option<VueVersion>,
     pub(super) host_compiler: Option<bool>,
+    compiler_entries: Vec<CompilerConfigEntry>,
+    config_dir: PathBuf,
 }
 
 pub(super) fn load_build_config(no_config: bool, config: Option<&Path>) -> BuildConfigSettings {
@@ -33,6 +38,8 @@ pub(super) fn load_build_config(no_config: bool, config: Option<&Path>) -> Build
             custom_elements: Vec::new(),
             dialect: None,
             host_compiler: None,
+            compiler_entries: Vec::new(),
+            config_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
         };
     }
     let loaded =
@@ -41,6 +48,18 @@ pub(super) fn load_build_config(no_config: bool, config: Option<&Path>) -> Build
             std::process::exit(1);
         });
     let document = loaded.document;
+    let compiler_entries = document.compiler_entries();
+    let config_dir = loaded
+        .project_root
+        .clone()
+        .or_else(|| {
+            loaded
+                .source_path
+                .as_deref()
+                .and_then(Path::parent)
+                .map(Path::to_path_buf)
+        })
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     let features = document.clone().into_config_and_features().1;
     BuildConfigSettings {
         project_root: loaded.project_root,
@@ -52,7 +71,26 @@ pub(super) fn load_build_config(no_config: bool, config: Option<&Path>) -> Build
         features,
         host_compiler: document.compiler_host_compiler(),
         custom_elements: document.into_compiler_custom_elements(),
+        compiler_entries,
+        config_dir,
     }
+}
+
+struct CompilerScope {
+    matcher: LintPlanScope,
+    template_syntax: Option<&'static str>,
+    whitespace: Option<String>,
+    vapor: Option<bool>,
+    custom_elements: Vec<String>,
+}
+
+pub(super) struct ResolvedCompilerFileSettings<'a> {
+    pub(super) template_syntax: TemplateSyntaxMode,
+    pub(super) whitespace: WhitespaceStrategy,
+    pub(super) legacy_line_breaks: bool,
+    pub(super) vue2_preserve: bool,
+    pub(super) vapor: bool,
+    pub(super) custom_elements: &'a [String],
 }
 
 /// Compile a single `.vue` file with profiling information.
@@ -77,6 +115,10 @@ pub(super) struct CompileFileSettings {
     pub(super) davinci: DavinciBuildSettings,
     /// Project-preprocessed `<style lang="scss|…">` blocks (#8905).
     pub(super) preprocessed_styles: super::preprocess::PreprocessedStyles,
+    compiler_scopes: Vec<CompilerScope>,
+    template_syntax_from_cli: bool,
+    vapor_from_cli: bool,
+    custom_elements_from_cli: bool,
 }
 
 /// The build's slice of the Davinci ICE machinery (P2-13): the plan the
@@ -119,6 +161,24 @@ impl DavinciBuildSettings {
 impl CompileFileSettings {
     /// Resolve per-file compile settings from CLI arguments and config file values.
     pub(super) fn resolve(args: &BuildArgs, build_config: BuildConfigSettings) -> Self {
+        let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        let compiler_scopes = build_config
+            .compiler_entries
+            .iter()
+            .map(|entry| CompilerScope {
+                matcher: LintPlanScope::new(
+                    entry.base_path.as_deref(),
+                    entry.files.as_deref(),
+                    &entry.ignores,
+                    &build_config.config_dir,
+                    &cwd,
+                ),
+                template_syntax: entry.template_syntax,
+                whitespace: entry.whitespace.clone(),
+                vapor: entry.vapor,
+                custom_elements: entry.custom_elements.clone(),
+            })
+            .collect();
         let ssr = args.ssr;
         let vapor = args.vapor || build_config.vapor.unwrap_or(false);
         let (plan, mode) = davinci_ice::compile_plan(ssr, vapor);
@@ -177,7 +237,46 @@ impl CompileFileSettings {
                 repro_dir: args.output.clone(),
             },
             preprocessed_styles: super::preprocess::PreprocessedStyles::default(),
+            compiler_scopes,
+            template_syntax_from_cli: args.template_syntax.is_some(),
+            vapor_from_cli: args.vapor,
+            custom_elements_from_cli: !args.custom_elements.is_empty(),
         }
+    }
+
+    pub(super) fn compiler_for_path(&self, path: &Path) -> ResolvedCompilerFileSettings<'_> {
+        let mut resolved = ResolvedCompilerFileSettings {
+            template_syntax: self.template_syntax,
+            whitespace: self.whitespace,
+            legacy_line_breaks: self.legacy_line_breaks,
+            vue2_preserve: self.vue2_preserve,
+            vapor: self.vapor,
+            custom_elements: &self.custom_elements,
+        };
+        for scope in &self.compiler_scopes {
+            if !scope.matcher.matches(path) {
+                continue;
+            }
+            if !self.template_syntax_from_cli
+                && let Some(template_syntax) = scope.template_syntax
+            {
+                resolved.template_syntax = template_syntax_mode(Some(template_syntax));
+            }
+            if let Some(whitespace) = scoped_whitespace(scope.whitespace.as_deref()) {
+                resolved.whitespace = whitespace.0;
+                resolved.legacy_line_breaks = whitespace.1;
+                resolved.vue2_preserve = whitespace.2;
+            }
+            if !self.vapor_from_cli
+                && let Some(vapor) = scope.vapor
+            {
+                resolved.vapor = vapor;
+            }
+            if !self.custom_elements_from_cli && !scope.custom_elements.is_empty() {
+                resolved.custom_elements = &scope.custom_elements;
+            }
+        }
+        resolved
     }
 
     /// Packs every compile option that can change stats output into a tiny cache key.
@@ -186,11 +285,12 @@ impl CompileFileSettings {
     /// accounting side effects, not parse/compile output. Script extension is included
     /// because preserving TypeScript can change generated code size. The dialect is
     /// included because it can change parse/compile output on legacy-capable builds.
-    pub(super) fn cache_bits(&self) -> u16 {
+    pub(super) fn cache_bits(&self, path: &Path) -> u16 {
+        let compiler = self.compiler_for_path(path);
         u16::from(self.ssr)
-            | (u16::from(self.vapor) << 1)
+            | (u16::from(compiler.vapor) << 1)
             | (u16::from(self.custom_renderer) << 2)
-            | (u16::from(template_syntax_bits(self.template_syntax)) << 3)
+            | (u16::from(template_syntax_bits(compiler.template_syntax)) << 3)
             | match self.script_ext {
                 ScriptExtension::Preserve => 1 << 5,
                 ScriptExtension::Downcompile => 0,
@@ -199,40 +299,51 @@ impl CompileFileSettings {
             | (u16::from(self.experimental_in_tag_comments) << 9)
             | (u16::from(self.experimental_patterned_template) << 10)
             | (u16::from(self.experimental_self_component) << 11)
-            | (u16::from(matches!(self.whitespace, WhitespaceStrategy::Preserve)) << 12)
-            | (u16::from(self.legacy_line_breaks) << 13)
-            | (u16::from(self.vue2_preserve) << 14)
+            | (u16::from(matches!(compiler.whitespace, WhitespaceStrategy::Preserve)) << 12)
+            | (u16::from(compiler.legacy_line_breaks) << 13)
+            | (u16::from(compiler.vue2_preserve) << 14)
     }
 
     /// Scope the configured template whitespace mode around one compile.
-    pub(super) fn with_whitespace<R>(&self, compile: impl FnOnce() -> R) -> R {
-        if self.vue2_preserve {
+    pub(super) fn with_whitespace<R>(&self, path: &Path, compile: impl FnOnce() -> R) -> R {
+        let compiler = self.compiler_for_path(path);
+        if compiler.vue2_preserve {
             vize_atelier_core::parser::with_vue2_preserve_whitespace(compile)
         } else {
             vize_atelier_core::parser::with_whitespace_mode(
-                self.whitespace,
-                self.legacy_line_breaks,
+                compiler.whitespace,
+                compiler.legacy_line_breaks,
                 compile,
             )
         }
     }
 
-    pub(super) fn custom_elements_hash(&self) -> u64 {
-        if self.custom_elements.is_empty() {
+    pub(super) fn custom_elements_hash(&self, path: &Path) -> u64 {
+        let custom_elements = self.compiler_for_path(path).custom_elements;
+        if custom_elements.is_empty() {
             return 0;
         }
 
-        let byte_len = self
-            .custom_elements
+        let byte_len = custom_elements
             .iter()
             .map(|pattern| u64::BITS as usize / 8 + pattern.len())
             .sum();
         let mut bytes = Vec::with_capacity(byte_len);
-        for pattern in &self.custom_elements {
+        for pattern in custom_elements {
             bytes.extend_from_slice(&(pattern.len() as u64).to_le_bytes());
             bytes.extend_from_slice(pattern.as_bytes());
         }
         hash_bytes(&bytes)
+    }
+}
+
+fn scoped_whitespace(value: Option<&str>) -> Option<(WhitespaceStrategy, bool, bool)> {
+    match value {
+        Some("preserve") => Some((WhitespaceStrategy::Preserve, false, false)),
+        Some("condense") => Some((WhitespaceStrategy::Condense, false, false)),
+        Some("vue2-line-breaks") => Some((WhitespaceStrategy::Condense, true, false)),
+        Some("vue2-preserve") => Some((WhitespaceStrategy::Preserve, false, true)),
+        _ => None,
     }
 }
 
@@ -281,10 +392,71 @@ mod tests {
     //! Stats cache must distinguish actual output-affecting whitespace modes.
 
     use super::super::{cache::StatsCompileCache, compile_stats::compile_file_stats_with_cache};
-    use super::{CompileFileSettings, load_build_config};
+    use super::{BuildConfigSettings, CompileFileSettings, load_build_config};
     use crate::commands::build::{BuildArgs, config::CompileStats};
     use vize_atelier_core::{WhitespaceStrategy, parser::with_whitespace_mode};
     use vize_atelier_sfc::{SfcCompileOptions, SfcParseOptions, compile_sfc, parse_sfc};
+    use vize_l0::config::{CompilerConfigEntry, ConfigExperimentalVueFlags, ConfigFeatureFlags};
+
+    #[test]
+    fn entry_compiler_settings_apply_only_to_matching_files() {
+        let project = tempfile::tempdir().unwrap();
+        let legacy = project.path().join("src/legacy/Old.vue");
+        let modern = project.path().join("src/New.vue");
+        let config = BuildConfigSettings {
+            project_root: Some(project.path().to_path_buf()),
+            compiler_template_syntax: None,
+            compiler_whitespace: Some("preserve"),
+            features: ConfigFeatureFlags::default(),
+            experimental_vue: ConfigExperimentalVueFlags::default(),
+            vapor: None,
+            custom_elements: Vec::new(),
+            dialect: None,
+            host_compiler: None,
+            compiler_entries: vec![CompilerConfigEntry {
+                base_path: None,
+                files: Some(vec!["src/legacy/**".into()]),
+                ignores: Vec::new(),
+                template_syntax: Some("strict"),
+                whitespace: Some("condense".into()),
+                vapor: Some(true),
+                custom_elements: vec!["legacy-*".into()],
+            }],
+            config_dir: project.path().to_path_buf(),
+        };
+        let settings = CompileFileSettings::resolve(&BuildArgs::default(), config);
+        let legacy_settings = settings.compiler_for_path(&legacy);
+        assert_eq!(legacy_settings.whitespace, WhitespaceStrategy::Condense);
+        assert_eq!(
+            legacy_settings.template_syntax,
+            vize_atelier_core::TemplateSyntaxMode::Strict
+        );
+        assert!(legacy_settings.vapor);
+        assert_eq!(legacy_settings.custom_elements, ["legacy-*"]);
+        let modern_settings = settings.compiler_for_path(&modern);
+        assert_eq!(modern_settings.whitespace, WhitespaceStrategy::Preserve);
+        assert_eq!(
+            modern_settings.template_syntax,
+            vize_atelier_core::TemplateSyntaxMode::Standard
+        );
+        assert!(!modern_settings.vapor);
+        assert!(modern_settings.custom_elements.is_empty());
+        assert_ne!(settings.cache_bits(&legacy), settings.cache_bits(&modern));
+
+        let source = include_str!(
+            "../../../../../../tests/_fixtures/differential/compiler/cli-whitespace-7880/App.vue.txt"
+        );
+        let descriptor = parse_sfc(source, SfcParseOptions::default()).unwrap();
+        let compile = |path| {
+            settings
+                .with_whitespace(path, || {
+                    compile_sfc(&descriptor, SfcCompileOptions::default())
+                })
+                .unwrap()
+                .code
+        };
+        assert_ne!(compile(&modern), compile(&legacy));
+    }
 
     #[test]
     fn shared_stats_cache_keeps_whitespace_modes_and_restores_thread_local_parser_state() {

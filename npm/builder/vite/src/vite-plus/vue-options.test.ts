@@ -99,6 +99,7 @@ void test("canonical sections reach the same native normalizer as the selected V
         {
           name: "widgets",
           files: ["widgets/**/*.vue"],
+          compiler: { whitespace: "condense" },
           linter: { rules: { "vue/no-v-html": "off" } },
         },
       ],

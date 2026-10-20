@@ -1,9 +1,21 @@
 //! Ordered entry projections from an already-deserialized document.
 
 use super::ConfigDocument;
-use crate::config::{ConfigEntryFiles, ConfigEntryIgnore};
+use crate::config::{CompilerConfigEntry, ConfigEntryFiles, ConfigEntryIgnore};
 
 impl ConfigDocument {
+    /// Compiler override scopes in declaration order.
+    pub fn compiler_entries(&self) -> Vec<CompilerConfigEntry> {
+        self.0
+            .entries
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .map(CompilerConfigEntry::from_raw)
+            .filter(CompilerConfigEntry::has_overrides)
+            .collect()
+    }
+
     /// Top-level ignores precede entry-local ignores, retaining each base path.
     pub fn entry_ignores(&self) -> Vec<ConfigEntryIgnore> {
         let top_level_ignores = self
