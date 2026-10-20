@@ -97,16 +97,17 @@ void test("compiler fixture pins a real full-module reference without native cre
       "compiler/sfc/ssr-slot-scope",
       "compiler/sfc/slot-fallback-compound-text-9889",
       "compiler/sfc/template-asset-urls-9895",
+      "compiler/sfc/v-model-maybe-ref-9897",
       "compiler/sfc/package-import-prop-type-9894",
     ],
   );
   const report = syntheticReport();
   assert.deepEqual(validateCompilerReport(loaded, report, build), report.summary);
   assert.deepEqual(summarizeNativeAcceptance(loaded, report, { sourceRevision }).total, {
-    planned: 4,
+    planned: 5,
     nativeHandled: 0,
     nativeEquivalent: 0,
-    unsupported: 4,
+    unsupported: 5,
     legacyBacked: 0,
     unverified: 0,
   });
