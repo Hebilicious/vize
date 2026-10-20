@@ -30,6 +30,8 @@ use tower_lsp::lsp_types::{
     CompletionItem, CompletionItemKind, CompletionItemLabelDetails, Documentation, MarkupContent,
     MarkupKind,
 };
+#[cfg(feature = "native")]
+use vize_l0::FxHashMap;
 use vize_croquis::ScopeKind;
 use vize_croquis::facts::BindingsTable;
 use vize_croquis::{Drawer, DrawerOptions};
@@ -74,6 +76,60 @@ pub(crate) fn script_extras(ctx: &IdeContext, is_setup: bool) -> Vec<CompletionI
         extras.extend(macro_completions());
     }
     extras
+}
+
+/// Merge the checker's script completions with Maestro's Vue extras while
+/// keeping one row per authored name. The checker owns the candidate's kind,
+/// ranking, insertion behavior, and resolve identity; a built-in duplicate may
+/// only fill presentation metadata that the checker omitted.
+#[cfg(feature = "native")]
+pub(crate) fn merge_checker_completions(
+    ctx: &IdeContext,
+    is_setup: bool,
+    checker_items: Vec<CompletionItem>,
+) -> Vec<CompletionItem> {
+    merge_completion_items(
+        checker_items
+            .into_iter()
+            .chain(script_extras(ctx, is_setup)),
+    )
+}
+
+#[cfg(feature = "native")]
+fn merge_completion_items(items: impl IntoIterator<Item = CompletionItem>) -> Vec<CompletionItem> {
+    let mut retained = Vec::<CompletionItem>::new();
+    let mut indices = FxHashMap::<String, usize>::default();
+
+    for item in items {
+        if let Some(&index) = indices.get(&item.label) {
+            merge_completion_metadata(&mut retained[index], item);
+        } else {
+            indices.insert(item.label.clone(), retained.len());
+            retained.push(item);
+        }
+    }
+
+    retained
+}
+
+#[cfg(feature = "native")]
+fn merge_completion_metadata(retained: &mut CompletionItem, duplicate: CompletionItem) {
+    if retained
+        .detail
+        .as_deref()
+        .is_none_or(|detail| detail.trim().is_empty())
+    {
+        retained.detail = duplicate.detail;
+    }
+    if retained.documentation.is_none() {
+        retained.documentation = duplicate.documentation;
+    }
+    if retained.label_details.is_none() {
+        retained.label_details = duplicate.label_details;
+    }
+    if retained.data.is_none() {
+        retained.data = duplicate.data;
+    }
 }
 
 /// Whether the cursor completes a member name: right after a `.` (the shared
