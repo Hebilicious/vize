@@ -38,6 +38,7 @@ pub use content_mapper::{
     generate_vue_content_mapper_transform, generate_vue_content_mapper_transform_with_options,
 };
 pub use content_mapper_config::ContentMapperProjectConfiguration;
+mod cache_gc;
 mod css_var_usage;
 mod declaration_emit;
 pub(crate) mod dependency_scan;
@@ -59,7 +60,8 @@ mod external_mirror;
 pub use external_mirror::external_mirror_original_path;
 mod identity;
 pub use identity::{
-    legacy_project_virtual_roots, project_virtual_lock_paths, project_virtual_root,
+    legacy_project_virtual_roots, project_virtual_access_path, project_virtual_lock_paths,
+    project_virtual_root,
 };
 mod javascript_sfc;
 mod jsx_build;
