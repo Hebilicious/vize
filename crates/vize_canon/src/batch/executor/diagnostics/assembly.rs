@@ -216,6 +216,23 @@ impl DiagnosticMapper<'_> {
         let original = self
             .project
             .diagnostic_position(&raw.virtual_path, raw.line, raw.column)?;
+        if raw.code == Some(5097) {
+            let source = self.original_source(&original.path)?;
+            let start = source.line_index.line_col_to_offset(
+                &source.content,
+                original.line,
+                original.column,
+            )? as usize;
+            if crate::projection::assemble::is_authored_vue_import_extension(
+                &source.content,
+                raw.code,
+                &raw.message,
+                start,
+                start,
+            ) {
+                return None;
+            }
+        }
         if raw.code == Some(6133) && is_vue(&original.path) {
             return None;
         }
