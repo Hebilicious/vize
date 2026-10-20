@@ -94,6 +94,8 @@ impl PackageSourceOptions {
 #[derive(Default)]
 pub(super) struct PackagePathCache {
     paths: FxHashMap<PathBuf, PathBuf>,
+    #[cfg(test)]
+    canonicalizations: usize,
 }
 
 impl PackagePathCache {
@@ -105,7 +107,25 @@ impl PackagePathCache {
         if let Some(cached) = self.paths.get(path) {
             return cached.clone();
         }
-        let canonical = vize_carton::path::canonicalize_non_verbatim(path);
+        #[cfg(test)]
+        {
+            self.canonicalizations += 1;
+        }
+        let canonical = match path.canonicalize() {
+            Ok(physical) => {
+                let physical = vize_carton::path::normalize_windows_verbatim_path(physical);
+                // A successful realpath also establishes its physical spelling.
+                // Package targets use that spelling after resolving a pnpm link;
+                // querying it again must not repeat the same filesystem walk.
+                if physical != path {
+                    self.paths
+                        .entry(physical.clone())
+                        .or_insert_with(|| physical.clone());
+                }
+                physical
+            }
+            Err(_) => vize_carton::path::normalize_windows_verbatim_path(path.to_path_buf()),
+        };
         self.paths.insert(path.to_path_buf(), canonical.clone());
         canonical
     }
@@ -305,6 +325,9 @@ fn logical_absolute(path: &Path) -> PathBuf {
     }
 }
 
+#[cfg(test)]
+#[path = "package_route_path_cache_tests.rs"]
+mod path_cache_tests;
 #[cfg(test)]
 #[path = "package_route_tests.rs"]
 mod tests;
