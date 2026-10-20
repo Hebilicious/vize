@@ -243,6 +243,10 @@ pub(super) fn try_emit_l2(
 }
 
 /// Emit one DOM module through L2, with the SFC-only slot check when requested.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "compile inputs remain explicit across the internal SFC environment boundary"
+)]
 pub(super) fn emit_l2(
     allocator: &Allocator,
     source: &str,
