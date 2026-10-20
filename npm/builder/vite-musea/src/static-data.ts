@@ -76,7 +76,11 @@ export async function createStaticGalleryPayload(
   const details: StaticGalleryPayload["details"] = {};
   const snapshotIdentities: Record<string, string> = Object.create(null);
   const snapshotRoot =
-    ctx.projectRoot ?? inferStaticSnapshotRoot(ctx.config.root, arts.map((art) => art.path));
+    ctx.projectRoot ??
+    inferStaticSnapshotRoot(
+      ctx.config.root,
+      arts.map((art) => art.path),
+    );
 
   for (const art of arts) {
     snapshotIdentities[art.path] = resolveSnapshotIdentity(art.path, snapshotRoot);
