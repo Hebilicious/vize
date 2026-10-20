@@ -3099,11 +3099,15 @@ const { count } = useThing()
     )
     .expect("compile SFC");
 
-    assert!(
-        result
-            .code
-            .contains("$event => (_isRef(count) ? (count).value = $event : null)"),
-        "setup-maybe-ref v-model writes must be guarded:\n{}",
-        result.code
+    let (_, handler) = result
+        .code
+        .split_once("\"onUpdate:modelValue\": ")
+        .expect("v-model update handler");
+    assert_eq!(
+        handler.lines().next(),
+        Some(
+            "_cache[0] || (_cache[0] = $event => (_isRef(count) ? (count).value = $event : null))"
+        ),
+        "setup-maybe-ref v-model write handler must match Vue exactly"
     );
 }
