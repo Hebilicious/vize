@@ -165,6 +165,20 @@ void test("lint.vue typecheck enables one native checker, and false opts out", a
   assert.equal(result.fmt?.ignorePatterns, undefined);
 });
 
+void test("explicit compiler false keeps the host Vue plugin with shared compiler settings", async () => {
+  const hostVue = { name: "vite:vue" };
+  const result = await defineConfig(
+    {
+      compiler: false,
+      plugins: [hostVue],
+      vue: { compiler: { templateSyntax: "quirks" } },
+    },
+    { tasks: false },
+  )(env);
+
+  assert.deepEqual(result.plugins, [hostVue]);
+});
+
 void test("native lint presentation and shared format ignores reach only their owning tasks", async () => {
   const source = {
     lint: {
