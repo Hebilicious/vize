@@ -1,7 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createMuseaVirtualTransformer } from "./virtual-transform.ts";
+import { createMuseaVirtualTransformer, museaVirtualTransformId } from "./virtual-transform.ts";
+
+void test("Musea virtual transforms inherit the authored art tsconfig", () => {
+  assert.equal(
+    museaVirtualTransformId("\0musea-art:/repo/packages/ui/src/MyButton.art.vue?musea-virtual"),
+    "/repo/packages/ui/src/MyButton.art.vue.ts",
+  );
+  assert.equal(
+    museaVirtualTransformId("\0musea:/repo/packages/ui/src/MyButton.vue?musea-virtual"),
+    "/repo/packages/ui/src/MyButton.vue.ts",
+  );
+  assert.equal(museaVirtualTransformId("\0musea-shared:/repo/src/MyButton.art.vue"), null);
+});
 
 void test("Musea virtual TS transform prefers Vite OXC when available", async () => {
   let used = "";

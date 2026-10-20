@@ -36,7 +36,7 @@ import {
 } from "../static-export.js";
 import { resolveMuseaSharedConfig } from "./config.js";
 import { processMuseaArtFile } from "./art-processing.js";
-import { transformMuseaVirtualModule } from "./virtual-transform.js";
+import { museaVirtualTransformId, transformMuseaVirtualModule } from "./virtual-transform.js";
 import { resolvePreviewCssPath } from "./preview-css.js";
 import { resolveStaticPreviewVueVersion } from "./static-preview.js";
 import { attachMuseaOptions } from "./options.js";
@@ -301,11 +301,8 @@ export function musea(options: MuseaOptions = {}): Plugin[] {
         return null;
       }
 
-      const safeId = id
-        .replaceAll("\0", "")
-        .replace(/[^\w./-]+/g, "_")
-        .replace(/_+/g, "_");
-      const loaderId = path.join(config.root, `.musea-${safeId}.ts`);
+      const loaderId = museaVirtualTransformId(id);
+      if (!loaderId) return null;
 
       return transformMuseaVirtualModule(code, loaderId, config.command === "serve");
     },
