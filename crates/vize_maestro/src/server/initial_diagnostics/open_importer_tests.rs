@@ -11,7 +11,7 @@ use tower_lsp::{
 };
 use vize_l0::cstr;
 
-use super::{MaestroServer, refresh_initial_importers};
+use super::{DiagnosticsJobCause, MaestroServer, refresh_initial_importers};
 
 #[expect(
     clippy::disallowed_types,
@@ -84,7 +84,7 @@ fn factory_count(fixture: &QueuedOpen) -> vize_l0::String {
 }
 
 #[test]
-fn did_change_coalesces_native_diagnostics_behind_the_latest_buffer() {
+fn did_change_burst_coalesces_native_diagnostics_behind_the_latest_buffer() {
     let fixture = queued_open();
     let server = fixture.service.inner();
     let change = |version, text: &str| DidChangeTextDocumentParams {
@@ -99,8 +99,11 @@ fn did_change_coalesces_native_diagnostics_behind_the_latest_buffer() {
         }],
     };
 
-    crate::runtime::block_on(server.did_change(change(2, "<template>{{ first }}</template>")));
-    crate::runtime::block_on(server.did_change(change(3, "<template>{{ latest }}</template>")));
+    for version in 2..=101 {
+        crate::runtime::block_on(
+            server.did_change(change(version, "<template>{{ latest }}</template>")),
+        );
+    }
 
     assert_eq!(
         server.state.documents.text(&fixture.uri).as_deref(),
@@ -109,8 +112,9 @@ fn did_change_coalesces_native_diagnostics_behind_the_latest_buffer() {
     let pending = fixture.pending.lock();
     assert_eq!(pending.jobs.len(), 1);
     let job = &pending.jobs[&fixture.uri];
-    assert_eq!(job.version, 3);
-    assert!(job.sync_pending);
+    assert_eq!(job.cause, DiagnosticsJobCause::Edit);
+    assert_eq!(job.version, 101);
+    assert!(!job.sync_pending);
     assert!(job.not_before > std::time::Instant::now());
 }
 

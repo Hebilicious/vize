@@ -5,6 +5,27 @@ use tower_lsp::lsp_types::{TextDocumentContentChangeEvent, Url};
 use super::MaestroServer;
 
 impl MaestroServer {
+    #[cfg(feature = "native")]
+    pub(super) async fn publish_changed_diagnostics_if_version(
+        &self,
+        uri: &Url,
+        version: i32,
+        sync: Option<super::diagnostic_publishing::SyncDiagnostics>,
+    ) {
+        let retained = super::initial_diagnostics::RetainedDiagnostics::new(self, uri);
+        let diagnostic_lock = self.state.diagnostic_lock(uri);
+        let diagnostic_guard = diagnostic_lock.lock().await;
+        let diagnostics = self
+            .collect_diagnostics_with_sync_unlocked(uri, Some(version), sync)
+            .await;
+        drop(diagnostic_guard);
+
+        if let Some(diagnostics) = diagnostics {
+            self.publish_collected_diagnostics(uri, diagnostics).await;
+        }
+        retained.finish();
+    }
+
     /// Publish the changed document first, then refresh open typed files that
     /// directly import it. Corsa has already received the changed virtual
     /// document by this point, so importer diagnostics observe the new shape.
@@ -49,31 +70,12 @@ impl MaestroServer {
             return;
         }
         #[cfg(feature = "native")]
-        let retained = super::initial_diagnostics::RetainedDiagnostics::new(self, uri);
-        // Apply editor text before waiting for type diagnostics. Their lock
-        // cannot delay didChange or hide the new revision from pending replies.
-        #[cfg(feature = "native")]
-        let diagnostic_lock = self.state.diagnostic_lock(uri);
-        #[cfg(feature = "native")]
-        let diagnostic_guard = diagnostic_lock.lock().await;
-
-        let diagnostics = self
-            .collect_diagnostics_with_sync_unlocked(
-                uri,
-                Some(version),
-                #[cfg(feature = "native")]
-                sync,
-            )
+        self.publish_changed_diagnostics_if_version(uri, version, sync)
             .await;
-
-        #[cfg(feature = "native")]
-        drop(diagnostic_guard);
-
-        if let Some(diagnostics) = diagnostics {
+        #[cfg(not(feature = "native"))]
+        if let Some(diagnostics) = self.collect_diagnostics_unlocked(uri, Some(version)).await {
             self.publish_collected_diagnostics(uri, diagnostics).await;
         }
-        #[cfg(feature = "native")]
-        retained.finish();
 
         tracing::info!(
             "starting importer diagnostics after edit {} version {}",

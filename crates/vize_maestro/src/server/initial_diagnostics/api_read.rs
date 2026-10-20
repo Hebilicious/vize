@@ -57,14 +57,12 @@ enum InitialRead {
 }
 
 impl MaestroServer {
-    /// Background regular-Vue validation releases native admission between
-    /// capture and commit. Foreground requests, saves and importer refreshes
-    /// keep their existing transaction.
+    /// Only this initial regular-Vue route releases native admission. Every
+    /// foreground/edit/save/importer route keeps its existing transaction.
     pub(in crate::server) async fn publish_initial_api_diagnostics_if_version(
         &self,
         uri: &Url,
         expected: i32,
-        prepared_sync: Option<super::super::diagnostic_publishing::SyncDiagnostics>,
         continuation: Option<&InitialConfigurationContinuation>,
     ) {
         // Preserve the original empty-provider, disabled-typecheck and retired
@@ -106,16 +104,7 @@ impl MaestroServer {
         if !world.is_current(&self.state) {
             return;
         }
-        let sync = prepared_sync
-            .filter(|sync| {
-                sync.version == expected
-                    && sync.stamp.is_current(&self.state)
-                    && self.state.documents.version(uri) == Some(expected)
-            })
-            .map_or_else(
-                || DiagnosticService::collect(&self.state, uri),
-                |sync| sync.diagnostics,
-            );
+        let sync = DiagnosticService::collect(&self.state, uri);
         // Preserve the original outer deadline over ALL native collection:
         // preparation, open, read, physical guards, finish, recovery and mapping.
         // Detached work does not restart a timeout or move the measured bound.

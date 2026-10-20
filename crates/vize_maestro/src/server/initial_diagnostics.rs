@@ -34,12 +34,19 @@ const MAX_PENDING_DOCUMENTS: usize = 64;
 
 #[derive(Clone)]
 struct InitialDiagnosticsJob {
+    cause: DiagnosticsJobCause,
     version: i32,
     not_before: Instant,
     sequence: u64,
     sync_pending: bool,
     sync: Option<super::diagnostic_publishing::SyncDiagnostics>,
     continuation: Option<super::state::InitialConfigurationContinuation>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DiagnosticsJobCause {
+    Open,
+    Edit,
 }
 
 #[derive(Default)]
@@ -56,7 +63,14 @@ impl PendingInitialDiagnostics {
     }
 
     fn insert(&mut self, uri: Url, version: i32, not_before: Instant) {
-        self.insert_with_continuation(uri, version, not_before, None, None);
+        self.insert_with_continuation(
+            uri,
+            version,
+            not_before,
+            DiagnosticsJobCause::Open,
+            None,
+            None,
+        );
     }
 
     fn insert_with_continuation(
@@ -64,6 +78,7 @@ impl PendingInitialDiagnostics {
         uri: Url,
         version: i32,
         not_before: Instant,
+        cause: DiagnosticsJobCause,
         sync: Option<super::diagnostic_publishing::SyncDiagnostics>,
         continuation: Option<super::state::InitialConfigurationContinuation>,
     ) {
@@ -91,10 +106,11 @@ impl PendingInitialDiagnostics {
         self.jobs.insert(
             uri,
             InitialDiagnosticsJob {
+                cause,
                 version,
                 not_before,
                 sequence,
-                sync_pending: true,
+                sync_pending: cause == DiagnosticsJobCause::Open,
                 sync,
                 continuation,
             },
@@ -186,6 +202,7 @@ impl InitialDiagnosticsScheduler {
         uri: Url,
         version: i32,
         delay: Duration,
+        cause: DiagnosticsJobCause,
         sync: Option<super::diagnostic_publishing::SyncDiagnostics>,
         continuation: Option<super::state::InitialConfigurationContinuation>,
     ) -> bool {
@@ -196,6 +213,7 @@ impl InitialDiagnosticsScheduler {
             uri,
             version,
             Instant::now() + delay,
+            cause,
             sync,
             continuation,
         );
@@ -264,11 +282,9 @@ fn run_worker(
                         .for_initial_document(&uri, version, job.continuation.as_ref())
                         .await;
                     phase.finish();
-                    if job.sync.is_none() {
-                        project
-                            .publish_initial_sync_diagnostics(&uri, version)
-                            .await;
-                    }
+                    project
+                        .publish_initial_sync_diagnostics(&uri, version)
+                        .await;
                     let prepare = pending.lock().jobs.get(&uri).is_some_and(|job| {
                         job.version == version && job.not_before > Instant::now()
                     });
@@ -302,18 +318,31 @@ fn run_worker(
                     "initial_type_configuration_admission",
                     1,
                 );
-                let project = worker
-                    .for_initial_document(&uri, job.version, job.continuation.as_ref())
-                    .await;
+                let project = match job.cause {
+                    DiagnosticsJobCause::Open => {
+                        worker
+                            .for_initial_document(&uri, job.version, job.continuation.as_ref())
+                            .await
+                    }
+                    DiagnosticsJobCause::Edit => worker.for_document(&uri).await,
+                };
                 phase.finish();
-                project
-                    .publish_initial_api_diagnostics_if_version(
-                        &uri,
-                        job.version,
-                        job.sync,
-                        job.continuation.as_ref(),
-                    )
-                    .await;
+                match job.cause {
+                    DiagnosticsJobCause::Open => {
+                        project
+                            .publish_initial_api_diagnostics_if_version(
+                                &uri,
+                                job.version,
+                                job.continuation.as_ref(),
+                            )
+                            .await;
+                    }
+                    DiagnosticsJobCause::Edit => {
+                        project
+                            .publish_changed_diagnostics_if_version(&uri, job.version, job.sync)
+                            .await;
+                    }
+                }
                 tracing::info!(
                     "finished initial type diagnostics for {} version {}",
                     uri,
@@ -341,6 +370,7 @@ impl MaestroServer {
                 uri.clone(),
                 version,
                 INTERACTIVE_GRACE,
+                DiagnosticsJobCause::Open,
                 None,
                 self.state.initial_configuration_continuation(&uri, version),
             )
@@ -358,8 +388,9 @@ impl MaestroServer {
                 uri.clone(),
                 version,
                 EDIT_DIAGNOSTIC_DEBOUNCE,
+                DiagnosticsJobCause::Edit,
                 sync,
-                self.state.initial_configuration_continuation(&uri, version),
+                None,
             )
         })
     }
