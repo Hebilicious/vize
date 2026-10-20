@@ -2,7 +2,6 @@
 
 use std::path::{Path, PathBuf};
 use vize_atelier_core::{TemplateSyntaxMode, WhitespaceStrategy};
-use vize_carton::config::matcher::LintPlanScope;
 use vize_l0::String;
 use vize_l0::config::{
     CompilerConfigEntry, ConfigExperimentalVueFlags, ConfigFeatureFlags, VueVersion,
@@ -11,6 +10,7 @@ use vize_l0::hash::hash_bytes;
 
 use crate::commands::build::{BuildArgs, ScriptExtension};
 use crate::commands::davinci_ice;
+use crate::lint_plan::matcher::LintPlanScope;
 
 pub(super) struct BuildConfigSettings {
     pub(super) project_root: Option<PathBuf>,
