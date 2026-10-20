@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-const project = fileURLToPath(new URL("../../tsconfig.tooling-migration.json", import.meta.url));
+const project = fileURLToPath(new URL("../../tsconfig.json", import.meta.url));
 const checker = fileURLToPath(
   new URL("../../tools/support/typescript/check-project.ts", import.meta.url),
 );

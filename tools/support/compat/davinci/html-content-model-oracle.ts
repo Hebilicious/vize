@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 // Parser differential oracle for the HTML content-model checker (P4-11a).
 //
 // The checker claims tier `exact` for its parser family: in a no-quirks

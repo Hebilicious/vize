@@ -22,7 +22,7 @@ export function verifyForgeSecurity(forge: Forge): void {
   const privateKey = forge.pki.privateKeyFromPem(keys.privateKey);
   const publicKey = forge.pki.publicKeyFromPem(keys.publicKey);
   const message = "node-forge nested DigestAlgorithm security regression";
-  const digest = createHash("sha256").update(message).digest("latin1");
+  const digest = createHash("sha256").update(message).digest("binary");
   const asn = (type: number, value: unknown, constructed = false) =>
     forge.asn1.create(forge.asn1.Class.UNIVERSAL, type, constructed, value);
   const nullNode = () => asn(forge.asn1.Type.NULL, "");
@@ -68,7 +68,7 @@ export function verifyForgeSecurity(forge: Forge): void {
   assert.throws(
     () =>
       upstreamKey.verify(
-        createHash("sha256").update("hello world!").digest("latin1"),
+        createHash("sha256").update("hello world!").digest("binary"),
         Buffer.from(upstreamSignature, "hex").toString("latin1"),
       ),
     /DigestInfo value/,
