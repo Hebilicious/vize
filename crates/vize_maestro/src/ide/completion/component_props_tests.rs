@@ -119,9 +119,7 @@ import MySelect from "./MySelect.vue"
             .open(uri.clone(), source.clone(), 1, "vue".to_string());
         state.update_virtual_docs(&uri, &source);
 
-        let offset = source
-            .find(&vize_l0::cstr!("<template {prefix}"))
-            .unwrap()
+        let offset = source.find(&vize_l0::cstr!("<template {prefix}")).unwrap()
             + "<template ".len()
             + prefix.len();
         let ctx = IdeContext::at_completion(&state, &uri, offset).unwrap();
