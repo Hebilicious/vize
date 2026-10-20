@@ -8,7 +8,7 @@ use vize_l0::{
         LinterFeatureFlags,
     },
 };
-use vize_patina::{HelpLevel, LintPreset, Linter, Locale, Severity, VUE_ROUTER_COMPONENTS};
+use vize_patina::{HelpLevel, Linter, Locale, Severity, VUE_ROUTER_COMPONENTS};
 
 mod rule_option_mapping;
 
@@ -16,7 +16,7 @@ use self::rule_option_mapping::{
     attribute_hyphenation_style, component_casing, event_name_casing, html_self_closing_options,
     no_mutating_props_options, sfc_element_order_options, v_on_event_hyphenation_style,
 };
-use super::LintArgs;
+use super::{LintArgs, ResolvedLintPreset};
 #[cfg(test)]
 use crate::lint_plan::matcher::GlobSequence;
 use crate::lint_plan::matcher::{LintPlanScope, absolute_path};
@@ -36,7 +36,7 @@ pub(super) struct ResolvedLinterRuleGroups {
 impl ResolvedLinterRuleGroups {
     pub(super) fn build_linters(
         &self,
-        preset: LintPreset,
+        preset: ResolvedLintPreset,
         help_level: HelpLevel,
         args: &LintArgs,
         features: LinterFeatureFlags,
@@ -75,7 +75,11 @@ impl ResolvedLinterRuleGroups {
                 {
                     additional_rules.push(SCRIPT_NO_RESTRICTED_MEMBERS.into());
                 }
-                let mut linter = Linter::with_preset(preset)
+                let linter = match preset {
+                    ResolvedLintPreset::Builtin(preset) => Linter::with_preset(preset),
+                    ResolvedLintPreset::All => Linter::with_all(),
+                };
+                let mut linter = linter
                     .with_additional_rules(additional_rules)
                     .with_disabled_rules(disabled_rules)
                     .with_disabled_categories(config.disabled_categories())
