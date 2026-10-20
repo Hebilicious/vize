@@ -2258,6 +2258,48 @@ const props = withDefaults(defineProps<MkPaginationOptions & {
 }
 
 #[test]
+fn test_define_props_resolves_type_from_package_import() {
+    let project = temp_compile_project_dir("package-import-prop-type");
+    let src = project.join("src");
+    fs::create_dir_all(&src).unwrap();
+    fs::write(
+        project.join("package.json"),
+        r##"{ "imports": { "#lib/*": "./src/*" } }"##,
+    )
+    .unwrap();
+    fs::write(
+        src.join("types.ts"),
+        "export type Ripple = boolean | { center?: boolean } | null | undefined;",
+    )
+    .unwrap();
+
+    let source = r##"<script setup lang="ts">
+import type { Ripple } from "#lib/types"
+const { ripple = undefined } = defineProps<{ ripple?: Ripple }>()
+</script>
+<template><span>{{ JSON.stringify(ripple) }}</span></template>"##;
+    let descriptor = parse_sfc(source, SfcParseOptions::default()).expect("parse SFC");
+    let mut options = SfcCompileOptions::default();
+    options.script.id = Some(
+        src.join("Subpath.vue")
+            .to_string_lossy()
+            .as_ref()
+            .to_compact_string(),
+    );
+
+    let result = compile_sfc(&descriptor, options).expect("compile SFC");
+
+    assert!(
+        result
+            .code
+            .contains("ripple: {\n      type: [Boolean, Object]"),
+        "package-imported union must retain Boolean runtime casting:\n{}",
+        result.code
+    );
+    let _ = fs::remove_dir_all(project);
+}
+
+#[test]
 fn test_script_setup_sfc_uses_setup_bindings_for_kebab_case_imported_components() {
     let source = r#"<script setup lang="ts">
 import DashTest from './dash-test.vue'
