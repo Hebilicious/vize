@@ -101,8 +101,11 @@ fn merge_completion_items(items: impl IntoIterator<Item = CompletionItem>) -> Ve
     let mut indices = FxHashMap::<String, usize>::default();
 
     for item in items {
-        if let Some(&index) = indices.get(&item.label) {
-            merge_completion_metadata(&mut retained[index], item);
+        if let Some(retained_item) = indices
+            .get(&item.label)
+            .and_then(|&index| retained.get_mut(index))
+        {
+            merge_completion_metadata(retained_item, item);
         } else {
             indices.insert(item.label.clone(), retained.len());
             retained.push(item);
