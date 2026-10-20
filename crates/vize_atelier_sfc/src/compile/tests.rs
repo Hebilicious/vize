@@ -3106,7 +3106,7 @@ const { count } = useThing()
     assert_eq!(
         handler.lines().next(),
         Some(
-            "_cache[0] || (_cache[0] = $event => (_isRef(count) ? (count).value = $event : null))"
+            "_cache[0] || (_cache[0] = $event => ((_isRef(count) ? (count.value) = $event : null)))"
         ),
         "setup-maybe-ref v-model write handler must match Vue exactly"
     );
