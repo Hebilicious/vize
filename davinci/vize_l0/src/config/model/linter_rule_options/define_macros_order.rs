@@ -1,4 +1,4 @@
-use serde::{Deserialize, Deserializer, Serialize, de::Error};
+use serde::{de::Error, Deserialize, Deserializer, Serialize};
 
 use crate::String;
 
@@ -34,7 +34,7 @@ where
         if name.is_empty() {
             return Err(D::Error::custom("macro names in order must not be empty"));
         }
-        if order[..index].contains(name) {
+        if order.iter().take(index).any(|candidate| candidate == name) {
             return Err(D::Error::custom("macro names in order must be unique"));
         }
     }
