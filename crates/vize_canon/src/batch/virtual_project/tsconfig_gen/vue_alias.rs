@@ -209,7 +209,7 @@ mod tests {
                     .as_array()
                     .unwrap(),
                 "../../../",
-                |target| target.starts_with("node_modules/"),
+                |target| target == "node_modules/nuxt/dist/app",
             )),
             json!([
                 "../../../node_modules/nuxt/dist/app",
