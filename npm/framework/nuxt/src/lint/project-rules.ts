@@ -10,6 +10,11 @@ import type { VizeRuleConfigPreset } from "oxlint-plugin-vize";
 
 export type ProjectLintRules = Record<string, NuxtLintSeverity>;
 
+export interface ProjectLintRuleSets {
+  vize?: ProjectLintRules;
+  oxlint?: ProjectLintRules;
+}
+
 export type ProjectPresetLoader = (
   preset: VizeRuleConfigPreset,
   typeAware: boolean,
@@ -36,15 +41,72 @@ export async function readProjectLintRules(
   rootDir: string,
   loadPreset: ProjectPresetLoader = loadPresetRules,
 ): Promise<ProjectLintRules | undefined> {
-  const linter = await readVizeConfigLinter(rootDir);
-  if (!linter) return undefined;
+  return (await readProjectLintRuleSets(rootDir, loadPreset)).vize;
+}
 
-  const presetRules =
-    linter.preset && linter.preset !== "incremental"
-      ? await loadPreset(linter.preset, linter.typeAware)
-      : {};
-  const rules = { ...presetRules, ...linter.rules };
-  return Object.keys(rules).length > 0 ? rules : undefined;
+export async function readProjectLintRuleSets(
+  rootDir: string,
+  loadPreset: ProjectPresetLoader = loadPresetRules,
+): Promise<ProjectLintRuleSets> {
+  const project = await readProjectConfig(rootDir);
+  const linter = project.linter;
+  const oxlint = explicitOxlintRules(project.oxlint);
+  let vize: ProjectLintRules | undefined;
+  if (linter) {
+    const presetRules =
+      linter.preset && linter.preset !== "incremental"
+        ? await loadPreset(linter.preset, linter.typeAware)
+        : {};
+    const rules = { ...presetRules, ...linter.rules };
+    if (Object.keys(rules).length > 0) vize = rules;
+  }
+  return {
+    ...(vize ? { vize } : {}),
+    ...(Object.keys(oxlint).length > 0 ? { oxlint } : {}),
+  };
+}
+
+interface ProjectConfig {
+  linter?: ProjectLinterConfig;
+  oxlint?: unknown;
+}
+
+async function readProjectConfig(rootDir: string): Promise<ProjectConfig> {
+  const { loadViteConfigSource } = await import("vize/config");
+  const parsed = await loadViteConfigSource(rootDir, {
+    mode: "auto",
+    env: { command: "lint", mode: "development" },
+  });
+  if (!parsed) return {};
+  const rawLinter =
+    parsed.vue &&
+    typeof parsed.vue === "object" &&
+    "linter" in parsed.vue &&
+    parsed.vue.linter &&
+    typeof parsed.vue.linter === "object"
+      ? (parsed.vue.linter as { preset?: unknown; rules?: unknown; typeAware?: unknown })
+      : undefined;
+  return {
+    linter: rawLinter
+      ? {
+          preset: isConfigPreset(rawLinter.preset) ? rawLinter.preset : undefined,
+          typeAware: rawLinter.typeAware === true,
+          rules: explicitRules(rawLinter.rules),
+        }
+      : undefined,
+    oxlint: parsed.lint,
+  };
+}
+
+function explicitOxlintRules(value: unknown): ProjectLintRules {
+  if (!value || typeof value !== "object") return {};
+  const rules = "rules" in value ? (value as { rules?: unknown }).rules : undefined;
+  if (!rules || typeof rules !== "object") return {};
+  const result: ProjectLintRules = {};
+  for (const [id, severity] of Object.entries(rules)) {
+    if (isSeverity(severity)) result[id] = severity;
+  }
+  return result;
 }
 
 async function loadPresetRules(
@@ -60,22 +122,6 @@ async function loadPresetRules(
     if (bare.length > 0) rules[bare] = severity;
   }
   return rules;
-}
-
-async function readVizeConfigLinter(rootDir: string): Promise<ProjectLinterConfig | undefined> {
-  const { loadConfig } = await import("vize/config");
-  const parsed = await loadConfig(rootDir, {
-    mode: "auto",
-    env: { command: "lint", mode: "development" },
-  });
-  if (!parsed) return undefined;
-  if (!parsed.linter || typeof parsed.linter !== "object") return undefined;
-  const linter = parsed.linter as { preset?: unknown; rules?: unknown; typeAware?: unknown };
-  return {
-    preset: isConfigPreset(linter.preset) ? linter.preset : undefined,
-    typeAware: linter.typeAware === true,
-    rules: explicitRules(linter.rules),
-  };
 }
 
 function explicitRules(value: unknown): ProjectLintRules {

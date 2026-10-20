@@ -16,7 +16,8 @@ import { importConfigModule } from "./config/module-runtime.mjs";
 import {
   VITE_CONFIG_FILE_NAMES,
   isViteConfigFile,
-  resolveViteConfigExport as projectViteConfigExport,
+  projectViteConfigSource,
+  resolveViteConfigSource,
 } from "./config/vite-runtime.mjs";
 
 export { VITE_CONFIG_FILE_NAMES } from "./config/vite-runtime.mjs";
@@ -61,7 +62,8 @@ export async function resolveViteConfigExport(
   env?: ConfigEnv,
   configDir?: string,
 ): Promise<ResolvedVizeConfig> {
-  return normalizeLoadedConfig(await projectViteConfigExport(exported, env, configDir));
+  const source = await resolveViteConfigSource(exported, env);
+  return normalizeLoadedConfig(await projectViteConfigSource(source, env, configDir));
 }
 
 /**
@@ -90,6 +92,63 @@ export async function loadConfig(
   }
 
   return loadConfigFromDir(root, env, viteConfig);
+}
+
+/**
+ * Load the selected Vite config without projecting away Vite-owned task blocks.
+ *
+ * Integrations use this when they need both the shared Vue settings and a
+ * sibling Vite+ lint block, while still avoiding Vite plugin startup.
+ */
+export async function loadViteConfigSource(
+  root: string,
+  options: LoadConfigOptions = {},
+): Promise<Record<string, unknown> | null> {
+  const { mode = "root", configFile, env, viteConfig = true } = options;
+  if (mode === "none" || viteConfig === false) return null;
+
+  if (configFile) {
+    const absolutePath = path.isAbsolute(configFile) ? configFile : path.resolve(root, configFile);
+    return isViteConfigFile(absolutePath) && fs.existsSync(absolutePath)
+      ? loadViteConfigSourceFile(absolutePath, env)
+      : null;
+  }
+
+  let directory = path.resolve(root);
+  while (true) {
+    for (const name of VITE_CONFIG_FILE_NAMES) {
+      const filePath = path.join(directory, name);
+      if (fs.existsSync(filePath)) return loadViteConfigSourceFile(filePath, env);
+    }
+    if (
+      fs.existsSync(directory) &&
+      fs.readdirSync(directory).some((name) => RETIRED_CONFIG.test(name))
+    ) {
+      throw new Error(CONFIG_MIGRATION);
+    }
+    if (mode !== "auto") return null;
+    if (
+      ["package.json", "tsconfig.json", "jsconfig.json"].some((name) =>
+        fs.existsSync(path.join(directory, name)),
+      )
+    ) {
+      return null;
+    }
+    const parent = path.dirname(directory);
+    if (parent === directory) return null;
+    directory = parent;
+  }
+}
+
+async function loadViteConfigSourceFile(
+  filePath: string,
+  env?: ConfigEnv,
+): Promise<Record<string, unknown>> {
+  const module = await importConfigModule(filePath);
+  if (module === null) {
+    throw new Error("Unable to load Vite configuration at " + filePath);
+  }
+  return resolveViteConfigSource(module.default ?? module, env);
 }
 
 async function loadConfigFromDir(
