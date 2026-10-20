@@ -2,8 +2,11 @@
 
 use serde::Deserialize;
 
-use super::linter::{LintRuleSeverity, LinterConfig, RawLinterConfig};
 use super::linter_rule_options::{ConfigLintRuleOptions, LintRuleOptions};
+use super::{
+    compiler::{RawCompilerConfig, RawTemplateSyntaxConfig},
+    linter::{LintRuleSeverity, LinterConfig, RawLinterConfig},
+};
 use crate::String;
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -12,6 +15,7 @@ pub(crate) struct RawConfigEntry {
     pub base_path: Option<String>,
     pub files: Option<Vec<String>>,
     pub ignores: Option<Vec<String>>,
+    pub compiler: RawCompilerConfig,
     pub linter: RawLinterConfig,
 }
 
@@ -25,6 +29,42 @@ pub struct ConfigEntryIgnore {
 pub struct ConfigEntryFiles {
     pub base_path: Option<String>,
     pub files: Vec<String>,
+}
+
+/// One declaration-ordered compiler override scope from `entries[]`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompilerConfigEntry {
+    pub base_path: Option<String>,
+    pub files: Option<Vec<String>>,
+    pub ignores: Vec<String>,
+    pub template_syntax: Option<&'static str>,
+    pub whitespace: Option<String>,
+    pub vapor: Option<bool>,
+    pub custom_elements: Vec<String>,
+}
+
+impl CompilerConfigEntry {
+    pub(crate) fn from_raw(entry: &RawConfigEntry) -> Self {
+        Self {
+            base_path: entry.base_path.clone(),
+            files: entry.files.clone(),
+            ignores: entry.ignores.clone().unwrap_or_default(),
+            template_syntax: entry
+                .compiler
+                .template_syntax
+                .map(RawTemplateSyntaxConfig::as_str),
+            whitespace: entry.compiler.whitespace.as_deref().map(String::from),
+            vapor: entry.compiler.vapor,
+            custom_elements: entry.compiler.custom_elements.clone(),
+        }
+    }
+
+    pub(crate) fn has_overrides(&self) -> bool {
+        self.template_syntax.is_some()
+            || self.whitespace.is_some()
+            || self.vapor.is_some()
+            || !self.custom_elements.is_empty()
+    }
 }
 
 /// One declaration-ordered linter override scope from `entries[]`.
