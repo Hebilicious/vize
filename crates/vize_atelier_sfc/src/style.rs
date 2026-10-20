@@ -445,13 +445,9 @@ fn scope_single_selector(selector: &str, attr_selector: &str) -> String {
         return transform_global(selector);
     }
 
-    if let Some((prefix, boundary, suffix)) =
-        split_before_trailing_universal_or_pseudo(selector)
-    {
+    if let Some((prefix, boundary, suffix)) = split_before_trailing_universal_or_pseudo(selector) {
         let scoped_prefix = scope_single_selector(prefix.trim_end(), attr_selector);
-        let mut result = String::with_capacity(
-            scoped_prefix.len() + boundary.len() + suffix.len(),
-        );
+        let mut result = String::with_capacity(scoped_prefix.len() + boundary.len() + suffix.len());
         result.push_str(&scoped_prefix);
         result.push_str(boundary);
         result.push_str(suffix.trim_start());
