@@ -226,12 +226,8 @@ async fn open_canonical_virtual_project_document_with_scope(
         .await
         .map_err(CanonicalProjectOpenError::Importer)?
         {
-            document.include_opened_document(
-                &importer_ctx,
-                uri.clone(),
-                importer_ctx.content.into(),
-                opened,
-            );
+            let importer_source = String::from(importer_ctx.content.as_str());
+            document.include_opened_document(&importer_ctx, uri.clone(), importer_source, opened);
         }
     }
 
