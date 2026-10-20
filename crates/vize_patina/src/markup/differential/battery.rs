@@ -277,7 +277,7 @@ pub const PINNED_BATTERY_CENSUS: BatteryCensus = BatteryCensus {
     // placeholder-label-option's rewritten unit tests (#9749) loop over
     // template lists: five fewer literal templates and one more nonliteral call.
     // The combobox exemption tests (#9750) add three nonliteral calls.
-// Dynamic slot v-for key ownership (#9924) adds two literal templates.
+    // Dynamic slot v-for key ownership (#9924) adds two literal templates.
     // Patina rule guards (#9870, #9871) add one nonliteral call and skip.
     rule_fixture_calls: 1057 + 4 + 3 + 43 + 2 + 1 + 11 + 5 + 1 + 2 - 5 + 3 + 2 + 1,
     rule_fixture_skipped: 87 + 4 + 3 + 1 + 1 + 6 + 5 + 1 + 1 + 3 + 1,
