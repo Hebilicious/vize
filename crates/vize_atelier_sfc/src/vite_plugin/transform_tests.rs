@@ -27,10 +27,10 @@ fn rewrites_relative_and_package_import_asset_src_values_without_aliases() {
         import __vize_static_0 from "./assets/logo.png";
         import __vize_static_1 from "#assets/logo.png";
         const nodes = [
-          { src: __vize_static_0 },
-          { src: __vize_static_1 },
-          { src: "#icon" },
-        ];
+              { src: __vize_static_0 },
+              { src: __vize_static_1 },
+              { src: "#icon" },
+            ];
         "###);
 }
 
