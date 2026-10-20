@@ -138,6 +138,26 @@
       }
     },
     {
+      "id": "linter/current-api/shared-rule-options-9876",
+      "state": "active",
+      "targets": ["lint"],
+      "inputs": {
+        "root": "shared-rule-options-9876",
+        "files": [
+          {
+            "path": "config.json",
+            "role": "issue-authored-config",
+            "sha256": "bde48dd28c1c9fce42624f3b2232520e149f96c45f9b5a14b8f4f3fc4894f2b8"
+          },
+          {
+            "path": "App.vue.txt",
+            "role": "issue-authored-reproduction",
+            "sha256": "43438915f302d3028502721a3a55768433f2c70ee512fcf87c5287f7450e5cc9"
+          }
+        ]
+      }
+    },
+    {
       "id": "linter/next-tick/valid-arrow-expression-return-script",
       "state": "active",
       "targets": ["lint"]
