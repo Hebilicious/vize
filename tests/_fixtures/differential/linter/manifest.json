@@ -16,7 +16,7 @@
       "api": "--current-api",
       "cases": {
         "path": "crates/vize_patina/tests/fixtures/lint-history/cases.json",
-        "sha256": "8c198ab48866e54ea2c30bfb26e8099a2e86f1d25fd65c3680d370711378e27b"
+        "sha256": "960c01949b70ec418bb3aed04ad040b91b793127a0889fd2b90edfa0892c0786"
       }
     },
     {
@@ -54,9 +54,39 @@
   ],
   "oracles": {
     "path": "tests/_fixtures/differential/linter/oracle-index.json",
-    "sha256": "ffc51288fcf48d52edd0981ee7f19c94590e8604c7931caf106d8245a91d0f66"
+    "sha256": "03f9e0388b9349a1541edbaa8ab0bbc193091f25da74e7f94090df9d589bee19"
   },
   "cases": [
+    {
+          "id": "linter/current-api/prefer-use-id-context-9837",
+          "state": "active",
+          "targets": ["lint"],
+          "inputs": {
+            "root": "prefer-use-id-context-9837",
+            "files": [
+              {
+                "path": "request-id.ts.txt",
+                "role": "issue-authored-reproduction",
+                "sha256": "b02131cdc6f2aad72cf087058a0fcae88b99c2f9cfa1c2750b45bc7cd37c2084"
+              },
+              {
+                "path": "folder.test.ts.txt",
+                "role": "issue-authored-reproduction",
+                "sha256": "574354304ea31cd00c8dd8913bed9f1530448bb0a021465c3d85c924f13d0f4c"
+              },
+              {
+                "path": "Field.vue.txt",
+                "role": "regression-control",
+                "sha256": "6cf946d094e5911ee9add3cb9c73fa177776e46b2a62faf71a9e18b2ce446472"
+              },
+              {
+                "path": "vize.json.txt",
+                "role": "issue-authored-config",
+                "sha256": "f1bd1d90ff9d35967079c3da66c9286e8e246e6995409493969eed0fb8a9fc90"
+              }
+            ]
+          }
+        },
     {
       "id": "linter/current-api/incomplete-type-project-10005",
       "state": "active",
