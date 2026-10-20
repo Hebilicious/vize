@@ -414,7 +414,7 @@ mod valid_v_on_options_tests {
 #[cfg(test)]
 mod define_macros_order_options_tests {
     use super::apply_rule_options;
-    use vize_patina::{Linter, RuleRegistry, rules::script::DefineMacrosOrder};
+    use vize_patina::Linter;
 
     #[test]
     fn lsp_custom_macro_order_reaches_the_configured_rule() {
@@ -422,9 +422,11 @@ mod define_macros_order_options_tests {
             r#"{"script/define-macros-order":{"order":["defineOptions","defineProps","defineEmits"]}}"#,
         )
         .unwrap();
-        let mut registry = RuleRegistry::new();
-        registry.register(Box::new(DefineMacrosOrder));
-        let linter = apply_rule_options(Linter::with_registry(registry), &options, false);
+        let linter = apply_rule_options(
+            Linter::new().with_enabled_rules(Some(vec!["script/define-macros-order".into()])),
+            &options,
+            false,
+        );
         let result = linter.lint_sfc(
             r#"<script setup>
 defineOptions({ inheritAttrs: false })
