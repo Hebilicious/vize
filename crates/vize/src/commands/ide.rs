@@ -207,6 +207,7 @@ fn vscode_status() {
     }
 }
 
+#[cfg(test)]
 fn vscode_extension_is_installed(extensions: &str) -> bool {
     vscode_extension_version(extensions).is_some()
 }
