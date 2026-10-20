@@ -117,7 +117,12 @@ async fn probe_types_at_positions(
 
     let mut responses = vec![None; positions.len()];
     for ((index, _), response) in symbol_slots.into_iter().zip(symbol_types) {
-        responses[index] = response;
+        let Some(slot) = responses.get_mut(index) else {
+            return Err(CorsaError::Protocol(
+                "Type probe symbol index escaped its batch".into(),
+            ));
+        };
+        *slot = response;
     }
     let missing = responses
         .iter()
@@ -125,13 +130,22 @@ async fn probe_types_at_positions(
         .filter_map(|(index, response)| response.is_none().then_some(index))
         .collect::<Vec<_>>();
     if !missing.is_empty() {
+        let mut missing_positions = Vec::with_capacity(missing.len());
+        for &index in &missing {
+            let Some(&position) = positions.get(index) else {
+                return Err(CorsaError::Protocol(
+                    "Type probe position index escaped its batch".into(),
+                ));
+            };
+            missing_positions.push(position);
+        }
         let positional = session
             .client()
             .get_types_at_positions(
                 session.snapshot().handle.clone(),
                 session.project_handle(),
                 file,
-                missing.iter().map(|&index| positions[index]).collect(),
+                missing_positions,
             )
             .await?;
         if positional.len() != missing.len() {
@@ -140,7 +154,12 @@ async fn probe_types_at_positions(
             ));
         }
         for (index, response) in missing.into_iter().zip(positional) {
-            responses[index] = response;
+            let Some(slot) = responses.get_mut(index) else {
+                return Err(CorsaError::Protocol(
+                    "Type probe response index escaped its batch".into(),
+                ));
+            };
+            *slot = response;
         }
     }
 
