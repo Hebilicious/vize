@@ -487,13 +487,13 @@ const { ripple = undefined } = defineProps<{ ripple?: Ripple }>()
         .split_once("ripple: {")
         .expect("runtime ripple prop")
         .1
-        .split_once("\n    }")
+        .split_once("\n  } },")
         .expect("runtime ripple prop terminator")
         .0;
 
     assert_eq!(
         runtime_prop,
-        "\n      type: [Boolean, Object],\n      required: false,\n      default: undefined"
+        "\n    type: [Boolean, Object],\n    required: false,\n    default: undefined"
     );
     let _ = fs::remove_dir_all(project);
 }
