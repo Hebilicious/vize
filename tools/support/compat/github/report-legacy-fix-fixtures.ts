@@ -36,9 +36,7 @@ interface ManifestCase {
   id?: string;
   state?: string;
   targets?: unknown;
-  inputs?:
-    | { root?: string; files?: PinnedInput[] }
-    | PinnedInput[];
+  inputs?: { root?: string; files?: PinnedInput[] } | PinnedInput[];
   adapters?: { legacy?: unknown; native?: unknown; reasons?: { native?: unknown } };
   comparison?: { contract?: unknown; requiredFacets?: unknown };
   reference?: { path?: string; sha256?: string; source?: unknown };
