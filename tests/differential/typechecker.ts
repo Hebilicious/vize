@@ -26,6 +26,7 @@ export const TYPECHECKER_TESTS = {
     "component_v_for_source_preserves_complete_original_diagnostics",
   "template-suppression-original": "template_suppression_preserves_complete_original_diagnostics",
   "allow-importing-ts-extensions-9890": "authored_ts_extensions_report_ts5097_by_default",
+  "nuxt-plugin-injection-types": "nuxt_reference_graph_preserves_plugin_injection_import_types",
   "listener-attribute-parity-9852": "listener_keeps_class_style_and_spread_attribute_parity",
 } as const;
 
@@ -47,6 +48,7 @@ const sourceRevisions = {
   "v-for-component-source-original": "04aedfb8e8b41dfae89fe65256e2703fc3718cf3",
   "template-suppression-original": "e199979dfb32dfd8eb9ad32a2928fb010768f239",
   "allow-importing-ts-extensions-9890": "f1b07174a4a86ffc3433f31b8c78406d5bf5b760",
+  "nuxt-plugin-injection-types": "2c22691f0f8303a28c425213c423e299f9ad5420",
   "listener-attribute-parity-9852": "11cb03950bc8d2a4e9cb8d164b0aaca79e302291",
 } satisfies Record<keyof typeof TYPECHECKER_TESTS, string>;
 
