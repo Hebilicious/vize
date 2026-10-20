@@ -149,7 +149,7 @@ fn resolve_package_import(current_file: &Path, specifier: &str) -> Option<PathBu
 
         let raw = std::fs::read_to_string(manifest_path).ok()?;
         let manifest: serde_json::Value = serde_json::from_str(&raw).ok()?;
-        let imports = manifest.get("imports")?.as_object()?;
+        let imports = manifest.get("imports")?;
         let target = package_import_target(imports, specifier)?;
         let target = target.strip_prefix("./")?;
         if target.split('/').any(|segment| segment == "..") {
@@ -161,9 +161,10 @@ fn resolve_package_import(current_file: &Path, specifier: &str) -> Option<PathBu
 }
 
 fn package_import_target(
-    imports: &serde_json::Map<std::string::String, serde_json::Value>,
+    imports: &serde_json::Value,
     specifier: &str,
 ) -> Option<String> {
+    let imports = imports.as_object()?;
     if let Some(value) = imports.get(specifier) {
         return package_import_target_value(value, None);
     }
@@ -181,7 +182,7 @@ fn package_import_target(
             Some((key.len(), value, matched))
         })
         .collect::<Vec<_>>();
-    patterns.sort_unstable_by(|left, right| right.0.cmp(&left.0));
+    patterns.sort_unstable_by_key(|entry| std::cmp::Reverse(entry.0));
     let (_, value, matched) = patterns.first()?;
     package_import_target_value(value, Some(matched))
 }
