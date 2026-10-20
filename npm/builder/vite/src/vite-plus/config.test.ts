@@ -207,7 +207,14 @@ void test("legacy vize config keys report an explicit Vue migration", async () =
   ]) {
     await assert.rejects(
       defineConfig(source as VueConfigObject, { plugin: false, tasks: false })(env),
-      /(?:vize: configuration is no longer supported|pack.vize config option was removed)/,
+      /(?:vize: configuration is no longer supported|lint\.vize is no longer supported|pack.vize config option was removed)/,
     );
   }
+});
+
+void test("lint.vize migration keeps task opt-out separate from shared CLI lint settings", async () => {
+  await assert.rejects(
+    defineConfig({ lint: { vize: false } } as VueConfigObject, { tasks: false })(env),
+    /pass \{ lint: false \} as defineConfig's integration options.*keeping CLI lint enabled.*vue\.linter/,
+  );
 });
