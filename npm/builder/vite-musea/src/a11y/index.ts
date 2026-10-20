@@ -13,6 +13,7 @@ import type {
   ViewportConfig,
 } from "../types/index.js";
 import type { MuseaVrtRunner } from "../vrt.js";
+import { runJobsWithWorkers } from "../vrt/jobs.js";
 import { buildVariantUrl } from "../vrt/utils.js";
 import { observePreviewReady, waitForMountedPreview } from "../vrt/preview-ready.js";
 
@@ -86,68 +87,74 @@ export class MuseaA11yRunner {
 
   /**
    * Run a11y audits on all art file variants.
-   * Reuses VRT runner's browser if available.
+   * Reuses the VRT runner's browser and worker limit if available.
    */
   async runAudits(
     artFiles: ArtFileInfo[],
     baseUrl: string,
     vrtRunner?: MuseaVrtRunner,
   ): Promise<A11yResult[]> {
-    const results: A11yResult[] = [];
     const defaultViewport: ViewportConfig = { width: 1280, height: 720, name: "desktop" };
+    const jobs = artFiles.flatMap((art) =>
+      art.variants
+        .filter((variant) => !variant.skipVrt)
+        .map((variant) => ({ art, variantName: variant.name, viewport: defaultViewport })),
+    );
+    const workers = vrtRunner?.getOptions().workers ?? 1;
 
-    for (const art of artFiles) {
-      for (const variant of art.variants) {
-        if (variant.skipVrt) continue;
+    return runJobsWithWorkers(jobs, workers, async ({ art, variantName }) => {
+      let page: Page | null = null;
+      let context: { page: Page; context: { close(): Promise<void> } } | null = null;
 
-        let page: Page | null = null;
-        let context: { page: Page; context: { close(): Promise<void> } } | null = null;
-
-        try {
-          if (vrtRunner) {
-            context = await vrtRunner.createPage(defaultViewport);
-            page = context.page;
-          } else {
-            // Standalone mode: launch own browser
-            const { chromium } = await import("playwright");
-            const browser = await chromium.launch({ headless: true });
-            const ctx = await browser.newContext({
-              viewport: { width: defaultViewport.width, height: defaultViewport.height },
-            });
-            page = await ctx.newPage();
-            context = { page, context: ctx };
-          }
-
-          const variantUrl = vrtRunner
-            ? vrtRunner.getPreviewUrl(baseUrl, art.path, variant.name)
-            : buildVariantUrl(baseUrl, art.path, variant.name);
-          const waitForReady = vrtRunner?.getCapture().waitForPreviewReady;
-          if (waitForReady) await observePreviewReady(page);
-          await page.goto(variantUrl, { waitUntil: "networkidle" });
-          if (waitForReady) await waitForMountedPreview(page);
-          await page.waitForSelector(".musea-variant", { timeout: 10000 });
-          await page.waitForTimeout(200);
-
-          const result = await this.auditPage(page, art.path, variant.name);
-          results.push(result);
-        } catch (error) {
-          results.push({
-            artPath: art.path,
-            variantName: variant.name,
-            violations: [],
-            passes: 0,
-            incomplete: 0,
-            error: error instanceof Error ? error.message : String(error),
+      try {
+        if (vrtRunner) {
+          context = await vrtRunner.createPage(defaultViewport);
+          page = context.page;
+        } else {
+          // Standalone mode: launch own browser
+          const { chromium } = await import("playwright");
+          const browser = await chromium.launch({ headless: true });
+          const ctx = await browser.newContext({
+            viewport: { width: defaultViewport.width, height: defaultViewport.height },
           });
-        } finally {
-          if (context) {
-            await context.context.close();
-          }
+          page = await ctx.newPage();
+          context = {
+            page,
+            context: {
+              close: async () => {
+                await ctx.close();
+                await browser.close();
+              },
+            },
+          };
+        }
+
+        const variantUrl = vrtRunner
+          ? vrtRunner.getPreviewUrl(baseUrl, art.path, variantName)
+          : buildVariantUrl(baseUrl, art.path, variantName);
+        const waitForReady = vrtRunner?.getCapture().waitForPreviewReady;
+        if (waitForReady) await observePreviewReady(page);
+        await page.goto(variantUrl, { waitUntil: "networkidle" });
+        if (waitForReady) await waitForMountedPreview(page);
+        await page.waitForSelector(".musea-variant", { timeout: 10000 });
+        await page.waitForTimeout(200);
+
+        return await this.auditPage(page, art.path, variantName);
+      } catch (error) {
+        return {
+          artPath: art.path,
+          variantName,
+          violations: [],
+          passes: 0,
+          incomplete: 0,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      } finally {
+        if (context) {
+          await context.context.close();
         }
       }
-    }
-
-    return results;
+    });
   }
 
   /**
