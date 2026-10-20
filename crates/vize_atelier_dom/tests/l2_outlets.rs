@@ -26,6 +26,14 @@ fn l2_slot_outlets_match_the_shipped_dom_lane_byte_for_byte() {
     support::assert_l2_matches_shipped(support::battery::outlets::OUTLET_BATTERY);
 }
 
+#[test]
+fn l2_slot_outlet_fallback_compound_text_matches_the_shipped_dom_lane() {
+    support::assert_l2_matches_shipped(&[(
+        "interpolation_with_trailing_space_before_conditional_element",
+        "<p><slot>{{ label }}\n<span v-if=\"required\" class=\"required\">*</span></slot></p>",
+    )]);
+}
+
 const PATCH_SITE_CASES: &[Case] = &[
     Case {
         name: "dynamic_name",
