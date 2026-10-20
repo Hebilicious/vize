@@ -37,6 +37,11 @@ function assertVueConfigSpelling(source: VueConfigObject) {
           ? "fmt.vize"
           : undefined;
   if (legacy) {
+    if (legacy === "lint.vize") {
+      throw new Error(
+        "lint.vize is no longer supported; pass { lint: false } as defineConfig's integration options to disable the Vite+ native lint task while keeping CLI lint enabled, and put shared lint settings in vue.linter",
+      );
+    }
     throw new Error(
       `${legacy}: configuration is no longer supported; move Vue settings to vue: in vite.config.*`,
     );
