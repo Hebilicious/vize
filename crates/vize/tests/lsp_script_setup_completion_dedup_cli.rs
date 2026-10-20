@@ -27,11 +27,7 @@ watch(count, () => {});
 fn native_script_setup_completion_merges_checker_builtins_and_globals_by_label() {
     let mut fixture = Fixture::new_with_vue(SOURCE);
     assert_eq!(fixture.open(SOURCE), json!([]));
-    let completion = fixture.request(
-        "textDocument/completion",
-        SOURCE,
-        "    \n</script>",
-    );
+    let completion = fixture.request("textDocument/completion", SOURCE, "    \n</script>");
     let items = completion
         .as_array()
         .or_else(|| completion["items"].as_array())
