@@ -28,6 +28,27 @@ interface ViteTransformApi {
   transformWithEsbuild?: TransformWithEsbuild;
 }
 
+const VIRTUAL_ART_PREFIX = "\0musea-art:";
+const VIRTUAL_INLINE_ART_PREFIX = "\0musea:";
+
+/**
+ * Give Vite's TypeScript transformer a filename beside the authored art file.
+ * OXC uses this filename to select a tsconfig, so a synthetic filename under
+ * the Vite root can accidentally select an unrelated ancestor config.
+ */
+export function museaVirtualTransformId(id: string): string | null {
+  const prefix = id.startsWith(VIRTUAL_ART_PREFIX)
+    ? VIRTUAL_ART_PREFIX
+    : id.startsWith(VIRTUAL_INLINE_ART_PREFIX)
+      ? VIRTUAL_INLINE_ART_PREFIX
+      : null;
+
+  if (!prefix) return null;
+
+  const sourceId = id.slice(prefix.length).replace(/\?musea-virtual$/, "");
+  return `${sourceId}.ts`;
+}
+
 export function createMuseaVirtualTransformer(viteApi: ViteTransformApi) {
   return async (code: string, id: string, sourcemap: boolean): Promise<TransformOutput> => {
     if (typeof viteApi.transformWithOxc === "function") {
