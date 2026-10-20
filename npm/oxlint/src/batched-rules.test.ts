@@ -208,6 +208,19 @@ it("complete Oxlint maps select only Vize entries and ignore disabled rules", ()
   });
 });
 
+it("projects define-macros-order options into the native batch", () => {
+  const options = getRuleOptions("script/define-macros-order", [
+    { order: ["defineOptions", "defineProps", "defineEmits"] },
+  ]);
+  assert.deepEqual(options, {
+    defineMacrosOrder: { order: ["defineOptions", "defineProps", "defineEmits"] },
+  });
+  assert.equal(
+    getRuleOptions("script/define-macros-order", [{ order: ["defineProps", "defineProps"] }]),
+    undefined,
+  );
+});
+
 it("canonical CSS map entries join the same selected native batch", () => {
   emptyNativeResult();
   const rules = { "css/no-important": "error", "vue/no-v-html": "warn" };

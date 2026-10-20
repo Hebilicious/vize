@@ -8,6 +8,7 @@ import {
 import type {
   ComponentNameInTemplateCasingOption,
   CustomEventNameCasingOption,
+  DefineMacrosOrderOption,
   HtmlSelfClosingOption,
   HyphenationStyle,
   NoMutatingPropsOption,
@@ -36,6 +37,11 @@ export function getRuleOptions(
         return { noMutatingProps: firstOption };
       }
       break;
+    case "script/define-macros-order":
+      if (isDefineMacrosOrderOption(firstOption)) {
+        return { defineMacrosOrder: firstOption };
+      }
+      break;
     case "vue/sfc-element-order":
       if (isSfcElementOrderOption(firstOption)) {
         return { sfcElementOrder: firstOption };
@@ -58,6 +64,20 @@ export function getRuleOptions(
       break;
   }
   return undefined;
+}
+
+function isDefineMacrosOrderOption(value: unknown): value is DefineMacrosOrderOption {
+  if (!isRecord(value) || !hasOnlyKeys(value, ["order"])) {
+    return false;
+  }
+  const order = value.order;
+  return (
+    order === undefined ||
+    (Array.isArray(order) &&
+      order.every(
+        (name, index) => isString(name) && name.length > 0 && order.indexOf(name) === index,
+      ))
+  );
 }
 
 function isComponentNameInTemplateCasingOption(

@@ -159,6 +159,8 @@ function ruleOptionsSchema(ruleName: string): unknown[] {
       return [{ enum: ["camelCase", "kebab-case"] }];
     case "vue/no-mutating-props":
       return [noMutatingPropsSchema()];
+    case "script/define-macros-order":
+      return [defineMacrosOrderSchema()];
     case "vue/sfc-element-order":
       return [sfcElementOrderSchema()];
     case "vue/html-self-closing":
@@ -169,6 +171,20 @@ function ruleOptionsSchema(ruleName: string): unknown[] {
     default:
       return [];
   }
+}
+
+function defineMacrosOrderSchema(): unknown {
+  return {
+    type: "object",
+    properties: {
+      order: {
+        type: "array",
+        items: { type: "string", minLength: 1 },
+        uniqueItems: true,
+      },
+    },
+    additionalProperties: false,
+  };
 }
 
 function noMutatingPropsSchema(): unknown {
