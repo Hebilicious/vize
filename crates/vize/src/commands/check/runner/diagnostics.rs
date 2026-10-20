@@ -28,16 +28,10 @@ pub(super) fn user_facing_type_message(is_ts2345: bool, message: &str) -> Compac
         || message.contains("__VizePublicComponentAttrs");
     if is_ts2345
         && exposes_internal_component_type
-        && let Some(property_start) = message.find(PROPERTY_PREFIX)
+        && let Some((_, property_and_rest)) = message.split_once(PROPERTY_PREFIX)
+        && let Some((property, _)) = property_and_rest.split_once(MISSING_PROPERTY_SUFFIX)
     {
-        let property_start = property_start + PROPERTY_PREFIX.len();
-        if let Some(property_end) = message[property_start..].find(MISSING_PROPERTY_SUFFIX) {
-            let property_end = property_start + property_end;
-            return cstr!(
-                "Missing required prop `{}`.",
-                &message[property_start..property_end]
-            );
-        }
+        return cstr!("Missing required prop `{property}`.");
     }
 
     message.into()

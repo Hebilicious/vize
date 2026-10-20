@@ -331,13 +331,11 @@ const rows = [1, 2];
         ],
         "stdout:\n{normalized}\nstderr:\n{stderr}"
     );
-    assert!(!normalized.contains("__Vize"), "stdout:\n{normalized}");
-    assert!(!normalized.contains("zoomAndPan"), "stdout:\n{normalized}");
-    assert!(
-        !normalized.contains("accent-height"),
+    assert_eq!(
+        normalized.lines().filter(|line| !line.is_empty()).count(),
+        5,
         "stdout:\n{normalized}"
     );
-    assert!(normalized.len() < 4_096, "stdout:\n{normalized}");
     assert_eq!(normalized.lines().last(), Some("  2 error(s)"));
 
     let _ = std::fs::remove_dir_all(&project_root);
