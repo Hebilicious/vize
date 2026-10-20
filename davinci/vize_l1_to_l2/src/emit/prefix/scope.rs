@@ -88,11 +88,11 @@ impl<'b> PrefixScope<'b> {
         {
             return None;
         }
-        // The transform already writes a tracked ref through `.value` and a
-        // tracked direct binding without unwrapping. Only an untracked setup
-        // binding needs the runtime `_isRef` fallback.
+        // The transform writes a tracked direct binding without unwrapping.
+        // Ref-valued and untracked setup bindings retain the runtime `_isRef`
+        // fallback required by the binding metadata contract.
         self.bindings
-            .filter(|table| table.reactive_read(name).is_none())
+            .filter(|table| table.reactive_read(name) != Some(ReactiveRead::Direct))
             .and_then(|table| table.kind(name))
             .filter(|kind| matches!(kind, BindingKind::SetupLet | BindingKind::SetupMaybeRef))
     }
@@ -461,7 +461,10 @@ mod tests {
         assert_eq!(codegen("nested"), (false, false));
 
         inline.enable_vdom_setup_writes();
-        assert_eq!(inline.guarded_setup_write_kind("total"), None);
+        assert_eq!(
+            inline.guarded_setup_write_kind("total"),
+            Some(BindingKind::SetupMaybeRef)
+        );
         assert_eq!(inline.guarded_setup_write_kind("state"), None);
         assert_eq!(
             inline.guarded_setup_write_kind("draft"),
