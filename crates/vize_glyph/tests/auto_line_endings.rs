@@ -207,3 +207,38 @@ fn authored_raw_template_body_keeps_its_newline_bytes() {
         assert!(!again.changed);
     }
 }
+
+#[test]
+fn cr_output_reaches_a_fixed_point() {
+    // A lone CR was read as a space: text runs, blank lines, multi-line
+    // attribute values and opaque templates drifted on every pass, and a
+    // `//` comment hid `</script>` from the SFC parser.
+    let options = FormatOptions {
+        end_of_line: EndOfLine::Cr,
+        ..FormatOptions::default()
+    };
+    for source in [
+        "<script setup>\n// note\nconst a = 1\n</script>\n",
+        "<script setup lang=\"ts\">\nconst a = {\n  b: [c],\n  \"d\": [e],\n}\n</script>\n",
+        "<template>\n  <div>\n    {{ a }}\n    {{ b }}\n  </div>\n\n  <p>x</p>\n</template>\n",
+        "<template>\n  <div @click=\"{\n    a = 1;\n  }\" />\n</template>\n",
+        "<template>\n  <div v-if=\"firstCondition &&\n    secondCondition\" />\n</template>\n",
+        "<template>\n  <div\n    v-if=\"\n      firstCondition &&\n      secondCondition &&\n      thirdCondition\n    \"\n  />\n</template>\n",
+        "<template>\n  <CodeHighlight\n    :code=\"report.official.formattedCode || report.official.error || report.official.code\"\n  />\n</template>\n",
+        "<template>\n  <div :style=\"\n    // keep this comment on its own line\n    styles as CSSProperties\n  \" />\n</template>\n",
+        "<template>\n  <div :class=\"`first\nsecond`\" />\n</template>\n",
+        "<template>\n  <!-- eslint-disable-next-line -->\n  label: <input />\n</template>\n",
+        "<template lang=\"pug\">\ndiv\n  p {{ a }}\n</template>\n",
+        "<style>\n.a { color: red; }\n\n/* next rule */\n.b { color: blue; }\n</style>\n",
+        "<style>\n.sidebar-button {\n  display: block;\n}\n\n/* @media screen and (max-width: 1044px) {\n  .sidebar-button {\n    display: block;\n  }\n} */\n</style>\n",
+    ] {
+        let first = format_sfc(source, &options).unwrap().code;
+        let lf = format_sfc(source, &FormatOptions::default()).unwrap().code;
+        assert_eq!(first, lf.replace('\n', "\r"), "{source}");
+        assert_eq!(
+            format_sfc(&first, &options).unwrap().code,
+            first,
+            "{source}"
+        );
+    }
+}

@@ -58,6 +58,17 @@ impl<'a> TemplateFormatter<'a> {
     }
 
     pub(crate) fn format(&self, input: &str) -> Result<String, FormatError> {
+        // Select the CR-aware scanner once per template. The const parameter
+        // specializes the ordinary LF path back to one delimiter scan per text
+        // run, while leaving raw-region bytes untouched.
+        if self.newline == b"\r" && memchr::memchr(b'\n', input.as_bytes()).is_none() {
+            self.format_inner::<true>(input)
+        } else {
+            self.format_inner::<false>(input)
+        }
+    }
+
+    fn format_inner<const HAS_CR: bool>(&self, input: &str) -> Result<String, FormatError> {
         let source = input.as_bytes();
         let len = source.len();
         let mut output = Vec::with_capacity(len + len / 4);
@@ -88,7 +99,11 @@ impl<'a> TemplateFormatter<'a> {
                 && byte_at(source, pos + 1) == b'{'
                 && let Some((expr_start, expr_end, end_pos)) =
                     parse_interpolation_range(source, pos)
-                && sub_slice(source, pos..end_pos).contains(&b'\n')
+                && if HAS_CR {
+                    memchr::memchr2(b'\n', b'\r', sub_slice(source, pos..end_pos)).is_some()
+                } else {
+                    memchr::memchr(b'\n', sub_slice(source, pos..end_pos)).is_some()
+                }
             {
                 self.flush_text_buffer(&mut output, &mut text, depth, &mut joiner);
                 let expr = input.get(expr_start..expr_end).unwrap_or_default();
@@ -251,7 +266,14 @@ impl<'a> TemplateFormatter<'a> {
             // Accumulate text content until newline or tag
             let content_start = pos;
             while pos < len {
-                let Some(offset) = memchr3(b'\n', b'<', b'{', sub_slice(source, pos..)) else {
+                let tail = sub_slice(source, pos..);
+                let primary = memchr3(b'\n', b'<', b'{', tail);
+                let offset = if HAS_CR {
+                    earliest_offset(primary, memchr::memchr(b'\r', tail))
+                } else {
+                    primary
+                };
+                let Some(offset) = offset else {
                     pos = len;
                     break;
                 };
@@ -259,6 +281,7 @@ impl<'a> TemplateFormatter<'a> {
 
                 match byte_at(source, pos) {
                     b'\n' | b'<' => break,
+                    b'\r' if HAS_CR => break,
                     b'{' if pos + 1 < len && byte_at(source, pos + 1) == b'{' => {
                         if let Some((_, _, end_pos)) = parse_interpolation_range(source, pos) {
                             pos = end_pos;
@@ -284,7 +307,9 @@ impl<'a> TemplateFormatter<'a> {
             }
 
             // Handle newline
-            if pos < len && byte_at(source, pos) == b'\n' {
+            if pos < len
+                && (byte_at(source, pos) == b'\n' || (HAS_CR && byte_at(source, pos) == b'\r'))
+            {
                 self.flush_text_buffer(&mut output, &mut text, depth, &mut joiner);
                 pos += 1;
             }
@@ -316,6 +341,13 @@ impl<'a> TemplateFormatter<'a> {
         self.write_indent(output, depth);
         output.extend_from_slice(content);
         output.extend_from_slice(self.newline);
+    }
+}
+
+fn earliest_offset(left: Option<usize>, right: Option<usize>) -> Option<usize> {
+    match (left, right) {
+        (Some(left), Some(right)) => Some(left.min(right)),
+        (offset, None) | (None, offset) => offset,
     }
 }
 

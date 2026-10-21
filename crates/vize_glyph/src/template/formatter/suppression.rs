@@ -92,17 +92,22 @@ impl<'s> LineJoiner<'s> {
             if gap.is_empty() {
                 return ChunkJoin::Continue(false);
             }
-            if !gap.iter().any(|byte| matches!(byte, b'\n' | b'\r'))
-                && gap.iter().copied().all(is_whitespace)
-            {
-                return ChunkJoin::Continue(true);
+            if is_single_line_break_gap(gap) {
+                return if self.current.is_none() || self.current != previous {
+                    ChunkJoin::NewLine
+                } else {
+                    ChunkJoin::Continue(true)
+                };
             }
-            // Collapse authored empty lines to one between markup chunks.
-            // The source gap must contain only whitespace; text and directive
-            // expression newlines must never become template layout.
-            blank_line = self.source.get(start) == Some(&b'<')
-                && gap.iter().filter(|&&byte| byte == b'\n').take(2).count() == 2
-                && gap.iter().copied().all(is_whitespace);
+            if let Some(line_breaks) = whitespace_gap_line_breaks(gap) {
+                if line_breaks == 0 {
+                    return ChunkJoin::Continue(true);
+                }
+                // Collapse authored empty lines to one between markup chunks.
+                // Text and directive expression newlines must never become
+                // template layout.
+                blank_line = self.source.get(start) == Some(&b'<') && line_breaks >= 2;
+            }
         }
         if self.current.is_none() || self.current != previous {
             return if blank_line {
@@ -274,7 +279,7 @@ fn locked_line_ranges(source: &[u8]) -> Vec<(usize, usize)> {
     let mut line_start = 0;
     let mut pragma_above = false;
     loop {
-        let line_end = memchr::memchr(b'\n', source.get(line_start..).unwrap_or_default())
+        let line_end = memchr::memchr2(b'\n', b'\r', source.get(line_start..).unwrap_or_default())
             .map_or(source.len(), |offset| line_start + offset);
         let line = source.get(line_start..line_end).unwrap_or_default();
         // A blank line ends nothing and covers nothing: ESLint would apply the
@@ -288,7 +293,11 @@ fn locked_line_ranges(source: &[u8]) -> Vec<(usize, usize)> {
         if line_end >= source.len() {
             break;
         }
-        line_start = line_end + 1;
+        line_start = line_end
+            + usize::from(
+                source.get(line_end) == Some(&b'\r') && source.get(line_end + 1) == Some(&b'\n'),
+            )
+            + 1;
     }
     locked
 }
@@ -309,9 +318,57 @@ fn contains_any(haystack: &[u8], needles: &[&[u8]]) -> bool {
         .any(|needle| memchr::memmem::find(haystack, needle).is_some())
 }
 
+#[inline(always)]
+fn is_single_line_break_gap(gap: &[u8]) -> bool {
+    let tail = match gap {
+        [b'\n', tail @ ..] | [b'\r', b'\n', tail @ ..] | [b'\r', tail @ ..] => tail,
+        _ => return false,
+    };
+    tail.iter().all(|&byte| matches!(byte, b' ' | b'\t'))
+}
+
+/// Count LF, CRLF or lone-CR boundaries in an all-whitespace source gap.
+#[inline(always)]
+fn whitespace_gap_line_breaks(gap: &[u8]) -> Option<u8> {
+    let mut line_breaks = 0_u8;
+    let mut index = 0;
+    while let Some(&byte) = gap.get(index) {
+        match byte {
+            b'\r' => {
+                line_breaks = line_breaks.saturating_add(1);
+                index += usize::from(gap.get(index + 1) == Some(&b'\n'));
+            }
+            b'\n' => line_breaks = line_breaks.saturating_add(1),
+            byte if !is_whitespace(byte) => return None,
+            _ => {}
+        }
+        index += 1;
+    }
+    Some(line_breaks)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::locked_line_ranges;
+    use super::{is_single_line_break_gap, locked_line_ranges, whitespace_gap_line_breaks};
+
+    #[test]
+    fn single_line_break_gaps_accept_only_horizontal_tail_whitespace() {
+        for gap in [b"\n  ".as_slice(), b"\r\n\t", b"\r "] {
+            assert!(is_single_line_break_gap(gap));
+        }
+        for gap in [b"\n\n".as_slice(), b" \n", b"\nvalue", b" "] {
+            assert!(!is_single_line_break_gap(gap));
+        }
+    }
+
+    #[test]
+    fn whitespace_gaps_count_logical_line_breaks_once() {
+        assert_eq!(whitespace_gap_line_breaks(b" \t"), Some(0));
+        assert_eq!(whitespace_gap_line_breaks(b"\n  "), Some(1));
+        assert_eq!(whitespace_gap_line_breaks(b"\r\n  "), Some(1));
+        assert_eq!(whitespace_gap_line_breaks(b"\r  \n"), Some(2));
+        assert_eq!(whitespace_gap_line_breaks(b"\nvalue\n"), None);
+    }
 
     #[test]
     fn ranges_track_pragma_placement() {
@@ -328,5 +385,14 @@ mod tests {
         let both = b"<!-- eslint-disable-next-line -->\n<p/> <!-- eslint-disable-line -->";
         assert_eq!(locked_line_ranges(both), [(34, 67)]);
         assert_eq!(&both[34..67], b"<p/> <!-- eslint-disable-line -->");
+
+        for newline in [b"\r".as_slice(), b"\r\n"] {
+            let mut source = b"<!-- eslint-disable-next-line -->".to_vec();
+            source.extend_from_slice(newline);
+            let start = source.len() + 2;
+            source.extend_from_slice(b"  a <b/>");
+            assert_eq!(locked_line_ranges(&source), [(start, source.len())]);
+            assert_eq!(&source[start..], b"a <b/>");
+        }
     }
 }

@@ -29,6 +29,13 @@ pub(super) fn write_overflowing_value(
     else {
         return false;
     };
+    let normalized;
+    let value = if newline == b"\r" && value.contains('\r') {
+        normalized = value.replace('\r', "\n");
+        normalized.as_str()
+    } else {
+        value
+    };
     let Some(line) = output
         .rsplit(|byte| matches!(byte, b'\r' | b'\n'))
         .next()

@@ -84,6 +84,16 @@ pub(super) fn format_directive_value(
     vue_version: crate::VueVersion,
     attribute_depth: usize,
 ) -> (String, bool, bool) {
+    // Embedded JavaScript formatters consume LF-delimited lines. A prior SFC
+    // pass may have emitted the same attribute with lone CR terminators; feed
+    // the parser the equivalent LF spelling so its wrap decision is stable.
+    let normalized;
+    let value = if options.end_of_line == crate::EndOfLine::Cr && value.contains('\r') {
+        normalized = value.replace('\r', "\n");
+        normalized.as_str()
+    } else {
+        value
+    };
     let trimmed = value.trim();
     if trimmed.is_empty() {
         return (value.to_compact_string(), false, false);
@@ -148,7 +158,8 @@ pub(super) fn format_directive_value(
             (value, indent, false)
         }
         Some(formatted) => {
-            let indent_multiline_value = formatted.code.contains('\n');
+            let indent_multiline_value = formatted.code.contains('\n')
+                || (options.end_of_line == crate::EndOfLine::Cr && formatted.code.contains('\r'));
             (
                 formatted.code,
                 indent_multiline_value,
@@ -183,6 +194,14 @@ pub(super) fn reanchor_continuation_lines(
     options: &FormatOptions,
     representation: Representation,
 ) -> (String, bool) {
+    // A lone CR ends a line like LF; the lines are rebuilt with LF below.
+    let normalized;
+    let value = if options.end_of_line == crate::EndOfLine::Cr && value.contains('\r') {
+        normalized = value.replace('\r', "\n");
+        normalized.as_str()
+    } else {
+        value
+    };
     let Some(first_break) = value.find('\n') else {
         return (value.to_compact_string(), false);
     };

@@ -47,6 +47,7 @@ impl TemplateFormatter<'_> {
     /// by its matching closing tag. Including this in the opening-tag decision
     /// lets the formatter use whitespace inside the tag as the safe break point
     /// before runtime text would push the completed element past print width.
+    #[inline(always)]
     pub(super) fn hugged_inline_suffix_width(
         &self,
         input: &str,
@@ -56,11 +57,19 @@ impl TemplateFormatter<'_> {
         let source = input.as_bytes();
         let close = start + memchr::memchr(b'<', source.get(start..)?)?;
         let child = input.get(start..close)?;
-        if child.is_empty()
-            || child
-                .as_bytes()
-                .iter()
-                .any(|byte| matches!(byte, b'\r' | b'\n'))
+        let child_bytes = child.as_bytes();
+        if child.is_empty() {
+            return None;
+        }
+        if source.get(close + 1) != Some(&b'/') {
+            return None;
+        }
+        // An authored multiline leading interpolation owns its established
+        // layout. Later multiline interpolations in a mixed text run may be
+        // normalized to one line, so they still contribute their formatted
+        // width to the opening-tag decision.
+        if child_bytes.iter().any(|byte| matches!(byte, b'\r' | b'\n'))
+            && authored_multiline_child_owns_layout(child_bytes)
         {
             return None;
         }
@@ -69,7 +78,6 @@ impl TemplateFormatter<'_> {
             return None;
         }
 
-        let child_bytes = child.as_bytes();
         // Sole interpolations are deliberately excluded below. Detect them
         // before formatting so the opening-tag width probe does not parse and
         // print the same JavaScript expression that the text pass owns.
@@ -102,6 +110,7 @@ impl TemplateFormatter<'_> {
         Some(1 + formatted.width() + 3 + tag_name.width())
     }
 
+    #[inline(always)]
     pub(super) fn hugged_inline_suffix_overflows(
         &self,
         output: &[u8],
@@ -191,4 +200,17 @@ impl TemplateFormatter<'_> {
         output.extend_from_slice(self.newline);
         true
     }
+}
+
+#[cold]
+#[inline(never)]
+fn authored_multiline_child_owns_layout(bytes: &[u8]) -> bool {
+    if !bytes.windows(2).any(|window| window == b"{{") {
+        return true;
+    }
+    parse_interpolation_range(bytes, 0).is_some_and(|(expression_start, expression_end, _)| {
+        bytes
+            .get(expression_start..expression_end)
+            .is_some_and(|expression| expression.iter().any(|byte| matches!(byte, b'\r' | b'\n')))
+    })
 }
