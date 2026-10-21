@@ -2996,8 +2996,7 @@
           }
         ]
       }
-    }
-,
+    },
     {
       "id": "typechecker/workspace-alias-cache-10063/second-package-selection",
       "state": "active",
@@ -3072,6 +3071,115 @@
           "file": "packages/c/src/MyBadge.vue",
           "path": "workspace-alias-cache-10063/packages/c/src/MyBadge.vue.txt",
           "sha256": "32fa2cf70a75ee2b7d7c5ddecb8df37ef60c8de103217dacf2a2386579cd3ed8"
+        }
+      ],
+      "dialectCoverage": {
+        "state": "source-inspected",
+        "registryRef": null,
+        "evidence": [
+          {
+            "kind": "source-inspection",
+            "dialects": [
+              "vue3-sfc",
+              "html-template",
+              "ts"
+            ],
+            "selector": "batch-typechecker-fixture-v1 pinned authored sources"
+          }
+        ]
+      }
+    },
+    {
+      "id": "typechecker/component-render-h-props-9855/missing-and-wrong-props",
+      "state": "active",
+      "targets": [
+        "batch"
+      ],
+      "adapters": {
+        "legacy": "batch-typechecker-fixture-v1",
+        "native": null
+      },
+      "pack": "component-render-h-props-9855",
+      "case": "missing-and-wrong-props",
+      "test": "imported_sfc_h_calls_check_missing_and_wrong_props",
+      "regressionCommit": "f15ca234a4bdd73bde9caea07e652f3a345eb342",
+      "sourceRevision": "f15ca234a4bdd73bde9caea07e652f3a345eb342",
+      "packReference": {
+        "path": "component-render-h-props-9855/cases.json",
+        "sha256": "7af47e597b3a59aefd63a5667f30cc31285192ad46424b6ee5d1e375e73af5f9"
+      },
+      "inputs": [
+        {
+          "file": "tsconfig.json",
+          "path": "component-render-h-props-9855/tsconfig.json.txt",
+          "sha256": "e36b280dce185f4be85cbff1838c0ee06d8d7a46b38b3e63df995c0decd7b13b"
+        },
+        {
+          "file": "src/Counter.vue",
+          "path": "component-render-h-props-9855/src/Counter.vue.txt",
+          "sha256": "cb225908eac39ef24e7945f539d892df9ca8744b4069779ee4330f590830bf0e"
+        },
+        {
+          "file": "src/render.ts",
+          "path": "component-render-h-props-9855/src/render.ts.txt",
+          "sha256": "18fd5f567d31dc70658810cf5cbfb53f148925a35fd9ab6433863e03305be10f"
+        }
+      ],
+      "dialectCoverage": {
+        "state": "source-inspected",
+        "registryRef": null,
+        "evidence": [
+          {
+            "kind": "source-inspection",
+            "dialects": [
+              "vue3-sfc",
+              "html-template",
+              "ts"
+            ],
+            "selector": "batch-typechecker-fixture-v1 pinned authored sources"
+          }
+        ]
+      }
+    },
+    {
+      "id": "typechecker/component-listener-alias-scope-10112/sibling-guarded-listeners",
+      "state": "active",
+      "targets": [
+        "batch"
+      ],
+      "adapters": {
+        "legacy": "batch-typechecker-fixture-v1",
+        "native": null
+      },
+      "pack": "component-listener-alias-scope-10112",
+      "case": "sibling-guarded-listeners",
+      "test": "component_listener_aliases_stay_inside_guard_scope",
+      "regressionCommit": "7cefe3a00e6184de1e121d39b0e153f08a428aa6",
+      "sourceRevision": "7cefe3a00e6184de1e121d39b0e153f08a428aa6",
+      "packReference": {
+        "path": "component-listener-alias-scope-10112/cases.json",
+        "sha256": "72e2b450939d5f039bbe7b07a3392aa3e12d4afa329442f70b72e0f83527b157"
+      },
+      "inputs": [
+        {
+          "file": "tsconfig.json",
+          "path": "component-listener-alias-scope-10112/tsconfig.json.txt",
+          "sha256": "a20bca69e202a52f889c04769080a17040e1469b6105ee17b16fad5e2fbc6089"
+        },
+        {
+          "file": "src/MyButton.vue",
+          "path": "component-listener-alias-scope-10112/src/MyButton.vue.txt",
+          "sha256": "bb01129348c4d48a7857b16f31ab9ce0af1c36932e4d6e9eaaa4031b46b65cd8"
+        },
+        {
+          "file": "src/MyMenu.vue",
+          "path": "component-listener-alias-scope-10112/src/MyMenu.vue.txt",
+          "sha256": "2d7d79e649cf372e65f2187697e04fd455734faba5b6edae1f53b4facb63acd0"
+        },
+        {
+          "file": "src/App.vue",
+          "path": "component-listener-alias-scope-10112/src/App.vue.txt",
+          "sha256": "3c824ed84d35e942880c8af1a888512ff9b8fc817130b3022134e8e74c4ed34e"
         }
       ],
       "dialectCoverage": {

@@ -45,6 +45,8 @@ export const TYPECHECKER_TESTS = {
   "runtime-props-report-10100-10101": "runtime_props_reports_10100_10101_retain_expected_types",
   "native-pointer-events-original": "native_click_events_preserve_pointer_event_diagnostics",
   "workspace-alias-cache-10063": "workspace_package_alias_cache_preserves_sequential_scopes",
+  "component-render-h-props-9855": "imported_sfc_h_calls_check_missing_and_wrong_props",
+  "component-listener-alias-scope-10112": "component_listener_aliases_stay_inside_guard_scope",
 } as const;
 
 const originalFixtureRevision = "9aaa1fe458a09e0d0c6604dc8835ccf7c737d943";
@@ -80,6 +82,8 @@ const sourceRevisions = {
   "runtime-props-report-10100-10101": "5dfe002a9467d152c8545693df33def3aa5f3bf7",
   "native-pointer-events-original": "e7d8b1c82a8badec89ec9779838dfa50c1b9b790",
   "workspace-alias-cache-10063": "7174c46d55825c155325e6314305e661d50ec95a",
+  "component-render-h-props-9855": "f15ca234a4bdd73bde9caea07e652f3a345eb342",
+  "component-listener-alias-scope-10112": "7cefe3a00e6184de1e121d39b0e153f08a428aa6",
 } satisfies Record<keyof typeof TYPECHECKER_TESTS, string>;
 
 export type Artifact = { path: string; sha256: string };

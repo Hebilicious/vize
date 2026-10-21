@@ -64,10 +64,18 @@ fn options_type_prologue(virtual_ts: &str) -> String {
 
 #[test]
 fn plain_component_options_declare_vues_string_index_signature() {
+    let virtual_ts = virtual_ts(PLAIN_SFC);
     assert_eq!(
-        options_type_prologue(&virtual_ts(PLAIN_SFC)).as_str(),
+        options_type_prologue(&virtual_ts).as_str(),
         format!("{OPTIONS_TYPE_HEAD}{INDEX_SIGNATURE}{FIRST_DECLARED_MEMBER}"),
         "a non-generic SFC is a DefineComponent, so its options object owns LegacyOptions' index signature"
+    );
+    assert_eq!(
+        virtual_ts
+            .matches("setup?: (this: void, props: Readonly<Props>, ctx: any) => any;")
+            .count(),
+        1,
+        "the options-side setup signature must retain the public props type for Vue h() inference"
     );
 }
 
