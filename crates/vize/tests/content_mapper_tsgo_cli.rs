@@ -228,6 +228,85 @@ fn emitted_vue_declaration(project_root: &Path, name: &str) -> PathBuf {
 }
 
 #[test]
+fn standard_tsgo_keeps_musea_art_in_the_pinned_project_contract() {
+    let Some(tsgo) = std::env::var_os(TSGO_ENV).map(PathBuf::from) else {
+        eprintln!("skipping exact Content Mapper conformance: {TSGO_ENV} is not set");
+        return;
+    };
+    let fixture_root = workspace_root()
+        .join("tests/_fixtures/differential/typechecker/art-variant-implicit-component-9854");
+    let fixture: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(fixture_root.join("cases.json")).unwrap()).unwrap();
+    assert_eq!(
+        fixture["sourceRevision"],
+        "f07065df35d25bc76f355e5f106c80dbefa922b5"
+    );
+    let case = &fixture["cases"][0];
+    assert_eq!(case["id"], "implicit-and-explicit-props");
+
+    let cases_root = workspace_root().join("target/vize-tests/tests");
+    std::fs::create_dir_all(&cases_root).unwrap();
+    let project = tempfile::Builder::new()
+        .prefix("content-mapper-musea-art-")
+        .tempdir_in(cases_root)
+        .unwrap();
+    install_mapper_manifest(project.path());
+    install_vue_package(project.path());
+    for input in case["inputs"].as_array().unwrap() {
+        let target = project.path().join(input["file"].as_str().unwrap());
+        std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+        std::fs::copy(fixture_root.join(input["source"].as_str().unwrap()), target).unwrap();
+    }
+    let config = project.path().join("tsconfig.json");
+    let mut config_value: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&config).unwrap()).unwrap();
+    config_value["contentMappers"] = json!([{ "package": "vize", "extensions": [".vue"] }]);
+    std::fs::write(&config, serde_json::to_vec_pretty(&config_value).unwrap()).unwrap();
+
+    let output = check_project(&tsgo, project.path(), "tsconfig.json");
+    assert_eq!(output.status.code(), Some(2), "{}", output_text(&output));
+    assert_eq!(output.stderr, b"", "{}", output_text(&output));
+    let stdout = std::str::from_utf8(&output.stdout).unwrap();
+    assert!(!stdout.contains("TS2304"), "{stdout}");
+    // Pin the semantic diagnostic set independently of byte-identical reporter duplicates.
+    let unique_diagnostics = |code: &str| {
+        stdout
+            .lines()
+            .filter(|line| line.contains("error TS") && line.contains(code))
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+    };
+    assert_eq!(unique_diagnostics("TS2322"), 2, "{stdout}");
+    assert_eq!(unique_diagnostics("TS2345"), 2, "{stdout}");
+    for diagnostic in case["diagnostics"].as_array().unwrap() {
+        let file = diagnostic["file"].as_str().unwrap();
+        let line = diagnostic["line"].as_u64().unwrap();
+        let column = diagnostic["column"].as_u64().unwrap();
+        let code = diagnostic["code"].as_u64().unwrap();
+        let needle = cstr!("{file}({line},{column}): error TS{code}:");
+        assert!(
+            stdout
+                .lines()
+                .any(|output| output.starts_with(needle.as_str())),
+            "missing authored diagnostic {needle}:\n{stdout}"
+        );
+    }
+
+    for name in ["MyCard.art.vue", "MyCardExplicit.art.vue"] {
+        let path = project.path().join("src").join(name);
+        let source = std::fs::read_to_string(&path).unwrap();
+        let valid = source
+            .replace(r#":title="123""#, r#"title="hello""#)
+            .replace(
+                "<MyCard elevated />",
+                r#"<MyCard title="hello" elevated />"#,
+            );
+        std::fs::write(path, valid).unwrap();
+    }
+    assert_success(&check_project(&tsgo, project.path(), "tsconfig.json"));
+}
+
+#[test]
 fn standard_tsgo_checks_vue_project_and_emits_consumable_declarations() {
     let Some(tsgo) = std::env::var_os(TSGO_ENV).map(PathBuf::from) else {
         eprintln!("skipping exact Content Mapper conformance: {TSGO_ENV} is not set");

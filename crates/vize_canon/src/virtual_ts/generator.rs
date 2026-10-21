@@ -49,6 +49,7 @@ pub use self::entry::{
 pub(crate) use self::fallthrough::fallthrough_component_root_starts;
 use self::generics::HoistedGenericAliases;
 use self::global_components::{GlobalComponentDiagnostics, GlobalComponentPlan};
+pub(crate) use self::imports::extract_declared_name;
 use self::imports::{
     collect_imported_names, collect_imported_names_without_script_value_use,
     emit_reference_path_directives, emit_reference_type_directives,

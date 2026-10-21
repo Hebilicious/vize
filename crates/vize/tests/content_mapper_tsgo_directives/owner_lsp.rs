@@ -137,7 +137,8 @@ fn run_session(
             client.notify::<RawInitialized>(json!({})).unwrap();
             let contribution = json!({"contributions":[{"contributorId":"vize","extensions":[".vue"],
                 "inferredProjectContribution":{"options":{},"manifest":{"name":"vize",
-                    "exec":[env!("CARGO_BIN_EXE_vize"),"content-mapper"],"compilerOptions":["noUnusedLocals"]}}}],
+                    "exec":[env!("CARGO_BIN_EXE_vize"),"content-mapper"],"compilerOptions":["noUnusedLocals"],
+                    "dynamicConfig":true}}}],
                 "openDocuments":[{"uri":uri_text},{"uri":comp_uri}]});
             write_json(
                 retained.join("contribution.json"),
@@ -205,9 +206,9 @@ fn run_session(
                 (
                     "ignore",
                     source.replace("@vue-expect-error", "@vue-ignore"),
-                    5,
+                    3,
                 ),
-                ("skip", source.replace("@vue-expect-error", "@vue-skip"), 4),
+                ("skip", source.replace("@vue-expect-error", "@vue-skip"), 2),
             ];
             for (index, (name, source, count)) in states.into_iter().enumerate() {
                 let document = overlay.replace(&uri, source.as_str()).unwrap();
@@ -224,7 +225,7 @@ fn run_session(
                 );
                 write_json(
                     case.join("state.json"),
-                    &json!({"name":name,"edit":index,"version":document.version,"uri":uri_text,"expectedCount":count,"contract":if [0,9,10].contains(&index) { "known-failing-fallback" } else { "bounded-owner-or-repair" },
+                    &json!({"name":name,"edit":index,"version":document.version,"uri":uri_text,"expectedCount":count,"contract":if [0,9,10].contains(&index) { "dynamic-config-calibration" } else { "bounded-owner-or-repair" },
                         "request":{"method":"textDocument/diagnostic","params":{"textDocument":{"uri":uri_text}}}}),
                 );
                 let actual = match rpc::try_pull_diagnostics(&client, &uri_text).await {
@@ -304,8 +305,6 @@ fn expected_report(source: &str, state: &str) -> Value {
     }
     // These are exact, explicitly frozen failures, never a filtered allowlist.
     if state == "calibration" {
-        let handler = source.find("@save=\"wrong\"").unwrap() + 1;
-        items.push(diagnostic(source, handler, 4, 2322, "ts", "Type '(value: string) => void' is not assignable to type '(value: number) => any'.\n  Types of parameters 'value' and 'value' are incompatible.\n    Type 'number' is not assignable to type 'string'."));
         let id = source.find("id=\"bad\"").unwrap();
         items.push(diagnostic(
             source,
@@ -315,22 +314,18 @@ fn expected_report(source: &str, state: &str) -> Value {
             "ts",
             "Type '\"bad\"' is not assignable to type '\"ok\"'.",
         ));
-    }
-    if ["calibration", "ignore", "skip"].contains(&state) {
-        let value_end = source.find("id=\"bad\"").unwrap() + "id=\"bad".len();
+        let handler = source.find("@save=\"wrong\"").unwrap() + 1;
+        items.push(diagnostic(source, handler, 4, 2322, "ts", "Type '(value: string) => void' is not assignable to type '(value: number) => any'.\n  Types of parameters 'value' and 'value' are incompatible.\n    Type 'number' is not assignable to type 'string'."));
         items.push(diagnostic(
             source,
-            value_end,
-            0,
+            id,
+            2,
             2322,
             "ts",
             "Type '\"bad\"' is not assignable to type '\"ok\"'.",
         ));
     }
     items.extend(parameter_suggestions(source));
-    if ["calibration", "ignore", "skip"].contains(&state) {
-        items.push(diagnostic(source, 0, 0, 100036, "ts", "Virtual code produced by the content mapper 'vize[0] (vize)' has problems with no corresponding location in this file."));
-    }
     json!({"kind":"full","items":items})
 }
 

@@ -1,5 +1,6 @@
 use vize_carton::{CompactString, FxHashSet, String, camelize, capitalize, cstr};
 use vize_croquis::Croquis;
+use vize_croquis::macros::DEFINE_ART;
 
 use crate::virtual_ts::component_reference::{
     component_reference_alias, contains_compact_name, has_type_only_component_candidate,
@@ -48,10 +49,13 @@ fn emit_stubs(
         let name = extract_declared_name(stub);
         if let Some(name) = name {
             // Skip if already imported or declared in script bindings
-            if (crate::virtual_ts::script_facts::contains_binding(summary, name)
-                && !contains_compact_name(syntactic_type_only_imported_names, name))
-                || (imported_names.contains(&name)
+            // except for the reserved Musea compiler macro. Croquis records
+            // its call as a binding/import fact, not an authored declaration.
+            if name != DEFINE_ART
+                && ((crate::virtual_ts::script_facts::contains_binding(summary, name)
                     && !contains_compact_name(syntactic_type_only_imported_names, name))
+                    || (imported_names.contains(&name)
+                        && !contains_compact_name(syntactic_type_only_imported_names, name)))
             {
                 continue;
             }

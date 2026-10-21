@@ -581,3 +581,6 @@ const emoji = "😀"
         );
     }
 }
+
+#[path = "content_mapper_art_tests.rs"]
+mod musea_art;

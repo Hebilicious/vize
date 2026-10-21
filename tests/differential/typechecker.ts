@@ -40,6 +40,8 @@ export const TYPECHECKER_TESTS = {
     "optional_fallthrough_spread_preserves_valid_values_and_rejects_invalid_values",
   "art-variant-implicit-component-9854":
     "implicit_art_component_reports_the_same_prop_errors_as_an_explicit_import",
+  "content-mapper-musea-art-10186":
+    "content_mapper_musea_art_project_preserves_bound_component_diagnostics",
   "misskey-generated-inference-9516":
     "misskey_generated_inference_probes_preserve_authored_diagnostics",
   "component-v-bind-duplicate-diagnostic-10069":
@@ -99,6 +101,7 @@ const sourceRevisions = {
   "generic-fallthrough-spread-9956": "2b1e41a5b09005a97d24d1ff34f34c7507bbfb67",
   "optional-fallthrough-spread-10170": "8300867552287abb14f4fbb7471c705aea72bbdf",
   "art-variant-implicit-component-9854": "f07065df35d25bc76f355e5f106c80dbefa922b5",
+  "content-mapper-musea-art-10186": "d295b324299c549063fab385b7f308c71ac014e0",
   "misskey-generated-inference-9516": "cf6c83ab16fb7f20f84f0d51112090bbce89c74a",
   "component-v-bind-duplicate-diagnostic-10069": "7174c46d55825c155325e6314305e661d50ec95a",
   "runtime-props-report-10100-10101": "5dfe002a9467d152c8545693df33def3aa5f3bf7",
