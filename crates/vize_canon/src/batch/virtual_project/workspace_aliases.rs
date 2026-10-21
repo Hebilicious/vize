@@ -129,20 +129,38 @@ impl VirtualProject {
                     .insert(target.clone());
             }
         }
-        targets
+        let unique_targets = targets
             .into_iter()
             .filter_map(|(alias, targets)| {
                 // Conflicting owners must not select a native identity by ordering.
                 if targets.len() != 1 {
                     return None;
                 }
-                targets
-                    .into_iter()
-                    .next()
-                    .map(|real_dir| PackageNodeModulesLink {
-                        virtual_dir: alias,
-                        real_dir,
-                    })
+                targets.into_iter().next().map(|target| (alias, target))
+            })
+            .collect::<FxHashMap<_, _>>();
+        unique_targets
+            .keys()
+            .filter_map(|alias| {
+                let mut real_dir = unique_targets.get(alias)?.clone();
+                let mut visited = FxHashSet::from_iter([alias.clone()]);
+                // A package-private shadow can reuse a visible workspace alias.
+                // Rebase through every such link so the final filesystem link
+                // points at owned shadow bytes instead of another symlink.
+                while let Some((bridge, target)) = real_dir
+                    .ancestors()
+                    .find_map(|candidate| unique_targets.get_key_value(candidate))
+                {
+                    if !visited.insert(bridge.clone()) {
+                        return None;
+                    }
+                    let suffix = real_dir.strip_prefix(bridge).ok()?;
+                    real_dir = target.join(suffix);
+                }
+                Some(PackageNodeModulesLink {
+                    virtual_dir: alias.clone(),
+                    real_dir,
+                })
             })
             .collect()
     }

@@ -5,7 +5,10 @@
 
 use std::path::Path;
 
-use vize_canon::{BatchTypeChecker, BatchTypeCheckerOptions, BatchTypeCheckerTrait};
+use vize_canon::{
+    BatchTypeChecker, BatchTypeCheckerOptions, BatchTypeCheckerTrait, PackageResolutionMode,
+    PackageRouteBinding, PackageRouteResolver, PackageSourceOptions,
+};
 
 mod support {
     pub(crate) mod fix_history_contract;
@@ -278,6 +281,17 @@ fn workspace_package_alias_cache_preserves_sequential_scopes() {
             "second-package-selection",
             "repaired-private-package-identity",
         ],
+    );
+}
+
+#[test]
+fn workspace_package_import_aliases_preserve_clean_diagnostics() {
+    check_pack(
+        "workspace-package-import-alias-10175",
+        "workspace_package_import_aliases_preserve_clean_diagnostics",
+        "c935e00211b3d6ca271e53658f88156921a639a7",
+        Some(10175),
+        &["package-import-and-workspace-package"],
     );
 }
 
@@ -637,6 +651,7 @@ fn check_pack(
             | "native-pointer-events-original"
             | "cache-maintenance-9860"
             | "workspace-alias-cache-10063"
+            | "workspace-package-import-alias-10175"
             | "nuxt-unknown-template-options-10013"
             | "reactive-props-destructure-10008"
             | "generic-fallthrough-spread-9956"
@@ -774,6 +789,21 @@ fn check_pack(
                 assert!(check("tsconfig.a.json").diagnostics.is_empty());
             }
         }
+        if name == "workspace-package-import-alias-10175" {
+            for (source, destination) in [
+                ("packages/ui", "node_modules/@demo/ui"),
+                ("packages/core", "packages/ui/node_modules/@demo/core"),
+            ] {
+                let destination = project_root.join(destination);
+                std::fs::create_dir_all(
+                    destination
+                        .parent()
+                        .expect("a workspace link must have a parent"),
+                )
+                .expect("workspace link parents must be created");
+                link_vue(&project_root.join(source), &destination);
+            }
+        }
         let options = BatchTypeCheckerOptions {
             tsconfig_path: (name == "workspace-alias-cache-10063")
                 .then(|| project_root.join("tsconfig.a.json")),
@@ -781,6 +811,46 @@ fn check_pack(
         };
         let mut checker =
             BatchTypeChecker::with_options(&project_root, options).expect("the checker must start");
+        if name == "workspace-package-import-alias-10175" {
+            let mut resolver = PackageRouteResolver::default();
+            let bindings = [
+                ("src/main.ts", "#app"),
+                ("src/main.ts", "@demo/ui"),
+                ("packages/ui/src/MyButton.vue", "@demo/core"),
+            ]
+            .into_iter()
+            .map(|(importer, specifier)| {
+                let importer = project_root.join(importer);
+                let (context, mut context_inputs) = resolver.resolution_context(
+                    &importer,
+                    PackageResolutionMode::Import,
+                    Some("bundler"),
+                    Some("esnext"),
+                    std::iter::empty::<&str>(),
+                );
+                let (route, mut invalidation_paths) = resolver
+                    .lookup_with_context(
+                        importer.parent().expect("the importer must have a parent"),
+                        specifier,
+                        PackageSourceOptions::new(false, false),
+                        context.clone(),
+                    )
+                    .into_parts();
+                invalidation_paths.append(&mut context_inputs);
+                PackageRouteBinding {
+                    importer_path: importer.clone(),
+                    specifier: specifier.into(),
+                    occurrence_mode: PackageResolutionMode::Import,
+                    context,
+                    route: Some(route.expect("the fixture package route must resolve")),
+                    invalidation_paths,
+                    shared_invalidation_paths: Vec::new(),
+                }
+            })
+            .collect::<Vec<_>>();
+            checker.set_package_route_resolver(resolver);
+            checker.set_package_routes(bindings);
+        }
         if pack
             .checker_options
             .as_ref()
