@@ -125,7 +125,17 @@ fn append_props_object(
         }
         let name = super::super::helpers::to_camel_case(prop.name.as_str());
         append!(*ts, "{expr_indent}  \"{name}\": ");
-        append_prop_value(ts, value.as_str());
+        // This copy is intentionally unmapped. `@ts-ignore` covers only the
+        // next line, so the parameter tokens have to sit on the property line
+        // even when the author broke them inside the opening parenthesis.
+        let owned;
+        let value = if inline_callback {
+            owned = callback_parameters_on_first_line(value.trim_start());
+            owned.as_str()
+        } else {
+            value.as_str()
+        };
+        append_prop_value(ts, value);
         ts.push_str(",\n");
     }
     for spread in spreads {
@@ -139,6 +149,71 @@ fn append_props_object(
         );
         ts.push_str(",\n");
     }
+}
+
+/// Collapse line breaks that occur before the callback's own `=>`.
+///
+/// `(\n  params\n) => body` otherwise leaves `params` on a line `@ts-ignore`
+/// does not cover, and the unmapped inference copy reports TS7006.
+fn callback_parameters_on_first_line(value: &str) -> String {
+    let Some(arrow) = arrow_token_offset(value) else {
+        return String::from(value);
+    };
+    let Some(prefix) = value.get(..arrow) else {
+        return String::from(value);
+    };
+    if !prefix.contains(['\n', '\r']) {
+        return String::from(value);
+    }
+    let mut collapsed = String::with_capacity(value.len());
+    for ch in prefix.chars() {
+        collapsed.push(if ch == '\n' || ch == '\r' { ' ' } else { ch });
+    }
+    if let Some(rest) = value.get(arrow..) {
+        collapsed.push_str(rest);
+    }
+    collapsed
+}
+
+fn arrow_token_offset(value: &str) -> Option<usize> {
+    let bytes = value.as_bytes();
+    let mut index: usize = 0;
+    while bytes.get(index.saturating_add(1)).is_some() {
+        let current = bytes.get(index).copied()?;
+        match current {
+            b'/' if bytes.get(index.saturating_add(1)) == Some(&b'/') => {
+                index = index.saturating_add(2);
+                while bytes.get(index).is_some_and(|byte| *byte != b'\n') {
+                    index = index.saturating_add(1);
+                }
+            }
+            b'/' if bytes.get(index.saturating_add(1)) == Some(&b'*') => {
+                index = index.saturating_add(2);
+                while bytes.get(index.saturating_add(1)).is_some()
+                    && !(bytes.get(index) == Some(&b'*')
+                        && bytes.get(index.saturating_add(1)) == Some(&b'/'))
+                {
+                    index = index.saturating_add(1);
+                }
+                index = index.saturating_add(2).min(bytes.len());
+            }
+            b'\'' | b'"' | b'`' => {
+                index = index.saturating_add(1);
+                while bytes.get(index).is_some_and(|byte| *byte != current) {
+                    let skip = if bytes.get(index) == Some(&b'\\') {
+                        2
+                    } else {
+                        1
+                    };
+                    index = index.saturating_add(skip);
+                }
+                index = index.saturating_add(1).min(bytes.len());
+            }
+            b'=' if bytes.get(index.saturating_add(1)) == Some(&b'>') => return Some(index),
+            _ => index = index.saturating_add(1),
+        }
+    }
+    None
 }
 
 fn append_spread_value(
