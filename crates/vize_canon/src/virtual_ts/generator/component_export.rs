@@ -261,15 +261,33 @@ pub(super) fn emit_default_export_declaration(
     ts.push_str(";\n");
 }
 
-pub(super) fn emit_component_default_export(ts: &mut String, component_name: Option<&str>) {
+pub(super) fn emit_component_default_export(
+    ts: &mut String,
+    component_name: Option<&str>,
+    component_name_is_setup_binding: bool,
+    authored_script: Option<&str>,
+) {
     let Some(component_name) = component_name else {
         ts.push_str("export default __vize_component__;\n");
         return;
     };
     let mut export_name = String::from(component_name);
-    if module_scope_contains_identifier(ts, export_name.as_str()) {
+    // The public name is declared at module scope after `__setup`, but lexical
+    // resolution still exposes it inside that function. Only keep the filename
+    // spelling when setup owns the same binding; otherwise `error.vue` would
+    // turn an authored `new Error(message)` into a component constructor call.
+    // Inspect the authored script rather than generated setup helpers so a
+    // synthetic self-component reference cannot rename an existing export.
+    if module_scope_contains_identifier(ts, export_name.as_str())
+        || (!component_name_is_setup_binding
+            && authored_script
+                .is_some_and(|source| contains_identifier(source, export_name.as_str())))
+    {
         export_name.push_str("VueComponent");
-        while module_scope_contains_identifier(ts, export_name.as_str()) {
+        while module_scope_contains_identifier(ts, export_name.as_str())
+            || authored_script
+                .is_some_and(|source| contains_identifier(source, export_name.as_str()))
+        {
             export_name.push('_');
         }
     }
