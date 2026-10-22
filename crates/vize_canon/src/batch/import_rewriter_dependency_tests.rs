@@ -75,3 +75,100 @@ const computed = import('./Computed.vue' + suffix);
         ]
     );
 }
+
+#[test]
+fn incomplete_edits_keep_imports_available_to_dependency_rewrites() {
+    for incomplete in ["items.value.", "pick("] {
+        let source = format!(
+            r#"import Button from './MyButton.vue';
+import type {{ Item }} from './types';
+const items = {{}} as {{ value: Item[] }};
+{incomplete}
+const selected = null;
+"#
+        );
+        let rewriter = ImportRewriter::new();
+
+        assert_eq!(
+            rewriter.collect_all_specifiers(&source, SourceType::ts()),
+            vec!["./MyButton.vue", "./types"],
+            "{incomplete}",
+        );
+
+        let rewritten = rewriter.rewrite(&source, SourceType::ts(), None);
+        assert_eq!(
+            rewritten.code,
+            format!(
+                r#"import Button from './MyButton.vue.ts';
+import type {{ Item }} from './types';
+const items = {{}} as {{ value: Item[] }};
+{incomplete}
+const selected = null;
+"#
+            ),
+            "{incomplete}",
+        );
+    }
+}
+
+#[test]
+fn incomplete_calls_recover_imports_before_a_large_generated_suffix() {
+    let suffix = (0..256)
+        .map(|index| format!("declare const __generated_{index}: unknown;\n"))
+        .collect::<Vec<_>>()
+        .join("");
+    let source = format!(
+        "import Button from './MyButton.vue';\n\
+         import type {{ Item }} from './types';\n\
+         pick(\n\
+         const selected = null;\n\
+         {suffix}"
+    );
+    let rewriter = ImportRewriter::new();
+
+    assert_eq!(
+        rewriter.collect_all_specifiers(&source, SourceType::ts()),
+        vec!["./MyButton.vue", "./types"],
+    );
+}
+
+#[test]
+fn fatal_prefix_keeps_explicit_specifiers_from_the_clean_program() {
+    let prefix = "\
+type Button = import('./MyButton.vue').default;
+import Widget = require('./Widget.vue');
+const lazy = import('./Dynamic.vue');
+const common = require('./Common.vue');
+declare module './Augment.vue' {}
+";
+    let broken = format!("{prefix}pick(\n");
+    let rewriter = ImportRewriter::new();
+    let expected = [
+        "./MyButton.vue",
+        "./Widget.vue",
+        "./Dynamic.vue",
+        "./Common.vue",
+        "./Augment.vue",
+    ];
+
+    assert_eq!(
+        rewriter.collect_all_specifiers(prefix, SourceType::ts()),
+        expected,
+    );
+    assert_eq!(
+        rewriter.collect_all_specifiers(&broken, SourceType::ts()),
+        expected,
+    );
+
+    let rewritten_prefix = "\
+type Button = import('./MyButton.vue.ts').default;
+import Widget = require('./Widget.vue.ts');
+const lazy = import('./Dynamic.vue.ts');
+const common = require('./Common.vue.ts');
+declare module './Augment.vue.ts' {}
+";
+    let complete = rewriter.rewrite(prefix, SourceType::ts(), None);
+    let recovered = rewriter.rewrite(&broken, SourceType::ts(), None);
+    assert_eq!(complete.code, rewritten_prefix);
+    assert_eq!(recovered.code, format!("{rewritten_prefix}pick(\n"));
+}

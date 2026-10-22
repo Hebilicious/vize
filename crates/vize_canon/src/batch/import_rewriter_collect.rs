@@ -17,17 +17,77 @@ pub(super) fn collect_specifier_occurrences(
     source: &str,
     source_type: SourceType,
 ) -> Vec<(String, crate::PackageResolutionMode)> {
-    let allocator = Allocator::default();
-    let result = Parser::new(&allocator, source, source_type).parse();
-    let mut collector = ModuleSpecifierCollector::new();
-    collector.visit_program(&result.program);
     let mut occurrences = Vec::new();
-    for (_, _, path, mode) in collector.specifiers {
+    for (_, _, path, mode) in collect_specifier_spans(source, source_type) {
         if !occurrences.contains(&(path.clone(), mode)) {
             occurrences.push((path, mode));
         }
     }
     occurrences
+}
+
+pub(super) fn collect_specifier_spans(
+    source: &str,
+    source_type: SourceType,
+) -> Vec<(u32, u32, String, crate::PackageResolutionMode)> {
+    let allocator = Allocator::default();
+    let result =
+        vize_croquis::script_parser::parse_program_for_analysis(&allocator, source, source_type);
+    let mut collector = ModuleSpecifierCollector::new();
+    collector.visit_program(&result.program);
+    if result.panicked {
+        // A fatal error after otherwise valid imports can leave OXC's partial
+        // program without its leading statements. Recover only facts from the
+        // longest line boundary before the fatal parser error that parses as a
+        // complete program. Generated Vue documents can append hundreds of
+        // lines after an authored hole, so starting at EOF would spend the
+        // entire bounded search inside the generated suffix.
+        // The original source is still rewritten at these exact spans; no
+        // repaired body or inferred dependency is admitted.
+        // Keep editor latency bounded even for a very large broken buffer.
+        let recovery_end = result
+            .diagnostics
+            .last()
+            .and_then(|diagnostic| {
+                diagnostic
+                    .labels
+                    .iter()
+                    .find(|label| label.primary())
+                    .or_else(|| diagnostic.labels.first())
+            })
+            .map_or(source.len(), |label| label.offset() as usize)
+            .min(source.len());
+        let recovery_source = source.get(..recovery_end).unwrap_or(source);
+        for (line_end, _) in recovery_source.match_indices('\n').rev().take(128) {
+            let Some(prefix) = source.get(..line_end + 1) else {
+                continue;
+            };
+            let parsed = Parser::new(&allocator, prefix, source_type).parse();
+            if parsed.panicked || !parsed.diagnostics.is_empty() {
+                continue;
+            }
+            // The prefix parsed cleanly, so it has the same specifiers a
+            // complete program would. Declaration-only collection drops
+            // `import()`, `require()`, import types, and import-equals.
+            let mut prefix_collector = ModuleSpecifierCollector::new();
+            prefix_collector.visit_program(&parsed.program);
+            if prefix_collector.specifiers.is_empty() {
+                continue;
+            }
+            for occurrence in prefix_collector.specifiers {
+                if !collector.specifiers.iter().any(|existing| {
+                    existing.0 == occurrence.0
+                        && existing.1 == occurrence.1
+                        && existing.3 == occurrence.3
+                }) {
+                    collector.specifiers.push(occurrence);
+                }
+            }
+            break;
+        }
+    }
+    collector.specifiers.sort_by_key(|occurrence| occurrence.0);
+    collector.specifiers
 }
 
 pub(super) struct BareStarExport {
