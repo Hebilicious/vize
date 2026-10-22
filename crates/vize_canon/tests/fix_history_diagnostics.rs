@@ -351,6 +351,17 @@ fn generic_fallthrough_spread_preserves_valid_values() {
 }
 
 #[test]
+fn strict_component_attrs_infer_default_fallthrough_surfaces() {
+    check_pack(
+        "strict-fallthrough-default-7856",
+        "strict_component_attrs_infer_default_fallthrough_surfaces",
+        "d32790c869ac18c1e0e24e82a8876d796190133a",
+        Some(7856),
+        &["native-single-root-valid"],
+    );
+}
+
+#[test]
 fn optional_fallthrough_spread_preserves_valid_values_and_rejects_invalid_values() {
     check_pack(
         "optional-fallthrough-spread-10170",
@@ -691,7 +702,8 @@ fn check_pack(
             | "content-mapper-type-only-import-use"
             | "content-mapper-dynamic-template-ref-union-10251"
             | "content-mapper-dynamic-template-ref-scope-10251"
-            | "content-mapper-props-binding-10196" => regression,
+            | "content-mapper-props-binding-10196"
+            | "strict-fallthrough-default-7856" => regression,
             "valueless-directive-import-3140" => {
                 "88e8500c1e5f1b29d80f42c8ca065cc9cbd56899"
             }
