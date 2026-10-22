@@ -16,7 +16,7 @@
       "api": "--current-api",
       "cases": {
         "path": "crates/vize_patina/tests/fixtures/lint-history/cases.json",
-        "sha256": "f501cb76cbb3b14953795e3f5e6b84a6ee6ab8a3b41287f6ed5dd499c4976f7f"
+        "sha256": "d9a4842eddd84350ce05c3c2cbb973f5a852a67f85d5b255acbb699ebcc2de16"
       }
     },
     {
@@ -54,7 +54,7 @@
   ],
   "oracles": {
     "path": "tests/_fixtures/differential/linter/oracle-index.json",
-    "sha256": "08d386d927307baf70e7ef6fd578e5c6c64efa66649a7639d980d157b910560e"
+    "sha256": "4ca3b59baec2b4377da10d68fb3de000f3d18b753289c616e7f21a7184405bf1"
   },
   "cases": [
     {
@@ -291,9 +291,7 @@
     {
       "id": "linter/current-api/v-slot-style-options-6097",
       "state": "active",
-      "targets": [
-        "lint"
-      ],
+      "targets": ["lint"],
       "inputs": {
         "root": "v-slot-style-options-6097",
         "files": [
@@ -1786,6 +1784,70 @@
     },
     {
       "id": "linter/current-api/combobox-mismatched-bound-id-reports-9750",
+      "state": "active",
+      "targets": ["lint"],
+      "dialectCoverage": {
+        "state": "source-inspected",
+        "registryRef": null,
+        "evidence": [
+          {
+            "kind": "source-inspection",
+            "dialects": ["vue3-sfc"],
+            "selector": "current-api pinned authored sources"
+          }
+        ]
+      }
+    },
+    {
+      "id": "linter/current-api/placeholder-label-unrequired-empty-control",
+      "state": "active",
+      "targets": ["lint"],
+      "dialectCoverage": {
+        "state": "source-inspected",
+        "registryRef": null,
+        "evidence": [
+          {
+            "kind": "source-inspection",
+            "dialects": ["vue3-sfc"],
+            "selector": "current-api pinned authored sources"
+          }
+        ]
+      }
+    },
+    {
+      "id": "linter/current-api/placeholder-label-required-empty-control",
+      "state": "active",
+      "targets": ["lint"],
+      "dialectCoverage": {
+        "state": "source-inspected",
+        "registryRef": null,
+        "evidence": [
+          {
+            "kind": "source-inspection",
+            "dialects": ["vue3-sfc"],
+            "selector": "current-api pinned authored sources"
+          }
+        ]
+      }
+    },
+    {
+      "id": "linter/current-api/placeholder-label-required-nonempty-report",
+      "state": "active",
+      "targets": ["lint"],
+      "dialectCoverage": {
+        "state": "source-inspected",
+        "registryRef": null,
+        "evidence": [
+          {
+            "kind": "source-inspection",
+            "dialects": ["vue3-sfc"],
+            "selector": "current-api pinned authored sources"
+          }
+        ]
+      }
+    },
+    {
+      "id": "linter/current-api/placeholder-label-optgroup-report",
       "state": "active",
       "targets": ["lint"],
       "dialectCoverage": {

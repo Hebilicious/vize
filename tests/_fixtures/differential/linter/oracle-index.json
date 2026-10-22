@@ -298,5 +298,21 @@
   "linter/current-api/combobox-mismatched-bound-id-reports-9750": {
     "path": "crates/vize_patina/tests/snapshots/integration__lint_history__combobox-mismatched-bound-id-reports-9750.snap",
     "sha256": "2c325a9cb6a998d3c8f68d80fdca5d6d8537ee219ea01de286f92aea84b432e5"
+  },
+  "linter/current-api/placeholder-label-unrequired-empty-control": {
+    "path": "crates/vize_patina/tests/snapshots/integration__lint_history__placeholder-label-unrequired-empty-control.snap",
+    "sha256": "e88cbfcc2ac4ea28c414614d0457011bad48ea43b375f48ef29ec50991e0b05c"
+  },
+  "linter/current-api/placeholder-label-required-empty-control": {
+    "path": "crates/vize_patina/tests/snapshots/integration__lint_history__placeholder-label-required-empty-control.snap",
+    "sha256": "86d9b05490433936ec6b89d627a0a79d7d842cb55027f602cc0ac2a214943aca"
+  },
+  "linter/current-api/placeholder-label-required-nonempty-report": {
+    "path": "crates/vize_patina/tests/snapshots/integration__lint_history__placeholder-label-required-nonempty-report.snap",
+    "sha256": "1be14b2701241457d78443b69f0616424585724dc717510de24d186609257c41"
+  },
+  "linter/current-api/placeholder-label-optgroup-report": {
+    "path": "crates/vize_patina/tests/snapshots/integration__lint_history__placeholder-label-optgroup-report.snap",
+    "sha256": "3ea8668c3057db6720c9c9054c32f447242bb00a676ff864a705d77ac1e1ff7b"
   }
 }
