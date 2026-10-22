@@ -4,7 +4,7 @@ use std::path::Path;
 
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
-use vize_l0::{String as CompactString, cstr};
+use vize_l0::{String as CompactString, config::VueVersion, cstr};
 
 use super::ContentMapperTransformOptions;
 use super::tsconfig_gen::snapshot_vue_compiler_options;
@@ -31,19 +31,35 @@ impl ContentMapperProjectConfiguration {
         } else {
             snapshot_vue_compiler_options(config_file_name)?
         };
-        let watched_files: Vec<CompactString> = dependencies
+        let mut watched_files: Vec<CompactString> = dependencies
             .iter()
             .map(|path| path.to_string_lossy().into())
             .collect();
-        // Fingerprint the effective dynamic options and resolution closure,
-        // rather than rereading files after the snapshot has been selected.
-        let identity = serde_json::to_vec(&(&options, &watched_files))?;
-        let digest = super::identity::encode_digest(Sha256::digest(identity));
-        let transform_options = if config_file_name.as_os_str().is_empty() {
-            ContentMapperTransformOptions::default()
+        let (transform_options, vue_manifest) = if config_file_name.as_os_str().is_empty() {
+            (ContentMapperTransformOptions::default(), None)
         } else {
-            ContentMapperTransformOptions::default().with_vue_compiler_options(&options)
+            ContentMapperTransformOptions::default()
+                .with_vue_compiler_options(config_file_name, &options)?
         };
+        if let Some(manifest) = vue_manifest.as_ref() {
+            watched_files.push(manifest.to_string_lossy().into());
+            watched_files.sort();
+            watched_files.dedup();
+        }
+        // Fingerprint the effective dynamic options and resolution closure.
+        // `target: "auto"` also depends on the installed Vue manifest, so the
+        // resolved dialect joins the identity. A numeric target is already in
+        // the snapshotted options.
+        let identity = if vue_manifest.is_some() {
+            serde_json::to_vec(&(
+                &options,
+                &watched_files,
+                resolved_target_tag(transform_options.vue_compiler_target),
+            ))?
+        } else {
+            serde_json::to_vec(&(&options, &watched_files))?
+        };
+        let digest = super::identity::encode_digest(Sha256::digest(identity));
         Ok(Self {
             transform_options,
             config_identity: cstr!("vize-content-mapper-v1:{digest}"),
@@ -56,8 +72,9 @@ impl ContentMapperTransformOptions {
     #[expect(clippy::disallowed_types, reason = "serde_json keys are std String")]
     pub(super) fn with_vue_compiler_options(
         mut self,
+        config_file_name: &Path,
         options: &Map<std::string::String, Value>,
-    ) -> Self {
+    ) -> CorsaResult<(Self, Option<std::path::PathBuf>)> {
         let strict_templates = options.get("strictTemplates").and_then(Value::as_bool);
         self.check_unknown_components = options
             .get("checkUnknownComponents")
@@ -76,16 +93,51 @@ impl ContentMapperTransformOptions {
             .get("strictCssModules")
             .and_then(Value::as_bool)
             .unwrap_or(false);
-        self
+        let (target, manifest) =
+            super::tsconfig_gen::vue_compiler_options::vue_target_from_options(
+                config_file_name.parent().unwrap_or(Path::new(".")),
+                config_file_name,
+                options,
+                None,
+            )?;
+        self.vue_compiler_target = target;
+        Ok((self, manifest))
+    }
+
+    pub(super) fn virtual_ts_check_options(self) -> crate::virtual_ts::VirtualTsCheckOptions {
+        let mut checks = crate::virtual_ts::VirtualTsCheckOptions {
+            check_unknown_components: self.check_unknown_components,
+            check_unknown_props: self.check_unknown_props,
+            check_unknown_fallthrough_props: self.check_unknown_fallthrough_props,
+            check_unknown_directives: self.check_unknown_directives,
+            vue_compiler_target: self.vue_compiler_target,
+            ..Default::default()
+        };
+        #[cfg(feature = "native")]
+        {
+            checks.strict_css_modules = self.strict_css_modules;
+        }
+        checks
+    }
+}
+
+fn resolved_target_tag(target: Option<VueVersion>) -> &'static str {
+    match target {
+        Some(VueVersion::V2) => "2",
+        Some(VueVersion::V2_7) => "2.7",
+        Some(VueVersion::V3) => "3",
+        Some(_) | None => "",
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::super::generate_vue_content_mapper_transform_with_options;
     use super::{ContentMapperProjectConfiguration, ContentMapperTransformOptions};
     use crate::batch::error::CorsaError;
     use std::io::ErrorKind;
     use std::path::Path;
+    use vize_l0::config::VueVersion;
 
     fn load(path: &Path) -> ContentMapperProjectConfiguration {
         ContentMapperProjectConfiguration::load(path).unwrap()
@@ -324,5 +376,116 @@ mod tests {
             )
             .as_str()
         );
+    }
+
+    fn has_fragment(code: &str, needle: &str) -> bool {
+        code.split(needle).nth(1).is_some()
+    }
+
+    const INTRINSIC_SFC: &str =
+        "<script setup lang=\"ts\"></script>\n<template><div x-small></div></template>\n";
+
+    #[test]
+    fn vue3_target_drops_intrinsic_attribute_excess_checks() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("tsconfig.json");
+        std::fs::write(
+            &path,
+            r#"{"vueCompilerOptions":{"target":3,"checkUnknownProps":true}}"#,
+        )
+        .unwrap();
+        let configured = load(&path);
+        assert_eq!(
+            configured.transform_options.vue_compiler_target,
+            Some(VueVersion::V3)
+        );
+        let generated = generate_vue_content_mapper_transform_with_options(
+            Path::new("src/Native.vue"),
+            INTRINSIC_SFC,
+            configured.transform_options,
+        )
+        .unwrap();
+        let excess = has_fragment(&generated.text, "__vize_native_key_");
+        assert!(!excess, "{}", generated.text);
+
+        std::fs::write(
+            &path,
+            r#"{"vueCompilerOptions":{"checkUnknownProps":true}}"#,
+        )
+        .unwrap();
+        let omitted = load(&path);
+        assert_eq!(omitted.transform_options.vue_compiler_target, None);
+        let checked = generate_vue_content_mapper_transform_with_options(
+            Path::new("src/Native.vue"),
+            INTRINSIC_SFC,
+            omitted.transform_options,
+        )
+        .unwrap();
+        let still_checked = has_fragment(&checked.text, "__vize_native_key_");
+        assert!(still_checked, "{}", checked.text);
+    }
+
+    #[test]
+    fn unsupported_vue_compiler_target_is_configuration_error() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("tsconfig.json");
+        std::fs::write(&path, r#"{"vueCompilerOptions":{"target":1}}"#).unwrap();
+        let CorsaError::Configuration(message) =
+            ContentMapperProjectConfiguration::load(&path).unwrap_err()
+        else {
+            panic!("unsupported target must be a configuration error");
+        };
+        let names_target = has_fragment(message.as_str(), "vueCompilerOptions.target");
+        assert!(names_target, "{message}");
+    }
+
+    fn is_vue_manifest(path: &str) -> bool {
+        let mut parts = path.rsplit(['/', '\\']);
+        let file = parts.next();
+        let package = parts.next();
+        let modules = parts.next();
+        file == Some("package.json") && package == Some("vue") && modules == Some("node_modules")
+    }
+
+    #[test]
+    fn auto_target_watches_installed_vue_and_identity_follows_the_resolved_dialect() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        let manifest = root.join("node_modules/vue/package.json");
+        std::fs::create_dir_all(manifest.parent().unwrap()).unwrap();
+        std::fs::write(&manifest, r#"{"version":"2.7.16"}"#).unwrap();
+        let path = root.join("tsconfig.json");
+        std::fs::write(
+            &path,
+            r#"{"vueCompilerOptions":{"target":"auto","checkUnknownProps":true}}"#,
+        )
+        .unwrap();
+        let vue2 = load(&path);
+        assert_eq!(
+            vue2.transform_options.vue_compiler_target,
+            Some(VueVersion::V2_7)
+        );
+        let watched = vue2
+            .watched_files
+            .iter()
+            .any(|file| is_vue_manifest(file.as_str()));
+        assert!(watched);
+        assert_eq!(vue2.config_identity, load(&path).config_identity);
+
+        std::fs::write(&manifest, r#"{"version":"3.5.0"}"#).unwrap();
+        let vue3 = load(&path);
+        assert_eq!(
+            vue3.transform_options.vue_compiler_target,
+            Some(VueVersion::V3)
+        );
+        assert_ne!(vue2.config_identity, vue3.config_identity);
+
+        std::fs::write(&path, r#"{"vueCompilerOptions":{"target":3}}"#).unwrap();
+        let numeric = load(&path);
+        let numeric_watches_vue = numeric
+            .watched_files
+            .iter()
+            .any(|file| is_vue_manifest(file.as_str()));
+        assert!(!numeric_watches_vue);
     }
 }
