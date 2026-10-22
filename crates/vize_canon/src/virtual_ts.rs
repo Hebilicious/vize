@@ -32,6 +32,8 @@ mod legacy_vue2_vuetify_tests;
 mod macro_type_mappings;
 pub mod mapping;
 mod model_types;
+#[cfg(test)]
+mod native_attr_name_tests;
 mod pattern_diagnostics;
 mod props;
 #[cfg(test)]
