@@ -13,6 +13,7 @@ import {
   retainNativeLog,
 } from "../../tools/support/compat/github/run-lsp-config-diagnostics.ts";
 import { readRepoFile } from "./support/github-workflows.ts";
+import { previousSourcePath } from "../../tools/support/source-layout-relocations.ts";
 
 type Step = {
   name?: string;
@@ -163,7 +164,7 @@ test("startup diagnostics retain the production producer and unchanged scale-one
   assert.equal(custodyNames.length, 144);
   assert.equal(
     createHash("sha256")
-      .update(JSON.stringify(custodyNames.slice(0, 130)))
+      .update(JSON.stringify(custodyNames.slice(0, 130).map(previousSourcePath)))
       .digest("hex"),
     "2b650a1f0e301d4de6c808646d18dbccf116882c49717e5537d91dee8b965598",
   );
@@ -194,10 +195,10 @@ test("startup diagnostics retain the production producer and unchanged scale-one
     "crates/vize_canon/src/corsa_bridge/source_catalog.rs",
     "crates/vize_canon/src/corsa_bridge/vue_dependencies_alias/context/cache/catalog.rs",
     "crates/vize_canon/src/corsa_bridge/vue_dependencies_alias/context/prepare.rs",
-    "crates/vize_canon/src/corsa_bridge/vue_document/build/native_union_tests.rs",
+    "crates/vize_canon/src/corsa_bridge/vue_document/build/tests/native_union.rs",
     "crates/vize/tests/lsp_component_attribute_authority_cli.rs",
-    "crates/vize/tests/lsp_library_rename_refusal_cli/original.rs",
-    "crates/vize/tests/lsp_library_rename_refusal_cli/safe_update.rs",
+    "crates/vize/tests/lsp_component_attribute_authority_cli/library_refusal.rs",
+    "crates/vize/tests/lsp_component_attribute_authority_cli/library_refusal/safe_update.rs",
     "crates/vize/tests/lsp_component_attribute_authority_cli/native_probe.rs",
     "tests/_fixtures/differential/lsp/rename-library-refusal/8010/Toggle.vue.txt",
     "tests/_fixtures/differential/lsp/rename-library-refusal/8010/App.vue.txt",
@@ -216,11 +217,11 @@ test("startup diagnostics retain the production producer and unchanged scale-one
     "crates/vize_carton/src/config/loader/vite-runtime.mjs",
     "crates/vize_maestro/src/server/project_contexts/operation_admission_tests.rs",
     "crates/vize_maestro/src/server/diagnostic_publishing/configuration_failure_tests.rs",
-    "crates/vize_maestro/src/server/workspace_files/config_watchers_lifecycle_tests.rs",
+    "crates/vize_maestro/src/server/workspace_files/config_watchers/tests/lifecycle.rs",
     "crates/vize_maestro/src/server/state/project_contexts/freshness.rs",
     "crates/vize_maestro/src/server/state/project_contexts/config_reload.rs",
     "crates/vize_maestro/src/server/state/project_contexts/current.rs",
-    "crates/vize_maestro/src/server/state/project_contexts/current_tests.rs",
+    "crates/vize_maestro/src/server/state/project_contexts/current/tests.rs",
     "crates/vize_maestro/src/server/state.rs",
     "tests/tooling/native-config-preload-observations.test.ts",
     "tests/tooling/native-config-compile-cache.test.ts",
@@ -263,16 +264,16 @@ test("startup diagnostics retain the production producer and unchanged scale-one
       "cargo test --locked --profile ci -p vize_canon --features legacy --lib corsa_bridge::vue_dependencies_alias::context::cache::tests::\n" +
       "cargo clippy --locked --profile ci -p vize_canon --features legacy --lib -- -D warnings\n",
   );
-  // The #[path] fixture is nested under materialize, not virtual_project::tests.
+  // The fixture is a child module of materialize.
   // Bind this filter to its real module and both existing test declarations.
   assert.match(
     readRepoFile("crates/vize_canon/src/batch/virtual_project/materialize.rs"),
-    /#\[path = "tests\/editor_union_alias_transition\.rs"\]\nmod alias_transition_tests;/,
+    /#\[cfg\(all\(test, unix\)\)\]\nmod alias_transition_tests;/,
   );
   assert.deepEqual(
     Array.from(
       readRepoFile(
-        "crates/vize_canon/src/batch/virtual_project/tests/editor_union_alias_transition.rs",
+        "crates/vize_canon/src/batch/virtual_project/materialize/alias_transition_tests.rs",
       ).matchAll(/#\[test\]\nfn (\w+)\(/g),
       (match) => match[1],
     ),
