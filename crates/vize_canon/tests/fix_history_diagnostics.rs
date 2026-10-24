@@ -838,7 +838,8 @@ fn check_pack(
             | "native-expect-error-10413"
             | "generic-constructor-slots-10416"
             | "long-prop-kebab-case-10423"
-            | "pug-refusal-10430" => regression,
+            | "pug-refusal-10430"
+            | "portable-pug-10434" => regression,
             "valueless-directive-import-3140" => {
                 "88e8500c1e5f1b29d80f42c8ca065cc9cbd56899"
             }
@@ -1122,6 +1123,17 @@ fn pug_and_jade_preprocessing_errors_preserve_authored_diagnostics() {
         "pug_and_jade_preprocessing_errors_preserve_authored_diagnostics",
         "cb141dfffe07cce5d49bf6221b5d6b7ad8f5cc8e",
         Some(10430),
+        &["refused-jade-with-valid-pug-sibling"],
+    );
+}
+
+#[test]
+fn portable_pug_refusals_preserve_native_batch_diagnostics() {
+    check_pack(
+        "portable-pug-10434",
+        "portable_pug_refusals_preserve_native_batch_diagnostics",
+        "c2132e45d47aad595aac7e07f5e71a78b8ffd1c8",
+        Some(10434),
         &["refused-jade-with-valid-pug-sibling"],
     );
 }
