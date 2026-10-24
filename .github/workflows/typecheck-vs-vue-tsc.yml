@@ -33,6 +33,7 @@ on:
     paths:
       - .github/workflows/typecheck-vs-vue-tsc.yml
       - tools/benchmarks/scripts/typecheck-vs-vue-tsc*.ts
+      - tests/tooling/typecheck-vs-vue-tsc-evidence.test.ts
   schedule:
     - cron: "23 4 * * 3"
 
@@ -74,6 +75,9 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with: { node-version-file: "package.json", package-manager-cache: false }
 
+      - name: Validate measurement evidence contracts
+        run: node --test tests/tooling/typecheck-vs-vue-tsc-evidence.test.ts
+
       - name: Build this commit
         run: |
           cargo build --profile ci-opt -p vize
@@ -112,11 +116,12 @@ jobs:
             --vue-tsc "$tools/.bin/vue-tsc" --vue "$tools/vue" --typescript "$tools/typescript" \
             --runs "$RUNS" --warmups 1 --cold-runs "$COLD_RUNS" \
             --fixtures-dir "$RUNNER_TEMP/projects" \
-            --meta "head=$GITHUB_SHA" --meta "cpus=$CPUS" \
+            --meta "head=$(git rev-parse HEAD)" --meta "event=$GITHUB_SHA" --meta "cpus=$CPUS" \
             --out typecheck-vs-vue-tsc.md --json typecheck-vs-vue-tsc.json
           cat typecheck-vs-vue-tsc.md >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
         with:
           name: typecheck-vs-vue-tsc
           path: |
