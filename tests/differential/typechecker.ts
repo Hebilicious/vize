@@ -99,6 +99,8 @@ export const TYPECHECKER_TESTS = {
   "empty-generic-public-contract-10540":
     "empty_generic_markers_preserve_functional_public_contracts",
   "contextual-prop-anchors-10661": "contextual_prop_anchors_preserve_authored_diagnostics",
+  "planned-generic-syntax-route-10598":
+    "planned_generic_syntax_keeps_independent_body_errors_through_repairs",
 } as const;
 
 const originalFixtureRevision = "9aaa1fe458a09e0d0c6604dc8835ccf7c737d943";
@@ -172,6 +174,7 @@ const sourceRevisions = {
   "narrowed-slot-host-guard-10660": "da6d833de40c8a084022d0229beaeec25a92eb41",
   "empty-generic-public-contract-10540": "4fdc457df6498c4636efb35dd76af61394ad7006",
   "contextual-prop-anchors-10661": "da6d833de40c8a084022d0229beaeec25a92eb41",
+  "planned-generic-syntax-route-10598": "957827706dd439d9810a24f65b4a16c45f266b5e",
 } satisfies Record<keyof typeof TYPECHECKER_TESTS, string>;
 
 export type Artifact = { path: string; sha256: string };
