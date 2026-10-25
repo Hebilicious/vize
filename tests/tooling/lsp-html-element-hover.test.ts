@@ -8,7 +8,7 @@ import { pathToFileURL } from "node:url";
 import { resolveVuePackagePath } from "../../tools/support/compat/editor-e2e/real-vue-workspace.ts";
 import { readPinnedArtifact } from "../differential/harness.mjs";
 import { loadLspManifest } from "../differential/lsp-manifest.ts";
-import { hoverToText, isDiagnosticsForUri } from "./support/lsp/assertions.ts";
+import { isDiagnosticsForUri } from "./support/lsp/assertions.ts";
 import { root } from "./support/lsp/paths.ts";
 import { LspSession } from "./support/lsp/session.ts";
 import {
@@ -207,33 +207,96 @@ await test("successful native Corsa HTML hovers include the selected documentati
       search: "HTMLElement",
       sub: "HTMLElement",
     };
-    for (const row of rows.filter((row) => row.role === "open")) {
-      const result = (await session.request(
-        "textDocument/hover",
-        { textDocument: { uri }, position: row.position },
-        120_000,
-      )) as { contents?: unknown } | null;
-      const text = hoverToText(result);
-      assert.match(
-        text,
-        new RegExp(`^(?:const|\\(const\\)) __vizeDomElement: ${types[row.tag]}$`, "m"),
-        `native ${row.tag}: exact complete signature line`,
-      );
-      assert.ok(
-        !text.includes("**Editor behavior**"),
-        "the Corsa answer must not be the static fallback",
-      );
-      const expected = row.result!.contents.value;
-      const description = expected.split("\n\n")[3];
-      const links = expected.slice(expected.indexOf("\n\n**Docs**"));
-      const syntax =
-        row.tag === "input"
-          ? "\n\n**HTML syntax**\n\nVoid elements do not have child content or an end tag."
-          : "";
-      assert.ok(
-        text.endsWith(`\n\n${description}${syntax}${links}`),
-        `complete native documentation suffix: ${row.tag}`,
-      );
+    const nativeRows = rows.filter((row) => row.role === "open");
+    const documents = [
+      { name: "App.vue", text: source, rows: nativeRows },
+      {
+        name: "App.crlf.vue",
+        text: reference("App.crlf.vue.txt").toString("utf8"),
+        rows: nativeRows,
+      },
+    ];
+    for (const [languageIndex, language] of ["pug", "PUG", "jade", "JADE"].entries()) {
+      const text = `<!-- Ω🧭 -->\n<template lang="${language}">\n  button(disabled) Save\n  h2 Section\n  a(href="/") Home\n  input(type="text")\n  search Find\n  sub 2\n</template>\n`;
+      for (const [suffix, newline] of [
+        ["lf", "\n"],
+        ["crlf", "\r\n"],
+      ]) {
+        documents.push({
+          name: `${languageIndex}-${language}-${suffix}.vue`,
+          text: text.replaceAll("\n", newline),
+          rows: nativeRows.map((row, index) => ({
+            ...row,
+            position: { line: index + 2, character: 3 },
+            result: {
+              ...row.result!,
+              range: {
+                start: { line: index + 2, character: 2 },
+                end: { line: index + 2, character: 2 + row.tag.length },
+              },
+            },
+          })),
+        });
+      }
+    }
+    assert.equal(
+      new Set(documents.map(({ name }) => name.toLowerCase())).size,
+      documents.length,
+      "independent dialect fixtures must name distinct files on case-insensitive hosts",
+    );
+    for (const { name, text, rows: documentRows } of documents) {
+      const documentUri = pathToFileURL(path.join(workspace, name)).href;
+      if (name !== "App.vue") {
+        fs.writeFileSync(path.join(workspace, name), text);
+        await open(session, documentUri, text);
+      }
+      for (const row of documentRows) {
+        const result = await session.request(
+          "textDocument/hover",
+          { textDocument: { uri: documentUri }, position: row.position },
+          120_000,
+        );
+        const expected = row.result!.contents.value;
+        const description = expected.split("\n\n")[3];
+        const links = expected.slice(expected.indexOf("\n\n**Docs**"));
+        const syntax =
+          row.tag === "input"
+            ? "\n\n**HTML syntax**\n\nVoid elements do not have child content or an end tag."
+            : "";
+        assert.deepEqual(
+          result,
+          {
+            contents: {
+              kind: "markdown",
+              value: `\`\`\`typescript\nconst __vizeDomElement: ${types[row.tag]}\n\`\`\`\n\n${description}${syntax}${links}`,
+            },
+            range: row.result!.range,
+          },
+          `${name} native ${row.tag}: complete type, documentation and authored range`,
+        );
+      }
+    }
+    const rangeFixture = loadLspManifest(path.join(pack, "manifest.json")).cases.find(
+      (row) => row.id === "lsp/regression/native-html-tag-range-10449",
+    );
+    assert.ok(rangeFixture);
+    for (const file of rangeFixture.files) {
+      const filePath = path.join(workspace, file.runtimePath);
+      const documentUri = pathToFileURL(filePath).href;
+      const text = file.bytes.toString("utf8");
+      fs.writeFileSync(filePath, text);
+      await open(session, documentUri, text);
+      for (const request of rangeFixture.requests) {
+        const result = await session.request(
+          "textDocument/hover",
+          {
+            ...request.params,
+            textDocument: { uri: documentUri },
+          },
+          120_000,
+        );
+        assert.deepEqual(result, request.result, `${file.runtimePath}: pinned whole native hover`);
+      }
     }
   } finally {
     await session?.shutdown();
