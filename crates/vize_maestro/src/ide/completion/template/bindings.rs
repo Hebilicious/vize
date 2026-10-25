@@ -15,6 +15,9 @@ use vize_relief::BindingType;
 use crate::ide::IdeContext;
 use crate::ide::completion::items;
 
+#[cfg(test)]
+mod pug_tests;
+
 /// Analyzed template binding completion reads script bindings.
 struct TemplateBindingCompletion;
 
@@ -35,8 +38,29 @@ pub(crate) fn analyzed_template_binding_completions(
         return petite_vue_scope_binding_completions(ctx);
     }
 
-    let Some((croquis, template_start)) = crate::ide::template_scope::analyze(ctx) else {
-        return Vec::new();
+    let ordinary;
+    let (croquis, template_local) = if crate::ide::template_scope::pug::is_pug(ctx) {
+        if let Some(analysis) = crate::ide::template_scope::pug::analyzed_for_completion(ctx) {
+            analysis
+        } else if let Some(croquis) = crate::ide::template_scope::pug::cached_analysis(ctx) {
+            // Synthetic gaps cannot admit locals. Retain non-local bindings
+            // from the cached analysis without deriving or parsing again.
+            (croquis, u32::MAX)
+        } else {
+            let Some(analysis) = crate::ide::template_scope::analyze(ctx) else {
+                return Vec::new();
+            };
+            ordinary = analysis;
+            // Unsupported Pug still has script bindings; authored Pug bytes
+            // are not coordinates in the fallback HTML parser's scopes.
+            (&ordinary.0, u32::MAX)
+        }
+    } else {
+        let Some(analysis) = crate::ide::template_scope::analyze(ctx) else {
+            return Vec::new();
+        };
+        ordinary = analysis;
+        (&ordinary.0, ctx.offset.saturating_sub(ordinary.1) as u32)
     };
 
     let mut items_vec = Vec::new();
@@ -45,9 +69,8 @@ pub(crate) fn analyzed_template_binding_completions(
     // De-duplicate outer setup bindings and props against these local names.
     let mut locals = BTreeSet::new();
     {
-        let template_local = ctx.offset.saturating_sub(template_start) as u32;
         for (name, _binding, scope_kind) in
-            crate::ide::template_scope::bindings_visible_at(&croquis, template_local)
+            crate::ide::template_scope::bindings_visible_at(croquis, template_local)
         {
             if !is_template_scope_kind(scope_kind) {
                 continue;
@@ -63,7 +86,7 @@ pub(crate) fn analyzed_template_binding_completions(
         .map(|prop| prop.name.as_str())
         .collect();
 
-    let mut facts = CroquisFacts::new(&croquis);
+    let mut facts = CroquisFacts::new(croquis);
     let view = facts.prepare::<TemplateBindingCompletion>();
     let Ok(bindings) = view.get::<Bindings>() else {
         return items_vec;
@@ -136,7 +159,7 @@ pub(crate) fn analyzed_template_binding_completions(
             });
         }
 
-        for source in vize_croquis::facts::reactivity_sources(&croquis) {
+        for source in vize_croquis::facts::reactivity_sources(croquis) {
             // Reactive bindings are already surfaced by the bindings loop
             // above; skip known bindings so an identifier is not offered twice.
             if bindings.contains_binding(source.name.as_str())
