@@ -12,6 +12,11 @@ on:
       - tools/support/compat/parcel/**
       - .github/workflows/parcel-transformer.yml
   workflow_dispatch:
+    inputs:
+      default-cache-frontier:
+        description: Exercise the known default development HTTP-cache frontier
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -64,7 +69,7 @@ jobs:
         working-directory: npm/builder/parcel
         run: vp pack
       - name: Validate geometry and configuration
-        run: node --test npm/builder/parcel/src/*.test.ts tools/support/compat/parcel/profile-analysis.test.mjs tools/support/compat/parcel/native-target.test.mjs
+        run: node --test npm/builder/parcel/src/*.test.ts tools/support/compat/parcel/profile-analysis.test.mjs tools/support/compat/parcel/native-analysis.test.mjs tools/support/compat/parcel/native-target.test.mjs
       - name: Install the fixture browser
         working-directory: npm/builder/parcel
         run: vize-ci-apt-retry vp exec playwright install --with-deps chromium
@@ -73,6 +78,9 @@ jobs:
           test ! -e "$RUNNER_TEMP/parcel-cpu"
           mkdir "$RUNNER_TEMP/parcel-cpu"
           VIZE_PARCEL_PROFILE_DIR="$RUNNER_TEMP/parcel-cpu" vp run --no-cache --filter './npm/builder/parcel' test:host -- "$RUNNER_TEMP/parcel-proof"
+      - name: Exercise the default cache frontier without disabling browser caching
+        if: github.event_name == 'workflow_dispatch' && inputs.default-cache-frontier
+        run: vp run --no-cache --filter './npm/builder/parcel' test:recovery-frontier -- "$RUNNER_TEMP/parcel-default-cache-frontier"
       - name: Preserve source samples and seal the complete evidence
         if: ${{ always() && !cancelled() }}
         run: |
@@ -91,4 +99,6 @@ jobs:
             ${{ runner.temp }}/parcel-proof/
             !${{ runner.temp }}/parcel-proof/**/node_modules/**
             ${{ runner.temp }}/parcel-cpu/
+            ${{ runner.temp }}/parcel-default-cache-frontier/
+            !${{ runner.temp }}/parcel-default-cache-frontier/**/node_modules/**
             npm/native/.artifacts/native/formatter-history/

@@ -6,15 +6,22 @@ import http from "node:http";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { summarizeNativeEvents } from "./native-analysis.mjs";
 import { validateNativeTargetCustody } from "./native-target.mjs";
 
 const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const proof = path.resolve(process.argv[2] ?? "target/parcel-host");
+const arguments_ = process.argv.slice(2);
+const recoveryFrontier = arguments_.includes("--recovery-frontier");
+const [proofArgument, providerArgument] = arguments_.filter(
+  (argument) => argument !== "--recovery-frontier",
+);
+const proof = path.resolve(proofArgument ?? "target/parcel-host");
 // This explicit local-only mode cannot produce a source qualification receipt.
-const preflightProvider = process.argv[3] && path.resolve(process.argv[3]);
+const preflightProvider = providerArgument && path.resolve(providerArgument);
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const processes = [];
 const browserEvents = [];
+const watchEvents = [];
 const started = performance.now();
 assert.equal(await fs.stat(proof).catch(() => null), null, "evidence destination must be absent");
 await fs.mkdir(proof, { recursive: true });
@@ -68,7 +75,9 @@ async function stagePackage(directory, output, nativeVersion) {
     manifest.files = [...manifest.files, ...images];
     delete manifest.optionalDependencies;
   } else {
-    manifest.dependencies["@vizejs/native"] = nativeVersion;
+    for (const name of Object.keys(manifest.dependencies)) {
+      if (name.startsWith("@vizejs/")) manifest.dependencies[name] = nativeVersion;
+    }
     const sourceRequire = createRequire(path.join(directory, "package.json"));
     for (const [name, version] of Object.entries(manifest.dependencies)) {
       if (!version.startsWith("catalog:")) continue;
@@ -88,7 +97,7 @@ async function stagePackage(directory, output, nativeVersion) {
 }
 
 const source = (label = "Count", color = "tomato") =>
-  `<!-- authored 😺 Unicode and CRLF -->\r\n<script setup lang="ts">\r\nimport { ref } from 'vue'\r\nimport { initialCount } from 'fixture-counter'\r\nconst n = ref<number>(initialCount)\r\nconst color = ${JSON.stringify(color)}\r\n</script>\r\n<template><button class="card" @click="n++">${label}: {{ n }}<img src="./icon.svg" alt="Fixture"></button><p class="external">External</p></template>\r\n<style scoped>.card { color: v-bind(color); background-image: url('./icon.svg'); }</style>\r\n<style scoped src="./styles/external é.css"></style>\r\n<style lang="scss" scoped>@use './styles/palette.scss' as p; .card { border: 2px solid p.$border; }</style>\r\n`;
+  `<!-- authored 😺 Unicode and CRLF -->\r\n<script lang="ts">\r\nglobalThis.parcelModuleEvaluations = (globalThis.parcelModuleEvaluations || 0) + 1;\r\n</script>\r\n<script setup lang="ts">\r\nimport { ref } from 'vue'\r\nimport { initialCount } from 'fixture-counter'\r\nconst n = ref<number>(initialCount)\r\nconst color = ${JSON.stringify(color)}\r\n</script>\r\n<template><button class="card" @click="n++">${label}: {{ n }}<img src="./icon.svg" alt="Fixture"></button><p class="external">External</p></template>\r\n<style scoped>.card { color: v-bind(color); background-image: url('./icon.svg'); }</style>\r\n<style scoped src="./styles/external é.css"></style>\r\n<style lang="scss" scoped>@use './styles/palette.scss' as p; .card { border: 2px solid p.$border; }</style>\r\n`;
 const icon =
   '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><path fill="red" d="M0 0h8v8H0z"/></svg>';
 
@@ -99,14 +108,33 @@ async function makeApp(directory) {
     JSON.stringify(
       {
         extends: "@parcel/config-default",
+        reporters: ["./native-trace.cjs", "..."],
         transformers: {
           "*.vue": ["@vizejs/parcel-transformer"],
+          "vize-component:*.vue": ["@vizejs/parcel-transformer"],
           "*.css": ["@vizejs/parcel-transformer/style", "..."],
         },
       },
       null,
       2,
     ),
+  );
+  await fs.writeFile(
+    path.join(directory, "native-trace.cjs"),
+    `const { Reporter } = require('@parcel/plugin');
+const fs = require('node:fs/promises');
+let tail = Promise.resolve();
+module.exports = new Reporter({
+  report({ event, options }) {
+    const filename = options.env.VIZE_PARCEL_NATIVE_TRACE;
+    if (!filename) return;
+    if (event.type === 'trace' && event.name.startsWith('napi:')) {
+      tail = tail.then(() => fs.appendFile(filename, JSON.stringify(event) + '\\n'));
+    }
+    return tail;
+  }
+});
+`,
   );
   await fs.writeFile(path.join(directory, ".vizerc.parcel.json"), "{}\n");
   await fs.writeFile(
@@ -325,6 +353,7 @@ void [transformer, styles, standard, vapor, badMap, badVapor];
   assert.equal(physicalImage.length, 1);
   const imageHash = sha(await fs.readFile(path.join(runtimeNative, physicalImage[0])));
   assert.equal(imageHash, sha(await fs.readFile(path.join(nativeDirectory, physicalImage[0]))));
+  let revalidateBuiltSource;
   if (!preflightProvider) {
     const build = JSON.parse(
       await fs.readFile(
@@ -339,6 +368,7 @@ void [transformer, styles, standard, vapor, badMap, badVapor];
     assert.equal(build.source.head, run("git", ["rev-parse", "HEAD"], repository).trim());
     assert.equal(build.generated.sha256, imageHash);
     await write("native-build-receipt.json", build);
+    revalidateBuiltSource = () => validateCiBuild(nativeDirectory, build);
     const targetCustody = JSON.parse(
       await fs.readFile(
         path.join(
@@ -360,6 +390,9 @@ void [transformer, styles, standard, vapor, badMap, badVapor];
   const base = {
     entries: path.join(consumer, "index.html"),
     config: path.join(consumer, ".parcelrc"),
+    shouldTrace: true,
+    env: { VIZE_PARCEL_NATIVE_TRACE: path.join(proof, "native-trace.jsonl") },
+    cacheDir: path.join(consumer, ".parcel-cache"),
     shouldAutoInstall: false,
     defaultTargetOptions: {
       distDir: path.join(consumer, "dist"),
@@ -377,6 +410,10 @@ void [transformer, styles, standard, vapor, badMap, badVapor];
   );
   assert.equal(nativeAssets.length, 1);
   assert.ok(await nativeAssets[0].getMap(), "native authored mappings must reach Parcel");
+  assert.ok(
+    (await nativeAssets[0].getMap()).toVLQ().sourcesContent.includes(source()),
+    "virtual component maps must retain the exact authored SFC",
+  );
   const moduleCode = await nativeAssets[0].getCode();
   assert.doesNotMatch(moduleCode, /ref<number>/);
   await write("native-module.json", {
@@ -388,7 +425,8 @@ void [transformer, styles, standard, vapor, badMap, badVapor];
     ...(process.env.VIZE_PARCEL_BROWSER ? { executablePath: process.env.VIZE_PARCEL_BROWSER } : {}),
   };
   browser = await chromium.launch(browserOptions);
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (error) => {
     errors.push(error.message);
@@ -402,6 +440,17 @@ void [transformer, styles, standard, vapor, badMap, badVapor];
       location: message.location(),
     }),
   );
+  page.on("response", (response) =>
+    browserEvents.push({
+      type: "response",
+      url: response.url(),
+      status: response.status(),
+      headers: response.headers(),
+    }),
+  );
+  page.on("framenavigated", (frame) => {
+    if (frame === page.mainFrame()) browserEvents.push({ type: "navigation", url: frame.url() });
+  });
   page.on("websocket", (socket) =>
     socket.on("framereceived", (frame) =>
       browserEvents.push({
@@ -462,9 +511,99 @@ void [transformer, styles, standard, vapor, badMap, badVapor];
   await new Promise((resolve) => staticServer.server.close(resolve));
   staticServer = undefined;
 
+  // Independent projects may share installed providers, never their source
+  // identity or module evaluation state. Identical components retain the same
+  // generated digest across project roots, while same-basename files coexist.
+  const mirror = path.join(proof, "independent project 😺");
+  await makeApp(mirror);
+  await fs.copyFile(path.join(consumer, "package.json"), path.join(mirror, "package.json"));
+  await fs.copyFile(
+    path.join(consumer, "package-lock.json"),
+    path.join(mirror, "package-lock.json"),
+  );
+  await fs.symlink(path.join(consumer, "node_modules"), path.join(mirror, "node_modules"), "dir");
+  await fs.mkdir(path.join(mirror, "components"));
+  for (const name of ["App.vue", "icon.svg", "styles"])
+    await fs.cp(path.join(mirror, name), path.join(mirror, "components", name), {
+      recursive: true,
+    });
+  await fs.writeFile(
+    path.join(mirror, "index.html"),
+    '<!doctype html><html><head><meta charset="utf-8"></head><body><div id="first"></div><div id="second"></div><div id="third"></div><script type="module" src="./main.js"></script></body></html>',
+  );
+  await fs.writeFile(
+    path.join(mirror, "main.js"),
+    'import {createApp} from "vue"; import Root from "./App.vue"; import Nested from "./components/App.vue"; createApp(Root).mount("#first"); createApp(Root).mount("#second"); createApp(Nested).mount("#third");',
+  );
+  await write("cross-project-source.json", {
+    root: mirror,
+    sfc: await fs.readFile(path.join(mirror, "App.vue"), "utf8"),
+    nestedSfc: await fs.readFile(path.join(mirror, "components/App.vue"), "utf8"),
+    main: await fs.readFile(path.join(mirror, "main.js"), "utf8"),
+    html: await fs.readFile(path.join(mirror, "index.html"), "utf8"),
+    providerLock: sha(await fs.readFile(path.join(mirror, "package-lock.json"))),
+  });
+  const mirrorBuild = await new Parcel({
+    ...base,
+    entries: path.join(mirror, "index.html"),
+    config: path.join(mirror, ".parcelrc"),
+    cacheDir: path.join(mirror, ".parcel-cache"),
+    mode: "production",
+    shouldDisableCache: true,
+    defaultTargetOptions: { ...base.defaultTargetOptions, distDir: path.join(mirror, "dist") },
+  }).run();
+  const mirrorCapture = await captureBuild("cross-project", mirrorBuild);
+  const mirrorModules = [...mirrorCapture.assets.values()].filter((asset) =>
+    asset.uniqueKey?.endsWith("-vize-component"),
+  );
+  assert.equal(mirrorModules.length, 2);
+  const mirrorRoot = mirrorModules.find((asset) => asset.filePath === path.join(mirror, "App.vue"));
+  assert.ok(mirrorRoot);
+  assert.equal(
+    sha(await mirrorRoot.getBuffer()),
+    sha(await nativeAssets[0].getBuffer()),
+    "generated component identity must not include an absolute project root",
+  );
+  const mirrorServer = await serve(path.join(mirror, "dist"));
+  const mirrorPage = await page.context().newPage();
+  const mirrorErrors = [];
+  mirrorPage.on("pageerror", (error) => mirrorErrors.push(error.message));
+  try {
+    await mirrorPage.goto(mirrorServer.url);
+    await mirrorPage.getByRole("button").first().waitFor();
+    await mirrorPage.locator("#first button").click();
+    const observations = await mirrorPage.evaluate(() => ({
+      texts: [...document.querySelectorAll("button")].map((button) => button.textContent),
+      colors: [...document.querySelectorAll("button")].map(
+        (button) => getComputedStyle(button).color,
+      ),
+      scopes: [...document.querySelectorAll("button")].map((button) =>
+        button.getAttributeNames().filter((name) => name.startsWith("data-v-")),
+      ),
+      evaluations: window.parcelModuleEvaluations,
+    }));
+    await write("cross-project-browser.json", { ...observations, errors: mirrorErrors });
+    assert.deepEqual(observations.texts, ["Count: 2", "Count: 1", "Count: 1"]);
+    assert.deepEqual(observations.colors, Array(3).fill("rgb(255, 99, 71)"));
+    assert.equal(observations.evaluations, 2, "one module evaluation per physical SFC");
+    assert.deepEqual(observations.scopes[0], observations.scopes[1]);
+    assert.notDeepEqual(observations.scopes[0], observations.scopes[2]);
+    assert.deepEqual(mirrorErrors, []);
+    assert.equal(await page.evaluate(() => window.parcelModuleEvaluations), 1);
+    assert.match(await page.getByRole("button").textContent(), /Count: 2/);
+    await mirrorPage.screenshot({ path: path.join(proof, "cross-project.png"), fullPage: true });
+  } finally {
+    await write("cross-project-errors.json", mirrorErrors);
+    await mirrorPage.close();
+    await new Promise((resolve) => mirrorServer.server.close(resolve));
+  }
+
   // A real Node target compiles the same SFC through the native SSR backend.
   const ssr = await new Parcel({
     entries: path.join(consumer, "entry-server.js"),
+    shouldTrace: true,
+    env: base.env,
+    cacheDir: path.join(consumer, ".parcel-cache-ssr"),
     config: base.config,
     mode: "production",
     shouldAutoInstall: false,
@@ -494,7 +633,7 @@ void [transformer, styles, standard, vapor, badMap, badVapor];
   assert.ok(!html.includes("<style"));
   await write("ssr.json", { html });
 
-  const events = [];
+  const events = watchEvents;
   const development = [];
   const port = await freePort();
   const hmrPort = await freePort();
@@ -516,18 +655,22 @@ void [transformer, styles, standard, vapor, badMap, badVapor];
   );
   const waitBuild = async (offset, type = "buildSuccess") => {
     const event = await eventually(
-      () => events.slice(offset).find((event) => event.type === type || event.type === "error"),
+      () =>
+        events
+          .slice(offset)
+          .find((event) => ["buildSuccess", "buildFailure", "error"].includes(event.type)),
       Boolean,
       `waiting for ${type}`,
     );
-    assert.equal(event.type, type);
     development.push({
       type: event.type,
       buildTime: event.buildTime,
       diagnostics: event.diagnostics,
     });
-    if (type === "buildSuccess") await captureBuild(`development-${development.length}`, event);
+    if (event.type === "buildSuccess")
+      await captureBuild(`development-${development.length}`, event);
     else await write(`development-${development.length}-failure.json`, event.diagnostics);
+    assert.equal(event.type, type);
     return event;
   };
   await waitBuild(0);
@@ -546,6 +689,7 @@ void [transformer, styles, standard, vapor, badMap, badVapor];
     (value) => /Count: 2/.test(value),
     "development interaction",
   );
+  assert.equal(await page.evaluate(() => window.parcelModuleEvaluations), 1);
   let offset = events.length;
   await fs.writeFile(
     path.join(consumer, "styles", "external é.css"),
@@ -562,6 +706,16 @@ void [transformer, styles, standard, vapor, badMap, badVapor];
     /Count: 2/,
     "CSS HMR retains component state",
   );
+  assert.equal(
+    await page.evaluate(() => window.parcelModuleEvaluations),
+    1,
+    "external CSS must not execute the component module again",
+  );
+  const nativeEventsBeforeSass = (await fs.readFile(path.join(proof, "native-trace.jsonl"), "utf8"))
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
   offset = events.length;
   await fs.writeFile(path.join(consumer, "styles", "palette.scss"), "$border: rgb(65, 43, 21);\n");
   await waitBuild(offset);
@@ -571,6 +725,33 @@ void [transformer, styles, standard, vapor, badMap, badVapor];
     "Sass dependency HMR",
   );
   assert.match(await page.getByRole("button").textContent(), /Count: 2/);
+  assert.equal(
+    await page.evaluate(() => window.parcelModuleEvaluations),
+    1,
+    "Sass dependency invalidation must not execute the component module again",
+  );
+  assert.equal(await page.evaluate(() => window.parcelNavigationMarker), "same-document");
+  const nativeEventsAfterSass = (await fs.readFile(path.join(proof, "native-trace.jsonl"), "utf8"))
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+  const compileCalls = (events) =>
+    new Set(
+      events.filter((event) => event.name === "napi:compileSfc").map((event) => event.args.callId),
+    ).size;
+  assert.ok(compileCalls(nativeEventsBeforeSass) > 0, "actual compiler calls must be captured");
+  assert.equal(
+    compileCalls(nativeEventsAfterSass),
+    compileCalls(nativeEventsBeforeSass),
+    "Sass dependency changes must not invoke compileSfc",
+  );
+  await write("sass-native-operations.json", {
+    before: nativeEventsBeforeSass,
+    after: nativeEventsAfterSass,
+    compileCallsBefore: compileCalls(nativeEventsBeforeSass),
+    compileCallsAfter: compileCalls(nativeEventsAfterSass),
+  });
   offset = events.length;
   await fs.writeFile(path.join(consumer, "counter.js"), "export const initialCount = 3;\n");
   await waitBuild(offset);
@@ -579,6 +760,7 @@ void [transformer, styles, standard, vapor, badMap, badVapor];
     (value) => /Count: 3/.test(value),
     "script dependency HMR",
   );
+  assert.equal(await page.evaluate(() => window.parcelModuleEvaluations), 2);
   offset = events.length;
   await fs.writeFile(path.join(consumer, "App.vue"), source("Updated"));
   await waitBuild(offset);
@@ -587,6 +769,38 @@ void [transformer, styles, standard, vapor, badMap, badVapor];
     (value) => /Updated: 3/.test(value),
     "component HMR",
   );
+  assert.equal(await page.evaluate(() => window.parcelModuleEvaluations), 3);
+  await page.getByRole("button").click();
+  offset = events.length;
+  const inlineSource = source("Updated").replace(
+    "background-image:",
+    "border-radius: 3px; background-image:",
+  );
+  await fs.writeFile(path.join(consumer, "App.vue"), inlineSource);
+  const inlineUpdate = await waitBuild(offset);
+  const inlineModules = new Map();
+  for (const bundle of inlineUpdate.bundleGraph.getBundles()) {
+    bundle.traverseAssets((asset) => {
+      if (asset.uniqueKey?.endsWith("-vize-component")) inlineModules.set(asset.id, asset);
+    });
+  }
+  assert.equal(inlineModules.size, 1);
+  const inlineModule = [...inlineModules.values()][0];
+  assert.ok(
+    (await inlineModule.getMap()).toVLQ().sourcesContent.includes(inlineSource),
+    "inline style edits must refresh the full authored source map",
+  );
+  await eventually(
+    () => page.locator(".card").evaluate((element) => getComputedStyle(element).borderRadius),
+    (value) => value === "3px",
+    "inline SFC style edit",
+  );
+  await eventually(
+    () => page.getByRole("button").textContent(),
+    (value) => /Updated: 3/.test(value),
+    "SFC edits conservatively reload the component",
+  );
+  assert.equal(await page.evaluate(() => window.parcelModuleEvaluations), 4);
   assert.equal(
     await page.evaluate(() => window.parcelNavigationMarker),
     "same-document",
@@ -603,18 +817,48 @@ void [transformer, styles, standard, vapor, badMap, badVapor];
     (value) => value === "./icon.svg",
     "tracked configuration invalidation",
   );
-  offset = events.length;
-  await fs.writeFile(path.join(consumer, "App.vue"), "<template><div></template>");
-  await waitBuild(offset, "buildFailure");
-  offset = events.length;
-  await fs.writeFile(path.join(consumer, ".vizerc.parcel.json"), "{}\n");
-  await fs.writeFile(path.join(consumer, "App.vue"), source("Recovered"));
-  await waitBuild(offset);
-  await eventually(
-    () => page.getByRole("button").textContent(),
-    (value) => /Recovered: 3/.test(value),
-    "watch recovery",
-  );
+  if (recoveryFrontier) {
+    offset = events.length;
+    await fs.writeFile(path.join(consumer, "App.vue"), "<template><div></template>");
+    await waitBuild(offset, "buildFailure");
+    offset = events.length;
+    await fs.writeFile(path.join(consumer, ".vizerc.parcel.json"), "{}\n");
+    await fs.writeFile(path.join(consumer, "App.vue"), source("Recovered"));
+    await waitBuild(offset);
+    await eventually(
+      () => page.getByRole("button").textContent(),
+      (value) => /Recovered: 3/.test(value),
+      "watch recovery",
+    );
+    offset = events.length;
+    await fs.writeFile(path.join(consumer, "App.vue"), "<template><b></template>");
+    await waitBuild(offset, "buildFailure");
+    offset = events.length;
+    const repairInputs = [
+      source("Discarded"),
+      "<template><i></template>",
+      source("RapidRecovered"),
+    ];
+    for (const input of repairInputs) await fs.writeFile(path.join(consumer, "App.vue"), input);
+    await eventually(
+      () => page.locator("button.card").textContent(),
+      (value) => /RapidRecovered: 3/.test(value),
+      "rapid repair must settle on the latest authored component",
+    );
+    const settled = events.slice(offset).findLast((event) => event.type === "buildSuccess");
+    assert.ok(settled);
+    await captureBuild("rapid-repair-final", settled);
+    await write("rapid-repair.json", {
+      inputs: repairInputs,
+      text: await page.locator("body").innerText(),
+      events: events
+        .slice(offset)
+        .map(({ type, diagnostics, buildTime }) => ({ type, diagnostics, buildTime })),
+      moduleEvaluations: await page.evaluate(() => window.parcelModuleEvaluations),
+      navigationMarker: await page.evaluate(() => window.parcelNavigationMarker ?? null),
+    });
+    assert.equal(await fs.readFile(path.join(consumer, "App.vue"), "utf8"), repairInputs.at(-1));
+  }
   await page.screenshot({ path: path.join(proof, "development.png"), fullPage: true });
   await write("development.json", {
     builds: development,
@@ -712,12 +956,44 @@ void [transformer, styles, standard, vapor, badMap, badVapor];
   tracing = false;
   await browser.close();
   browser = undefined;
+  const rawNativeEvents = (await fs.readFile(path.join(proof, "native-trace.jsonl"), "utf8"))
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+  const nativeOperations = summarizeNativeEvents(rawNativeEvents);
+  assert.ok(nativeOperations.calls > 0);
+  const sourceHead = run("git", ["rev-parse", "HEAD"], repository).trim();
+  const sourceStatus = run(
+    "git",
+    ["status", "--porcelain", "--untracked-files=normal"],
+    repository,
+  );
+  // NAPI legitimately regenerates its tracked JS/declaration entrypoints.
+  // The original producer validator authenticates their complete before/after
+  // bytes and diff, while refusing every authored source change. Keep the raw
+  // status rather than pretending generated outputs are an empty working tree.
+  revalidateBuiltSource?.();
+  const qualificationScope = recoveryFrontier
+    ? "recovery-frontier"
+    : "production-ssr-and-normal-development-updates";
+  const unqualified = recoveryFrontier ? [] : ["post-error browser recovery (#10736)"];
+  await write("native-operations.json", {
+    schema: "vize.parcel.native-operations.v1",
+    source: sourceHead,
+    sourceQualification: !preflightProvider,
+    qualificationScope,
+    unqualified,
+    ...nativeOperations,
+  });
   await write("receipt.json", {
     complete: true,
-    schema: "vize.parcel.host.v1",
+    schema: "vize.parcel.host.v2",
+    qualificationScope,
+    unqualified,
     sourceQualification: !preflightProvider,
-    source: run("git", ["rev-parse", "HEAD"], repository).trim(),
-    sourceStatus: run("git", ["status", "--porcelain", "--untracked-files=normal"], repository),
+    source: sourceHead,
+    sourceStatus,
     node: { version: process.version, platform: process.platform, arch: process.arch },
     native,
     plugin,
@@ -725,6 +1001,12 @@ void [transformer, styles, standard, vapor, badMap, badVapor];
     imageHash,
     nativeBuildToken: loaded.getNativeBuildToken(),
     providerLock: lock,
+    developmentHostOptions: {
+      shouldContentHash: false,
+      browserCache: "Chromium default; cache disabling APIs are not used",
+      recoveryFrontier,
+      unqualifiedRecovery: "Default error recovery remains a failing frontier: #10736",
+    },
     productionBuildTimeMs: production.buildTime,
     ssrBuildTimeMs: ssr.buildTime,
     vaporBuildTimeMs: vapor.buildTime,
@@ -742,13 +1024,22 @@ void [transformer, styles, standard, vapor, badMap, badVapor];
       "unicode-crlf-maps",
       "alias",
       "browser-interaction",
+      "duplicate-components-and-instances",
+      "cross-project-isolation",
+      "project-relative-generated-identity",
       "node-ssr",
       "external-css-hmr",
       "sass-dependency-hmr",
+      "css-dependencies-do-not-evaluate-script",
+      "script-updates-evaluate-exactly-once",
+      "actual-sass-compiler-call-count",
+      "inline-sfc-style-update-and-faithful-map",
       "script-dependency-hmr",
       "component-hmr",
       "configuration-invalidation",
-      "watch-error-recovery",
+      ...(recoveryFrontier
+        ? ["watch-error-recovery", "rapid-repair-settles-on-latest-source"]
+        : []),
       "vapor-browser-interaction",
       "invalid-sfc-rejected",
       "unsupported-css-module-rejected",
@@ -759,6 +1050,15 @@ void [transformer, styles, standard, vapor, badMap, badVapor];
   });
   success = true;
 } finally {
+  await write(
+    "watch-events.json",
+    watchEvents.map(({ type, diagnostics, message, buildTime }) => ({
+      type,
+      diagnostics,
+      message,
+      buildTime,
+    })),
+  );
   if (watcher) await watcher.unsubscribe();
   if (staticServer) await new Promise((resolve) => staticServer.server.close(resolve));
   if (browser && tracing) {

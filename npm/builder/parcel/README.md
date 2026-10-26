@@ -1,27 +1,29 @@
 # @vizejs/parcel-transformer
 
-Compile Vue single-file components with Vize's native compiler in Parcel 2.16.4
-and later 2.x versions. This integration is a compatibility preview.
+Compile Vue single-file components with Vize's native compiler in Parcel 2.
+The host matrix exercises Parcel 2.16.4. This integration is a compatibility preview.
 
 ```sh
 npm install --save-dev parcel @vizejs/parcel-transformer
 npm install vue
 ```
 
-Add the SFC transformer and the CSS continuation to `.parcelrc`:
+Register the transformer and named component pipeline in `.parcelrc`:
 
 ```json
 {
   "extends": "@parcel/config-default",
   "transformers": {
     "*.vue": ["@vizejs/parcel-transformer"],
+    "vize-component:*.vue": ["@vizejs/parcel-transformer"],
     "*.css": ["@vizejs/parcel-transformer/style", "..."]
   }
 }
 ```
 
-The CSS continuation scopes styles after Parcel's preprocessor pipeline. Keep
-`"..."` so Parcel can resolve CSS imports, asset URLs, targets, and optimization.
+The named pipeline isolates component execution from style dependencies. The CSS
+continuation scopes styles after Parcel's preprocessor pipeline and preserves its
+normal processing.
 Install the corresponding Parcel transformer and preprocessor when using Sass,
 Less, or Stylus. The adapter does not download these providers itself.
 
@@ -53,8 +55,9 @@ variable names use project-relative filenames.
 
 Node targets use the native SSR backend and omit client CSS imports. Build a
 browser target as well to produce its styles. Development HMR conservatively
-reloads a changed component; local component state can reset. CSS-only
-dependencies are handled by Parcel's CSS HMR runtime.
+reloads a changed component; local component state can reset, including edits to
+inline SFC styles. CSS and Sass dependency updates preserve the component state
+without executing its script module again.
 
 Vapor output is opt-in with `"compiler": { "vapor": true }` and needs a Vue
 runtime that provides the corresponding helpers. The preview uses the default
@@ -71,3 +74,15 @@ and transformer, installs them in a fresh consumer, and checks production,
 browser rendering, scoped and preprocessed styles, assets, aliases, source maps,
 SSR, and failure cases. Source and public-provider preflight receipts are
 recorded separately.
+
+Production, SSR, CSS/Sass dependency updates and ordinary component HMR are
+qualified separately from post-error recovery. Parcel 2.16.4 can reload a stale
+HTTP-cached document after rapid compilation-error recovery
+([tracked issue](https://github.com/ubugeeei-prod/vize/issues/10736)). This remains
+an explicit failing frontier; content hashing alone is not a qualified workaround.
+The `test:recovery-frontier` script retains strict latest-source assertions
+with browser caching enabled.
+
+Parcel tracing (`shouldTrace: true`) records individual native compiler, parser,
+asset and CSS operations. These spans measure each NAPI call's inclusive wall
+time; internal Rust phases are not inferred from JavaScript samples.
