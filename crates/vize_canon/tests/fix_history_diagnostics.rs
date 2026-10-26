@@ -1006,6 +1006,17 @@ fn literal_reference_paths_preserve_complete_authored_diagnostics() {
 }
 
 #[test]
+fn content_mapper_experimental_router_context_preserves_published_page_types() {
+    check_pack(
+        "content-mapper-experimental-router-10526",
+        "content_mapper_experimental_router_context_preserves_published_page_types",
+        "190c82fb9c8bbdc2c519b335b1661563270f4d2c",
+        Some(10526),
+        &["published-page-valid", "published-page-invalid-number"],
+    );
+}
+
+#[test]
 fn component_input_copies_preserve_complete_authored_diagnostics() {
     check_pack(
         "component-input-diagnostic-owners-10607",
