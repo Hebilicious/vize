@@ -128,3 +128,33 @@ fn probes_that_differ_only_in_case_or_normalization_keep_their_stat() {
         );
     }
 }
+
+#[test]
+fn windows_alias_spellings_keep_their_stat() {
+    for name in ["LONGFI~1.TS", "Index.ts.", "Index.ts ", "Index.ts:stream"] {
+        assert!(super::may_alias_on_windows(name.as_bytes()), "{name}");
+    }
+    for name in ["Index.ts", "index.d.ts", ".gitignore", "a b.ts"] {
+        assert!(!super::may_alias_on_windows(name.as_bytes()), "{name}");
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_opens_listed_entries_through_alias_spellings() {
+    let root = tempfile::tempdir().unwrap();
+    let dir = root.path().join("pkg");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("Index.ts"), "export {};\n").unwrap();
+    let mut cache = PackagePathCache::default();
+    // Win32 strips trailing dots and spaces before the lookup, so these open
+    // `Index.ts`; the listing must leave them to the stat.
+    for probe in [dir.join("Index.ts."), dir.join("Index.ts ")] {
+        assert_eq!(
+            cache.is_file(&probe),
+            probe.is_file(),
+            "{}",
+            probe.display()
+        );
+    }
+}
