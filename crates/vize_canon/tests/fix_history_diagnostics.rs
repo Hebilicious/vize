@@ -1184,3 +1184,18 @@ fn custom_properties_resolve_on_the_template_instance() {
         ],
     );
 }
+
+#[test]
+fn dependency_probe_histories_preserve_complete_diagnostics() {
+    check_pack(
+        "dependency-probe-history-10936",
+        "dependency_probe_histories_preserve_complete_diagnostics",
+        "1266cd3a014654bbdcf3378500b93447411b26d9",
+        Some(10936),
+        &[
+            "valid-precedence-and-alias",
+            "invalid-authored-model",
+            "repaired-authored-model",
+        ],
+    );
+}
