@@ -100,7 +100,7 @@ fn rejects_transform_before_initialize() {
 }
 
 #[test]
-fn explicit_generic_arguments_parse_as_tsx() {
+fn explicit_generic_arguments_use_tsx_arrow_syntax() {
     let source = r#"<script setup lang="ts">
 import Picker from "./Picker.vue";
 </script>
@@ -115,10 +115,25 @@ import Picker from "./Picker.vue";
         transform_request(3, source),
     ]));
     let text = responses[2]["result"]["text"].as_str().unwrap();
-    let allocator = oxc_allocator::Allocator::default();
-    let parsed = oxc_parser::Parser::new(&allocator, text, oxc_span::SourceType::tsx()).parse();
 
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert_eq!(
+        text.matches("const __vizeExplicitGeneric = <C,>(component: C)")
+            .count(),
+        1,
+        "{text}"
+    );
+    assert_eq!(
+        text.matches("__vizeExplicitGeneric(Picker<\"a\" | \"b\">)")
+            .count(),
+        1,
+        "{text}"
+    );
+    assert_eq!(
+        text.matches("const __vizeExplicitGeneric = <C>(component: C)")
+            .count(),
+        0,
+        "{text}"
+    );
 }
 
 #[test]
