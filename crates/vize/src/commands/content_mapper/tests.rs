@@ -100,6 +100,28 @@ fn rejects_transform_before_initialize() {
 }
 
 #[test]
+fn explicit_generic_arguments_parse_as_tsx() {
+    let source = r#"<script setup lang="ts">
+import Picker from "./Picker.vue";
+</script>
+<template>
+  <!-- @vue-generic {"a" | "b"} -->
+  <Picker value="a" />
+</template>
+"#;
+    let responses = exchange(&frames(&[
+        initialize_request(),
+        open_project_request(2, Value::Null, json!({})),
+        transform_request(3, source),
+    ]));
+    let text = responses[2]["result"]["text"].as_str().unwrap();
+    let allocator = oxc_allocator::Allocator::default();
+    let parsed = oxc_parser::Parser::new(&allocator, text, oxc_span::SourceType::tsx()).parse();
+
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+}
+
+#[test]
 fn transform_honors_options_api_project_option() {
     let source = r#"<script lang="ts">
 export default { data() { return { count: 1 } } }
